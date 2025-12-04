@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>개인별 교육과정 설계표</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <!-- html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Custom Modules -->
+    <script src="js/theme.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/validation.js"></script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .speech-bubble {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: .4em;
+            padding: 1.5rem;
+            width: 100%;
+        }
+
+        .speech-bubble.error {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .speech-bubble.success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+
+        input[type="checkbox"]:disabled+label {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid var(--primary-color);
+            width: 24px;
+            height: 24px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .animated-gradient {
+            background: linear-gradient(-45deg, var(--primary-color), var(--secondary-color), #a855f7, #ec4899);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        /* Theme variables are handled by js/theme.js */
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+        }
+
+        input,
+        select {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 text-gray-800">
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="text-center text-white">
+            <div class="loader mx-auto mb-4"></div>
+            <p id="loading-message">시스템 접속 중...</p>
+        </div>
+    </div>
+
+    <!-- Error Overlay -->
+    <div id="error-overlay"
+        class="fixed inset-0 bg-gray-900 bg-opacity-90 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl max-w-md text-center">
+            <h2 class="text-2xl font-bold text-red-600 mb-4">접속 오류</h2>
+            <p id="error-message" class="text-gray-700 mb-6">잘못된 접근입니다.</p>
+            <p class="text-sm text-gray-500">관리자에게 문의하세요.</p>
+        </div>
+    </div>
+
+    <header class="w-full max-w-[80%] mx-auto my-8 flex justify-between items-end">
+        <div class="text-center p-8 rounded-xl shadow-lg animated-gradient flex-1 mr-4">
+            <h1 class="text-3xl md:text-4xl font-bold text-white">개인별 교육과정 설계표</h1>
+            <p class="mt-2 opacity-90 text-white">나만의 교육과정을 설계하고 미래를 준비하세요.</p>
+        </div>
+        <select id="theme-selector" class="p-2 rounded border shadow-sm bg-white text-gray-800 h-10">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="tokyo-night">Tokyo Night</option>
+            <option value="solarized-light">Solarized Light</option>
+        </select>
+    </header>
+
+    <div class="container mx-auto p-4 md:p-8 pt-0">
+        <!-- 학생 정보 입력 -->
+        <section id="student-info" class="card p-6 rounded-xl shadow-md mb-8 max-w-5xl mx-auto">
+            <h2 class="text-xl font-semibold mb-4 border-b pb-2 flex items-center" style="color: var(--primary-color)">
+                1. 학생 정보 입력
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
+                <div>
+                    <label for="grade" class="block text-sm font-medium mb-1">학년</label>
+                    <select id="grade" class="w-full p-2 border rounded-lg">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="class-number" class="block text-sm font-medium mb-1">반</label>
+                    <input type="number" id="class-number" class="w-full p-2 border rounded-lg" placeholder="예: 5">
+                </div>
+                <div>
+                    <label for="student-number" class="block text-sm font-medium mb-1">번호</label>
+                    <input type="number" id="student-number" class="w-full p-2 border rounded-lg" placeholder="예: 12">
+                </div>
+                <div class="col-span-2 md:col-span-1">
+                    <label for="student-name" class="block text-sm font-medium mb-1">이름</label>
+                    <input type="text" id="student-name" class="w-full p-2 border rounded-lg" placeholder="예: 홍길동">
+                </div>
+                <div class="col-span-2 md:col-span-5 lg:col-span-1">
+                    <label for="major" class="block text-sm font-medium mb-1">희망 진로/학과</label>
+                    <input type="text" id="major" class="w-full p-2 border rounded-lg" placeholder="예: AI 전문가">
+                </div>
+            </div>
+        </section>
+
+        <!-- 교육과정 설계 -->
+        <main class="grid lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
+
+            <!-- 과목 선택 영역 -->
+            <div id="course-selection" class="lg:col-span-2 card p-6 rounded-xl shadow-md">
+                <h2 class="text-xl font-semibold mb-6 border-b pb-2 flex items-center"
+                    style="color: var(--primary-color)">
+                    2. 과목 선택
+                </h2>
+                <div id="course-list" class="space-y-8"></div>
+                <div class="mt-8 pt-6 border-t">
+                    <div class="flex justify-between items-center">
+                        <div id="credit-info" class="text-lg font-bold">
+                            총 이수 학점: <span id="total-credits" style="color: var(--primary-color)">0</span> 학점
+                        </div>
+                        <button id="submit-btn"
+                            class="text-white font-bold py-2 px-6 rounded-lg transition-colors disabled:bg-gray-400"
+                            style="background-color: var(--primary-color)" disabled>
+                            제출하기
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 과목 선택 도우미 -->
+            <aside id="helper" class="lg:col-span-1">
+                <div class="sticky top-8">
+                    <h2 class="text-xl font-semibold mb-4 text-center flex items-center justify-center">
+                        과목 선택 도우미
+                    </h2>
+                    <div id="helper-message-container">
+                        <div class="speech-bubble w-full">
+                            <div id="helper-message" class="text-sm">
+                                안녕하세요! 희망 진로를 입력하면 과목을 추천해 드릴게요. 과목을 선택하면 규칙을 잘 지키고 있는지 알려드릴게요!
+                            </div>
+                            <div id="ai-loader" class="hidden justify-center items-center mt-2">
+                                <div class="loader"></div>
+                                <span class="ml-3 text-sm">진로에 맞는 과목을 분석중입니다...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 선택 과목 및 공동교육과정 -->
+            <aside id="right-panel" class="lg:col-span-1 space-y-8">
+                <div class="sticky top-8">
+                    <div id="selected-courses-container">
+                        <h2 class="text-xl font-semibold mb-4 text-center flex items-center justify-center">
+                            선택한 과목
+                        </h2>
+                        <div id="selected-courses-table"
+                            class="card rounded-xl shadow-md max-h-[45vh] overflow-y-auto p-2"></div>
+                    </div>
+
+                    <div id="joint-curriculum-container" class="mt-8">
+                        <h2 class="text-xl font-semibold mb-4 text-center flex items-center justify-center">
+                            공동교육과정
+                        </h2>
+                        <div class="card p-4 rounded-xl shadow-md">
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="joint-category" class="block text-sm font-medium">과목 계열</label>
+                                    <select id="joint-category" class="mt-1 w-full p-2 border rounded-lg"></select>
+                                </div>
+                                <div>
+                                    <label for="joint-name" class="block text-sm font-medium">과목명</label>
+                                    <input type="text" id="joint-name" class="mt-1 w-full p-2 border rounded-lg"
+                                        placeholder="예: 고급수학">
+                                </div>
+                                <div>
+                                    <label for="joint-credits" class="block text-sm font-medium">학점</label>
+                                    <input type="number" id="joint-credits" class="mt-1 w-full p-2 border rounded-lg"
+                                        placeholder="예: 3">
+                                </div>
+                                <button id="add-joint-course-btn"
+                                    class="w-full text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                                    style="background-color: var(--secondary-color)">공동교육과정 추가</button>
+                            </div>
+                            <ul id="joint-courses-list" class="mt-4 space-y-2"></ul>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- 제출 확인 모달 -->
+        <div id="submission-modal"
+            class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50 flex items-center justify-center">
+            <div class="relative p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">최종 선택 과목 확인</h3>
+                    <div id="final-selection-container"
+                        class="mt-4 p-4 bg-gray-50 rounded-lg max-h-[60vh] overflow-y-auto"></div>
+                    <div id="submission-status" class="mt-4 text-center"></div>
+                    <div class="items-center px-4 py-3 mt-4 flex flex-col sm:flex-row-reverse gap-2">
+                        <button id="confirm-submit-btn"
+                            class="w-full sm:w-auto px-4 py-2 text-white text-base font-medium rounded-md shadow-sm focus:outline-none"
+                            style="background-color: var(--primary-color)">제출</button>
+                        <button id="save-image-btn"
+                            class="w-full sm:w-auto px-4 py-2 text-white text-base font-medium rounded-md shadow-sm focus:outline-none"
+                            style="background-color: var(--secondary-color)">이미지로 저장하기</button>
+                        <button id="cancel-submit-btn"
+                            class="w-full sm:w-auto mt-2 sm:mt-0 px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none">취소</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global State
+        let PROCESSED_COURSES = [];
+        let jointCourses = [];
+        const selectionLimits = { '2-1': { max: 4, label: '선택과목 중 최대 4개 선택' }, '2-2': { max: 4, label: '선택과목 중 최대 4개 선택' }, '3-1': { max: 7, label: '선택과목 중 최대 7개 선택' }, '3-2': { max4: 5, max3: 2, label: '선택과목 중 4학점 5개, 3학점 2개 선택' } };
+
+        // DOM Elements
+        const courseListEl = document.getElementById('course-list');
+        const totalCreditsEl = document.getElementById('total-credits');
+        const helperMsgEl = document.getElementById('helper-message');
+        const aiLoader = document.getElementById('ai-loader');
+        const helperMsgContainerEl = document.getElementById('helper-message-container');
+        const submitBtn = document.getElementById('submit-btn');
+        const submitModalEl = document.getElementById('submission-modal');
+        const confirmBtn = document.getElementById('confirm-submit-btn');
+        const cancelBtn = document.getElementById('cancel-submit-btn');
+        const submitStatusEl = document.getElementById('submission-status');
+        const selectedCoursesEl = document.getElementById('selected-courses-table');
+        const finalSelectionEl = document.getElementById('final-selection-container');
+        const saveImgBtn = document.getElementById('save-image-btn');
+        const jointCategoryEl = document.getElementById('joint-category');
+        const jointNameEl = document.getElementById('joint-name');
+        const jointCreditsEl = document.getElementById('joint-credits');
+        const addJointBtn = document.getElementById('add-joint-course-btn');
+        const jointCoursesEl = document.getElementById('joint-courses-list');
+
+        // Inputs
+        const gradeEl = document.getElementById('grade');
+        const classNumEl = document.getElementById('class-number');
+        const studentNumEl = document.getElementById('student-number');
+        const studentNameEl = document.getElementById('student-name');
+        const majorInput = document.getElementById('major');
+
+        // Initialization
+        async function init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const encodedKey = urlParams.get('key');
+
+            if (!encodedKey) {
+                document.getElementById('loading-overlay').classList.add('hidden');
+                document.getElementById('error-overlay').classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const apiUrl = atob(encodedKey);
+                DB.init(apiUrl);
+
+                document.getElementById('loading-message').textContent = '과목 데이터를 불러오는 중...';
+                const courseData = await DB.fetchConfig();
+
+                if (courseData && courseData.length > 0) {
+                    PROCESSED_COURSES = courseData.map(c => ({
+                        ...c,
+                        id: `${c.slug}-${c.grade}-${c.semester}`,
+                        required: (c.required === true || c.required === 'TRUE' || c.required === 'true'),
+                        offered: (c.offered === true || c.offered === 'TRUE' || c.offered === 'true')
+                    }));
+                    renderCourses();
+                    initJointCourses();
+                    validateSelections();
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                } else {
+                    throw new Error('등록된 과목 데이터가 없습니다.');
+                }
+            } catch (e) {
+                console.error(e);
+                document.getElementById('loading-overlay').classList.add('hidden');
+                document.getElementById('error-message').textContent = '시스템 접속 실패: ' + e.message;
+                document.getElementById('error-overlay').classList.remove('hidden');
+            }
+        }
+
+        function renderCourses() {
+            courseListEl.innerHTML = '';
+            const gradeSemesterPairs = [{ grade: 1, semester: 1 }, { grade: 1, semester: 2 }, { grade: 2, semester: 1 }, { grade: 2, semester: 2 }, { grade: 3, semester: 1 }, { grade: 3, semester: 2 }];
+
+            gradeSemesterPairs.forEach(({ grade, semester }) => {
+                const coursesForGroup = PROCESSED_COURSES.filter(c => c.grade == grade && c.semester == semester && c.offered);
+                if (coursesForGroup.length === 0) return;
+
+                const groupKey = `${grade}-${semester}`;
+                const limit = selectionLimits[groupKey];
+
+                const groupSection = document.createElement('div');
+                groupSection.id = `group-${groupKey}`;
+
+                const titleContainer = document.createElement('div');
+                titleContainer.className = 'flex justify-between items-baseline mb-2';
+                titleContainer.innerHTML = `<h3 class="text-lg font-semibold" style="color: var(--primary-color)">${grade}학년 ${semester}학기</h3>${limit ? `<p class="text-sm opacity-70">${limit.label}</p>` : ''}`;
+                groupSection.appendChild(titleContainer);
+
+                const courseGrid = document.createElement('div');
+                courseGrid.className = 'grid sm:grid-cols-2 md:grid-cols-3 gap-4 border-t pt-4';
+
+                coursesForGroup.forEach(course => {
+                    const courseEl = document.createElement('div');
+                    courseEl.className = 'flex items-center p-3 rounded-lg border bg-opacity-50 hover:bg-opacity-100 transition-all';
+                    courseEl.style.backgroundColor = 'var(--hover-bg)';
+                    courseEl.style.borderColor = 'var(--border-color)';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `course-${course.id}`;
+                    checkbox.value = course.id;
+                    checkbox.dataset.isRequired = course.required;
+                    checkbox.dataset.name = course.name;
+                    checkbox.dataset.slug = course.slug;
+                    checkbox.className = 'h-5 w-5 rounded border-gray-300 focus:ring-2';
+
+                    if (course.required) {
+                        checkbox.checked = true;
+                        checkbox.disabled = true;
+                    }
+
+                    const label = document.createElement('label');
+                    label.htmlFor = `course-${course.id}`;
+                    label.className = 'ml-3 block text-sm font-medium flex-1 cursor-pointer';
+                    label.innerHTML = `${course.name} <span class="text-xs opacity-70">(${course.credits}학점)</span>`;
+
+                    courseEl.appendChild(checkbox);
+                    courseEl.appendChild(label);
+                    courseGrid.appendChild(courseEl);
+                });
+
+                groupSection.appendChild(courseGrid);
+                courseListEl.appendChild(groupSection);
+            });
+
+            courseListEl.querySelectorAll('input[type="checkbox"]').forEach(checkbox => checkbox.addEventListener('change', validateSelections));
+        }
+
+        function getSelected() {
+            const selectedIds = Array.from(courseListEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+            return PROCESSED_COURSES.filter(course => selectedIds.includes(course.id));
+        }
+
+        function validateSelections() {
+            // 1. Duplicate Check (Disable same course in other semesters)
+            const selectedSlugs = new Set();
+            const checkboxes = courseListEl.querySelectorAll('input[type="checkbox"]');
+
+            // First pass: collect selected slugs
+            checkboxes.forEach(cb => {
+                if (cb.checked) selectedSlugs.add(cb.dataset.slug);
+            });
+
+            // Second pass: disable duplicates
+            checkboxes.forEach(cb => {
+                if (!cb.checked && !cb.dataset.isRequired) {
+                    if (selectedSlugs.has(cb.dataset.slug)) {
+                        cb.disabled = true;
+                    } else {
+                        cb.disabled = false;
+                    }
+                }
+            });
+
+            // 2. Apply Limits (Max count per semester)
+            for (const key in selectionLimits) {
+                const [grade, semester] = key.split('-').map(Number);
+                const limit = selectionLimits[key];
+                const groupContainer = document.getElementById(`group-${grade}-${semester}`);
+                if (!groupContainer) continue;
+
+                const groupCheckboxes = groupContainer.querySelectorAll('input[type="checkbox"]');
+                const selectedOptional = Array.from(groupCheckboxes).filter(cb => cb.checked && cb.dataset.isRequired !== 'true');
+
+                if (key === '3-2') {
+                    // Special logic for 3-2
+                    const selected4 = selectedOptional.filter(cb => PROCESSED_COURSES.find(c => c.id === cb.value).credits === 4).length;
+                    const selected3 = selectedOptional.filter(cb => PROCESSED_COURSES.find(c => c.id === cb.value).credits === 3).length;
+
+                    groupCheckboxes.forEach(cb => {
+                        if (!cb.checked && cb.dataset.isRequired !== 'true' && !cb.disabled) { // Don't re-enable if disabled by duplicate check
+                            const course = PROCESSED_COURSES.find(c => c.id === cb.value);
+                            if (course.credits === 4 && selected4 >= limit.max4) cb.disabled = true;
+                            if (course.credits === 3 && selected3 >= limit.max3) cb.disabled = true;
+                        }
+                    });
+                } else {
+                    if (selectedOptional.length >= limit.max) {
+                        groupCheckboxes.forEach(cb => {
+                            if (!cb.checked && cb.dataset.isRequired !== 'true') cb.disabled = true;
+                        });
+                    }
+                }
+            }
+
+            // 3. Render Selected List
+            renderSelectedCourses();
+
+            // 4. Run Validation Logic
+            const selectedCourses = getSelected();
+            const result = Validation.validate(selectedCourses, jointCourses, selectionLimits);
+
+            // Update UI
+            let totalCredits = 0;
+            selectedCourses.forEach(c => totalCredits += c.credits);
+            jointCourses.forEach(c => totalCredits += c.credits);
+            totalCreditsEl.textContent = totalCredits;
+
+            showHelperMsg(result.messages.join('<br>'), result.type);
+        }
+
+        function renderSelectedCourses() {
+            const courses = getSelected();
+            if (courses.length === 0 && jointCourses.length === 0) {
+                selectedCoursesEl.innerHTML = '<p class="text-center opacity-50 p-4">선택한 과목이 없습니다.</p>';
+                return;
+            }
+
+            let html = '<ul class="space-y-1 text-sm">';
+            courses.forEach(c => {
+                html += `<li class="flex justify-between p-2 rounded bg-white border"><span>${c.name}</span><span class="opacity-70">${c.credits}학점</span></li>`;
+            });
+            jointCourses.forEach(c => {
+                html += `<li class="flex justify-between p-2 rounded bg-blue-50 border border-blue-100"><span>[공동] ${c.name}</span><span class="opacity-70">${c.credits}학점</span></li>`;
+            });
+            html += '</ul>';
+            selectedCoursesEl.innerHTML = html;
+        }
+
+        function showHelperMsg(msg, type) {
+            helperMsgEl.innerHTML = msg;
+            const bubble = helperMsgContainerEl.querySelector('.speech-bubble');
+            bubble.classList.remove('error', 'success');
+            if (type) bubble.classList.add(type);
+        }
+
+        // Joint Courses
+        function initJointCourses() {
+            const subCategories = ['국어', '수학', '영어', '사회', '과학', '체육', '예술', '제2외국어', '교양', '정보'];
+            jointCategoryEl.innerHTML = subCategories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+
+            addJointBtn.addEventListener('click', () => {
+                const name = jointNameEl.value.trim();
+                const credits = parseInt(jointCreditsEl.value, 10);
+                const subCategory = jointCategoryEl.value;
+
+                if (name && credits > 0) {
+                    jointCourses.push({ id: `joint-${Date.now()}`, name, credits, subCategory, category: '기타', isJoint: true });
+                    jointNameEl.value = '';
+                    jointCreditsEl.value = '';
+                    renderJointList();
+                    validateSelections();
+                } else {
+                    alert('과목명과 학점을 올바르게 입력해주세요.');
+                }
+            });
+        }
+
+        function renderJointList() {
+            jointCoursesEl.innerHTML = jointCourses.map((c, i) => `
+                <li class="flex justify-between items-center bg-gray-100 p-2 rounded">
+                    <span>${c.name} (${c.credits}학점) - ${c.subCategory}</span>
+                    <button onclick="removeJoint(${i})" class="text-red-500 font-bold">&times;</button>
+                </li>
+            `).join('');
+        }
+
+        window.removeJoint = (index) => {
+            jointCourses.splice(index, 1);
+            renderJointList();
+            validateSelections();
+        };
+
+        // Student Info Validation
+        function validateInfo() {
+            const valid = gradeEl.value && classNumEl.value && studentNumEl.value && studentNameEl.value && majorInput.value;
+            submitBtn.disabled = !valid;
+        }
+        [gradeEl, classNumEl, studentNumEl, studentNameEl, majorInput].forEach(el => el.addEventListener('input', validateInfo));
+
+        // Submit Logic
+        submitBtn.addEventListener('click', () => {
+            renderFinalDashboard();
+            submitModalEl.classList.remove('hidden');
+        });
+
+        cancelBtn.addEventListener('click', () => submitModalEl.classList.add('hidden'));
+
+        confirmBtn.addEventListener('click', async () => {
+            confirmBtn.disabled = true;
+            submitStatusEl.innerHTML = '<div class="loader mx-auto"></div><p class="mt-2">제출 중...</p>';
+
+            const data = {
+                grade: gradeEl.value,
+                classNumber: classNumEl.value,
+                studentNumber: studentNumEl.value,
+                studentName: studentNameEl.value,
+                major: majorInput.value,
+                selectedSchoolCourses: getSelected().map(c => c.name).join(', '),
+                selectedJointCourses: jointCourses.map(c => `${c.name}(${c.credits})`).join(', '),
+                totalCredits: totalCreditsEl.textContent
+            };
+
+            try {
+                await DB.submitResponse(data);
+                submitStatusEl.innerHTML = '<p class="text-green-600 font-bold text-lg">제출이 완료되었습니다!</p>';
+                setTimeout(() => {
+                    alert('제출되었습니다. 감사합니다.');
+                    window.location.reload();
+                }, 2000);
+            } catch (e) {
+                submitStatusEl.innerHTML = `<p class="text-red-600">오류 발생: ${e.message}</p>`;
+                confirmBtn.disabled = false;
+            }
+        });
+
+        function renderFinalDashboard() {
+            const courses = getSelected();
+            let html = '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">';
+
+            // Group by semester
+            const grouped = {};
+            courses.forEach(c => {
+                const k = `${c.grade}-${c.semester}`;
+                if (!grouped[k]) grouped[k] = [];
+                grouped[k].push(c);
+            });
+
+            Object.keys(grouped).sort().forEach(k => {
+                const [g, s] = k.split('-');
+                html += `<div class="border p-3 rounded bg-white">
+                    <h4 class="font-bold text-purple-600 mb-2">${g}학년 ${s}학기</h4>
+                    <ul class="text-sm space-y-1">
+                        ${grouped[k].map(c => `<li>${c.name} (${c.credits})</li>`).join('')}
+                    </ul>
+                </div>`;
+            });
+
+            if (jointCourses.length > 0) {
+                html += `<div class="border p-3 rounded bg-white">
+                    <h4 class="font-bold text-pink-600 mb-2">공동교육과정</h4>
+                    <ul class="text-sm space-y-1">
+                        ${jointCourses.map(c => `<li>${c.name} (${c.credits})</li>`).join('')}
+                    </ul>
+                </div>`;
+            }
+            html += '</div>';
+            finalSelectionEl.innerHTML = html;
+        }
+
+        // AI Recommendation Logic
+        let debounceTimer;
+        majorInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                const major = majorInput.value.trim();
+                if (major && major !== '탐색중') getAiRecs(major);
+                else showHelperMsg('안녕하세요! 희망 진로를 입력하면 과목을 추천해 드릴게요. 과목을 선택하면 규칙을 잘 지키고 있는지 알려드릴게요!');
+            }, 1000);
+        });
+
+        async function getAiRecs(major) {
+            helperMsgEl.classList.add('hidden');
+            aiLoader.classList.remove('hidden');
+
+            const availableCourses = PROCESSED_COURSES.filter(c => !c.required).map(c => c.name).join(', ');
+
+            try {
+                // Call Netlify Function instead of direct OpenAI API
+                const response = await fetch('/.netlify/functions/ai-recommendation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ major, availableCourses })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error ? errorData.error.message : 'API 요청 실패');
+                }
+
+                const result = await response.json();
+                if (result.choices && result.choices.length > 0) {
+                    const recommendationText = result.choices[0].message.content;
+                    showHelperMsg(`<strong>[${major}] 맞춤 과목 추천:</strong><br><br>${recommendationText.replace(/\n/g, '<br>')}`, 'info');
+                } else {
+                    throw new Error("API로부터 유효한 응답을 받지 못했습니다.");
+                }
+            } catch (error) {
+                console.error('AI 추천 기능 오류:', error);
+                showHelperMsg(`AI 추천 기능 오류: ${error.message}<br><br>Netlify 환경변수(OPENAI_API_KEY)가 설정되었는지 확인해주세요.`, 'error');
+            } finally {
+                aiLoader.classList.add('hidden');
+                helperMsgEl.classList.remove('hidden');
+            }
+        }
+
+        // Image Save
+        saveImgBtn.addEventListener('click', () => {
+            html2canvas(finalSelectionEl).then(canvas => {
+                const link = document.createElement('a');
+                link.download = '나의_교육과정_설계표.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        });
+
+        // Start
+        document.addEventListener('DOMContentLoaded', init);
+
+    </script>
+</body>
+
+</html>
