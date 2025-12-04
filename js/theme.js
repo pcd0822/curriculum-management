@@ -15,16 +15,16 @@ const themes = {
         '--input-bg': '#ffffff',
         '--hover-bg': '#f3f4f6'
     },
-    'dark': {
-        '--bg-color': '#111827',
-        '--text-color': '#f9fafb',
-        '--card-bg': '#1f2937',
-        '--border-color': '#374151',
-        '--primary-color': '#a78bfa',
-        '--secondary-color': '#f472b6',
+    'dark-neon': {
+        '--bg-color': '#0f172a', // Very dark slate
+        '--text-color': '#e2e8f0', // Light slate
+        '--card-bg': '#1e293b', // Dark slate
+        '--border-color': '#334155', // Slate border
+        '--primary-color': '#2dd4bf', // Teal-400 (Neon-ish)
+        '--secondary-color': '#f472b6', // Pink-400 (Neon-ish)
         '--header-text': '#ffffff',
-        '--input-bg': '#374151',
-        '--hover-bg': '#374151'
+        '--input-bg': '#1e293b',
+        '--hover-bg': '#334155'
     },
     'tokyo-night': {
         '--bg-color': '#1a1b26',
@@ -53,14 +53,14 @@ const themes = {
 function applyTheme(themeName) {
     const theme = themes[themeName] || themes['light'];
     const root = document.documentElement;
-    
+
     for (const [property, value] of Object.entries(theme)) {
         root.style.setProperty(property, value);
     }
-    
+
     // Save preference
     localStorage.setItem('theme', themeName);
-    
+
     // Update dropdown if exists
     const selector = document.getElementById('theme-selector');
     if (selector) selector.value = themeName;
@@ -69,7 +69,7 @@ function applyTheme(themeName) {
 function initTheme() {
     const savedTheme = localStorage.getItem('theme') || 'light';
     applyTheme(savedTheme);
-    
+
     const selector = document.getElementById('theme-selector');
     if (selector) {
         selector.value = savedTheme;
