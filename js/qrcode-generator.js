@@ -32,7 +32,7 @@ const QRCodeGenerator = {
                 height: size,
                 colorDark: "#000000",
                 colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
+                correctLevel: QRCode.CorrectLevel.L
             });
         } catch (e) {
             console.error("QR Code generation failed:", e);
