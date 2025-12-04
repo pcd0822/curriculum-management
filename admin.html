@@ -403,6 +403,33 @@
         // Initialize
         loadConfig();
     </script>
+    <!-- Floating Theme Selector -->
+    <div
+        class="fixed bottom-6 left-6 z-50 flex items-center gap-2 bg-white p-2 rounded-full shadow-lg border hover:shadow-xl transition-shadow">
+        <span class="text-xl pl-2">🎨</span>
+        <select id="theme-selector"
+            class="bg-transparent border-none focus:ring-0 text-sm font-medium cursor-pointer pr-8 py-1">
+            <option value="light">Light Mode</option>
+            <option value="dark-neon">Dark Neon</option>
+            <option value="tokyo-night">Tokyo Night</option>
+            <option value="solarized-light">Solarized Light</option>
+        </select>
+    </div>
+    <script>
+        // Initialize theme selector for admin page
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeSelector = document.getElementById('theme-selector');
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            themeSelector.value = savedTheme;
+            applyTheme(savedTheme);
+
+            themeSelector.addEventListener('change', (e) => {
+                const theme = e.target.value;
+                applyTheme(theme);
+                localStorage.setItem('theme', theme);
+            });
+        });
+    </script>
 </body>
 
 </html>
