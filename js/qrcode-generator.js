@@ -12,17 +12,32 @@ const QRCodeGenerator = {
      */
     generate: (element, text, size = 128) => {
         const container = typeof element === 'string' ? document.getElementById(element) : element;
-        if (!container) return;
+        if (!container) {
+            console.error("QR Code container not found");
+            return;
+        }
+
+        if (typeof QRCode === 'undefined') {
+            console.error("QRCode library not loaded");
+            container.innerHTML = '<p class="text-red-500">QR Code library missing</p>';
+            return;
+        }
 
         container.innerHTML = ''; // Clear previous
-        new QRCode(container, {
-            text: text,
-            width: size,
-            height: size,
-            colorDark: "#000000",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H
-        });
+
+        try {
+            new QRCode(container, {
+                text: text,
+                width: size,
+                height: size,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        } catch (e) {
+            console.error("QR Code generation failed:", e);
+            container.innerHTML = '<p class="text-red-500">QR Generation Failed</p>';
+        }
     }
 };
 
