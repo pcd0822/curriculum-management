@@ -351,11 +351,28 @@
         async function loadRulesAndClassification() {
             if (!DB.isConfigured()) return;
 
-            // Load Courses
-            const courses = await DB.fetchConfig();
+            // 1. Fetch Data First (Parallel)
+            let courses = [];
+            let settings = {};
+
+            try {
+                [courses, settings] = await Promise.all([
+                    DB.fetchConfig(),
+                    DB.fetchSettings().catch(() => ({}))
+                ]);
+            } catch (e) {
+                console.error('Data load failed', e);
+                return;
+            }
+
             if (!courses) return;
 
-            // Render Classification
+            // 2. Update State
+            if (settings && settings.selectionRules) {
+                currentRules = settings.selectionRules;
+            }
+
+            // 3. Render Classification
             const container = document.getElementById('course-classification-view');
             container.innerHTML = '';
 
@@ -388,19 +405,9 @@
                 container.appendChild(section);
             });
 
-            // Render Limit Config (Advanced)
+            // 4. Render Limit Config (Advanced)
             const limitContainer = document.getElementById('limit-config-container');
-            limitContainer.innerHTML = '';
-
-            // Fetch existing settings
-            try {
-                const settings = await DB.fetchSettings();
-                if (settings.selectionRules) {
-                    currentRules = settings.selectionRules;
-                }
-            } catch (e) {
-                console.log('No settings found');
-            }
+            limitContainer.innerHTML = ''; // Clear immediately before appending
 
             ['2-1', '2-2', '3-1', '3-2'].forEach(key => {
                 const [g, s] = key.split('-');
