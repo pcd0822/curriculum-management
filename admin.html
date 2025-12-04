@@ -85,162 +85,171 @@
 </head>
 
 <body class="min-h-screen p-8">
-    <header class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold theme-text">관리자 대시보드</h1>
-        <a href="index.html" target="_blank" class="text-blue-600 hover:underline">학생 페이지 보기 &rarr;</a>
-    </header>
+    <div class="max-w-6xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold theme-text">관리자 대시보드</h1>
+            <a href="index.html" target="_blank" class="text-blue-600 hover:underline">학생 페이지 보기 &rarr;</a>
+        </header>
 
-    <!-- Tabs -->
-    <div class="flex border-b mb-6 theme-border">
-        <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600 active" onclick="switchTab('system')">시스템
-            설정</button>
-        <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('courses')">과목 데이터
-            관리</button>
-        <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('rules')">선택
-            규칙</button>
-        <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('share')">배포 및
-            공유</button>
-        <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('dashboard')">학생 신청
-            현황</button>
-    </div>
-
-    <!-- 1. System Config -->
-    <div id="tab-system" class="tab-content">
-        <div class="theme-card p-6 rounded-lg shadow-md max-w-2xl">
-            <h2 class="text-xl font-semibold mb-4 theme-text">Google Apps Script API 설정</h2>
-            <p class="text-sm mb-4 theme-text-muted">배포된 Google Apps Script 웹 앱 URL을 입력하세요. 이 URL은 데이터베이스(Google
-                Sheets)와의 통신에 사용됩니다.</p>
-            <div class="mb-4">
-                <label class="block text-sm font-medium mb-1 theme-text">API URL</label>
-                <input type="text" id="api-url" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://script.google.com/macros/s/.../exec">
-            </div>
-            <div class="flex gap-2">
-                <button id="save-url-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">저장</button>
-                <button id="test-connection-btn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300"
-                    style="background-color: var(--hover-bg); color: var(--text-color)">연결 테스트</button>
-            </div>
-            <div id="connection-status" class="mt-4 text-sm"></div>
+        <!-- Tabs -->
+        <div class="flex border-b mb-6 theme-border">
+            <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600 active"
+                onclick="switchTab('system')">시스템 설정</button>
+            <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('courses')">과목 데이터
+                관리</button>
+            <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('rules')">선택
+                규칙</button>
+            <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('share')">배포 및
+                공유</button>
+            <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('dashboard')">학생
+                신청
+                현황</button>
         </div>
-    </div>
 
-    <!-- 2. Course Data Management -->
-    <div id="tab-courses" class="tab-content hidden">
-        <div class="grid md:grid-cols-2 gap-6">
-            <div class="theme-card p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-4 theme-text">과목 엑셀 업로드</h2>
-                <p class="text-sm mb-4 theme-text-muted">'편제표' 시트가 포함된 엑셀 파일을 업로드하세요. 기존 데이터는 덮어씌워집니다.</p>
-                <div class="space-y-4">
-                    <button onclick="ExcelHandler.downloadTemplate()"
-                        class="text-blue-600 hover:underline text-sm flex items-center">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                        </svg>
-                        템플릿 양식 다운로드
-                    </button>
-                    <input type="file" id="course-excel-file" accept=".xlsx, .xls"
-                        class="block w-full text-sm theme-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                    <button id="upload-course-btn"
-                        class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">데이터 업로드 및
-                        저장</button>
+        <!-- 1. System Config -->
+        <div id="tab-system" class="tab-content">
+            <div class="theme-card p-6 rounded-lg shadow-md max-w-2xl">
+                <h2 class="text-xl font-semibold mb-4 theme-text">Google Apps Script API 설정</h2>
+                <p class="text-sm mb-4 theme-text-muted">배포된 Google Apps Script 웹 앱 URL을 입력하세요. 이 URL은 데이터베이스(Google
+                    Sheets)와의 통신에 사용됩니다.</p>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1 theme-text">API URL</label>
+                    <input type="text" id="api-url" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
+                        placeholder="https://script.google.com/macros/s/.../exec">
                 </div>
-                <div id="upload-status" class="mt-4 text-sm"></div>
-            </div>
-
-            <div class="theme-card p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-4 theme-text">현재 등록된 과목</h2>
-                <div id="current-course-count" class="text-3xl font-bold mb-2 theme-text">-</div>
-                <p class="text-sm theme-text-muted">개의 과목이 등록되어 있습니다.</p>
-                <button id="refresh-course-btn" class="mt-4 text-sm text-blue-600 hover:underline">새로고침</button>
+                <div class="flex gap-2">
+                    <button id="save-url-btn"
+                        class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">저장</button>
+                    <button id="test-connection-btn"
+                        class="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300"
+                        style="background-color: var(--hover-bg); color: var(--text-color)">연결 테스트</button>
+                </div>
+                <div id="connection-status" class="mt-4 text-sm"></div>
             </div>
         </div>
-    </div>
 
-    <!-- 2.5 Selection Rules -->
-    <div id="tab-rules" class="tab-content hidden">
-        <div class="grid md:grid-cols-2 gap-6">
-            <!-- Limit Configuration -->
-            <div class="theme-card p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-4 theme-text">학년-학기별 선택 규칙 설정</h2>
-                <p class="text-sm mb-4 theme-text-muted">각 학기별로 학생이 선택해야 하는 과목 수를 설정하세요.</p>
-                <div id="limit-config-container" class="space-y-4">
-                    <!-- Dynamic Content -->
+        <!-- 2. Course Data Management -->
+        <div id="tab-courses" class="tab-content hidden">
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="theme-card p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 theme-text">과목 엑셀 업로드</h2>
+                    <p class="text-sm mb-4 theme-text-muted">'편제표' 시트가 포함된 엑셀 파일을 업로드하세요. 기존 데이터는 덮어씌워집니다.</p>
+                    <div class="space-y-4">
+                        <button onclick="ExcelHandler.downloadTemplate()"
+                            class="text-blue-600 hover:underline text-sm flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            템플릿 양식 다운로드
+                        </button>
+                        <input type="file" id="course-excel-file" accept=".xlsx, .xls"
+                            class="block w-full text-sm theme-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                        <button id="upload-course-btn"
+                            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">데이터 업로드 및
+                            저장</button>
+                    </div>
+                    <div id="upload-status" class="mt-4 text-sm"></div>
                 </div>
-                <button id="save-rules-btn"
-                    class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full">규칙 저장</button>
-            </div>
 
-            <!-- Course Classification View -->
-            <div class="theme-card p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-4 theme-text">과목 편제 확인</h2>
-                <p class="text-sm mb-4 theme-text-muted">등록된 과목이 학년-학기별로 올바르게 분류되었는지 확인하세요.</p>
-                <div id="course-classification-view" class="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar">
-                    <!-- Dynamic Content -->
+                <div class="theme-card p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 theme-text">현재 등록된 과목</h2>
+                    <div id="current-course-count" class="text-3xl font-bold mb-2 theme-text">-</div>
+                    <p class="text-sm theme-text-muted">개의 과목이 등록되어 있습니다.</p>
+                    <button id="refresh-course-btn" class="mt-4 text-sm text-blue-600 hover:underline">새로고침</button>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- 3. Share & Deploy -->
-    <div id="tab-share" class="tab-content hidden">
-        <div class="theme-card p-6 rounded-lg shadow-md max-w-2xl">
-            <h2 class="text-xl font-semibold mb-4 theme-text">학생용 링크 생성</h2>
-            <p class="text-sm mb-4 theme-text-muted">아래 QR 코드 또는 링크를 학생들에게 공유하세요. 링크에는 API URL 정보가 포함되어 있어 학생들이 별도의 설정
-                없이 바로
-                접속할 수 있습니다.</p>
+        <!-- 2.5 Selection Rules -->
+        <div id="tab-rules" class="tab-content hidden">
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- Limit Configuration -->
+                <div class="theme-card p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 theme-text">학년-학기별 선택 규칙 설정</h2>
+                    <p class="text-sm mb-4 theme-text-muted">각 학기별로 학점 단위 선택 규칙을 추가하세요.<br>(예: 4학점 과목 5개 선택)</p>
 
-            <div id="share-container" class="hidden">
-                <div class="flex flex-col items-center p-4 rounded border mb-4 theme-border"
-                    style="background-color: var(--card-bg)">
-                    <div id="qrcode" class="mb-4 bg-white p-2 rounded"></div>
-                    <p class="text-sm font-mono break-all text-center theme-text-muted" id="share-link-text"></p>
+                    <div id="limit-config-container" class="space-y-6">
+                        <!-- Dynamic Content -->
+                    </div>
+
+                    <button id="save-rules-btn"
+                        class="mt-6 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full">규칙 저장</button>
                 </div>
-                <button id="copy-link-btn"
-                    class="w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">링크 복사하기</button>
-            </div>
-            <div id="share-error" class="hidden text-red-500">시스템 설정에서 API URL을 먼저 설정해주세요.</div>
-        </div>
-    </div>
 
-    <!-- 4. Student Dashboard -->
-    <div id="tab-dashboard" class="tab-content hidden">
-        <div class="flex justify-between items-center mb-4">
-            <div class="flex gap-2">
-                <select id="filter-grade" class="p-2 border rounded">
-                    <option value="">전체 학년</option>
-                    <option value="1">1학년</option>
-                    <option value="2">2학년</option>
-                    <option value="3">3학년</option>
-                </select>
-                <select id="filter-class" class="p-2 border rounded">
-                    <option value="">전체 반</option>
-                    <!-- Options will be populated dynamically -->
-                </select>
-                <button id="refresh-data-btn" class="px-3 py-2 rounded hover:bg-gray-300"
-                    style="background-color: var(--hover-bg)">🔄</button>
+                <!-- Course Classification View -->
+                <div class="theme-card p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 theme-text">과목 편제 확인</h2>
+                    <p class="text-sm mb-4 theme-text-muted">등록된 과목이 학년-학기별로 올바르게 분류되었는지 확인하세요.</p>
+                    <div id="course-classification-view"
+                        class="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar">
+                        <!-- Dynamic Content -->
+                    </div>
+                </div>
             </div>
-            <button id="download-matrix-btn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">엑셀
-                다운로드 (0/1 매트릭스)</button>
         </div>
-        <div class="overflow-x-auto rounded-lg shadow-md theme-card">
-            <table class="w-full text-sm text-left">
-                <thead class="uppercase" style="background-color: var(--hover-bg); color: var(--text-muted)">
-                    <tr>
-                        <th class="px-4 py-3">시간</th>
-                        <th class="px-4 py-3">학번</th>
-                        <th class="px-4 py-3">이름</th>
-                        <th class="px-4 py-3">진로</th>
-                        <th class="px-4 py-3">총 학점</th>
-                        <th class="px-4 py-3">검증 결과</th>
-                    </tr>
-                </thead>
-                <tbody id="student-table-body">
-                    <tr>
-                        <td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터를 불러오는 중...</td>
-                    </tr>
-                </tbody>
-            </table>
+
+        <!-- 3. Share & Deploy -->
+        <div id="tab-share" class="tab-content hidden">
+            <div class="theme-card p-6 rounded-lg shadow-md max-w-2xl">
+                <h2 class="text-xl font-semibold mb-4 theme-text">학생용 링크 생성</h2>
+                <p class="text-sm mb-4 theme-text-muted">아래 QR 코드 또는 링크를 학생들에게 공유하세요. 링크에는 API URL 정보가 포함되어 있어 학생들이 별도의
+                    설정
+                    없이 바로
+                    접속할 수 있습니다.</p>
+
+                <div id="share-container" class="hidden">
+                    <div class="flex flex-col items-center p-4 rounded border mb-4 theme-border"
+                        style="background-color: var(--card-bg)">
+                        <div id="qrcode" class="mb-4 bg-white p-2 rounded"></div>
+                        <p class="text-sm font-mono break-all text-center theme-text-muted" id="share-link-text"></p>
+                    </div>
+                    <button id="copy-link-btn"
+                        class="w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">링크 복사하기</button>
+                </div>
+                <div id="share-error" class="hidden text-red-500">시스템 설정에서 API URL을 먼저 설정해주세요.</div>
+            </div>
+        </div>
+
+        <!-- 4. Student Dashboard -->
+        <div id="tab-dashboard" class="tab-content hidden">
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex gap-2">
+                    <select id="filter-grade" class="p-2 border rounded">
+                        <option value="">전체 학년</option>
+                        <option value="1">1학년</option>
+                        <option value="2">2학년</option>
+                        <option value="3">3학년</option>
+                    </select>
+                    <select id="filter-class" class="p-2 border rounded">
+                        <option value="">전체 반</option>
+                        <!-- Options will be populated dynamically -->
+                    </select>
+                    <button id="refresh-data-btn" class="px-3 py-2 rounded hover:bg-gray-300"
+                        style="background-color: var(--hover-bg)">🔄</button>
+                </div>
+                <button id="download-matrix-btn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">엑셀
+                    다운로드 (0/1 매트릭스)</button>
+            </div>
+            <div class="overflow-x-auto rounded-lg shadow-md theme-card">
+                <table class="w-full text-sm text-left">
+                    <thead class="uppercase" style="background-color: var(--hover-bg); color: var(--text-muted)">
+                        <tr>
+                            <th class="px-4 py-3">시간</th>
+                            <th class="px-4 py-3">학번</th>
+                            <th class="px-4 py-3">이름</th>
+                            <th class="px-4 py-3">진로</th>
+                            <th class="px-4 py-3">총 학점</th>
+                            <th class="px-4 py-3">검증 결과</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student-table-body">
+                        <tr>
+                            <td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터를 불러오는 중...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -334,7 +343,11 @@
             }
         });
 
-        // 2.5 Selection Rules
+        // 2.5 Selection Rules (Advanced)
+        let currentRules = {
+            '2-1': [], '2-2': [], '3-1': [], '3-2': []
+        };
+
         async function loadRulesAndClassification() {
             if (!DB.isConfigured()) return;
 
@@ -375,55 +388,95 @@
                 container.appendChild(section);
             });
 
-            // Render Limit Config
+            // Render Limit Config (Advanced)
             const limitContainer = document.getElementById('limit-config-container');
             limitContainer.innerHTML = '';
 
             // Fetch existing settings
-            let currentSettings = {};
             try {
-                currentSettings = await DB.fetchSettings();
-            } catch (e) { console.log('No settings found'); }
-
-            const limits = currentSettings.selectionLimits || {};
+                const settings = await DB.fetchSettings();
+                if (settings.selectionRules) {
+                    currentRules = settings.selectionRules;
+                }
+            } catch (e) {
+                console.log('No settings found');
+            }
 
             ['2-1', '2-2', '3-1', '3-2'].forEach(key => {
                 const [g, s] = key.split('-');
-                const savedLimit = limits[key] || {};
 
-                const row = document.createElement('div');
-                row.className = 'flex items-center justify-between p-3 border rounded';
-                row.style.borderColor = 'var(--border-color)';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'border p-4 rounded';
+                wrapper.style.borderColor = 'var(--border-color)';
 
-                row.innerHTML = `
-                    <span class="font-medium theme-text w-24">${g}학년 ${s}학기</span>
-                    <div class="flex items-center gap-2">
-                        <label class="text-sm theme-text-muted">최대 선택:</label>
-                        <select id="limit-count-${key}" class="p-1 border rounded w-20">
-                            ${[...Array(11).keys()].map(i => `<option value="${i}" ${savedLimit.maxCount == i ? 'selected' : ''}>${i}개</option>`).join('')}
-                        </select>
+                wrapper.innerHTML = `
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-bold theme-text">${g}학년 ${s}학기</h4>
+                        <button onclick="addRule('${key}')" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-700">+ 규칙 추가</button>
+                    </div>
+                    <div id="rules-list-${key}" class="space-y-2">
+                        <!-- Rules will be added here -->
                     </div>
                 `;
-                limitContainer.appendChild(row);
+                limitContainer.appendChild(wrapper);
+                renderRulesList(key);
             });
         }
+
+        function renderRulesList(key) {
+            const listEl = document.getElementById(`rules-list-${key}`);
+            listEl.innerHTML = '';
+
+            if (!currentRules[key] || currentRules[key].length === 0) {
+                listEl.innerHTML = '<div class="text-xs text-gray-400 italic">설정된 규칙이 없습니다.</div>';
+                return;
+            }
+
+            currentRules[key].forEach((rule, idx) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center gap-2 text-sm';
+
+                row.innerHTML = `
+                    <select onchange="updateRule('${key}', ${idx}, 'credits', this.value)" class="p-1 border rounded w-24">
+                        <option value="all" ${rule.credits === 'all' ? 'selected' : ''}>모든 학점</option>
+                        <option value="4" ${rule.credits == 4 ? 'selected' : ''}>4학점</option>
+                        <option value="3" ${rule.credits == 3 ? 'selected' : ''}>3학점</option>
+                        <option value="2" ${rule.credits == 2 ? 'selected' : ''}>2학점</option>
+                        <option value="1" ${rule.credits == 1 ? 'selected' : ''}>1학점</option>
+                    </select>
+                    <span class="theme-text">과목을</span>
+                    <select onchange="updateRule('${key}', ${idx}, 'count', this.value)" class="p-1 border rounded w-16">
+                        ${[...Array(10).keys()].map(i => `<option value="${i + 1}" ${rule.count == i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}
+                    </select>
+                    <span class="theme-text">개 선택</span>
+                    <button onclick="removeRule('${key}', ${idx})" class="text-red-500 hover:text-red-700 ml-auto">×</button>
+                `;
+                listEl.appendChild(row);
+            });
+        }
+
+        window.addRule = (key) => {
+            if (!currentRules[key]) currentRules[key] = [];
+            currentRules[key].push({ credits: 'all', count: 1 });
+            renderRulesList(key);
+        };
+
+        window.removeRule = (key, idx) => {
+            currentRules[key].splice(idx, 1);
+            renderRulesList(key);
+        };
+
+        window.updateRule = (key, idx, field, value) => {
+            currentRules[key][idx][field] = value;
+        };
 
         document.getElementById('save-rules-btn').addEventListener('click', async () => {
             const btn = document.getElementById('save-rules-btn');
             btn.disabled = true;
             btn.textContent = '저장 중...';
 
-            const newLimits = {};
-            ['2-1', '2-2', '3-1', '3-2'].forEach(key => {
-                const count = document.getElementById(`limit-count-${key}`).value;
-                newLimits[key] = {
-                    maxCount: parseInt(count),
-                    targetCredits: 0 // Optional, can be added later
-                };
-            });
-
             try {
-                await DB.saveSettings({ selectionLimits: newLimits });
+                await DB.saveSettings({ selectionRules: currentRules });
                 alert('규칙이 저장되었습니다.');
             } catch (e) {
                 alert('저장 실패: ' + e.message);
@@ -543,7 +596,6 @@
                     '진로': d.Major
                 };
                 const selected = new Set(d.SelectedCourses ? d.SelectedCourses.split(', ').map(c => c.trim()) : []);
-
                 courseList.forEach(c => {
                     row[c] = selected.has(c) ? 1 : 0;
                 });
@@ -556,7 +608,6 @@
         // Initialize
         loadConfig();
     </script>
-
     <!-- Floating Theme Selector -->
     <div class="fixed bottom-6 left-6 z-50 flex items-center gap-2 p-2 rounded-full shadow-lg border hover:shadow-xl transition-shadow"
         style="background-color: var(--card-bg); border-color: var(--border-color)">
