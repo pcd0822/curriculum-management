@@ -43,21 +43,34 @@ const DB = {
                 data: courses
             })
         });
-        // With no-cors, we can't read response status or body.
-        // But if we use redirect in GAS, we might get a response.
-        // For now, let's assume success if no network error.
-        // To get actual response, we need to handle CORS properly in GAS (return ContentService with headers).
-        // Let's assume the GAS script handles CORS.
+    },
 
-        // If we want to read response, we must NOT use no-cors.
-        // We will try standard fetch. If CORS fails, user needs to fix GAS script.
-        // But standard GAS deployment allows CORS if we return correct headers.
-
-        // Re-implementation for standard GAS pattern:
-        // POST requests to GAS are tricky.
-        // Usually: Send as stringified JSON in body.
+    /**
+     * Fetches settings from the server.
+     */
+    fetchSettings: async () => {
+        if (!DB.apiUrl) throw new Error("API URL not configured");
+        const response = await fetch(`${DB.apiUrl}?action=getSettings`);
+        if (!response.ok) throw new Error("Failed to fetch settings");
         return await response.json();
     },
+
+    /**
+     * Saves settings to the server.
+     * @param {Object} settings - Settings object.
+     */
+    saveSettings: async (settings) => {
+        if (!DB.apiUrl) throw new Error("API URL not configured");
+        await fetch(DB.apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'saveSettings',
+                data: settings
+            })
+        });
+    },
+
 
     /**
      * Submits student response.
