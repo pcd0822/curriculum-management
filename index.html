@@ -4,95 +4,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>개인별 교육과정 설계표</title>
+    <title>고교학점제 수강신청 도우미</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts -->
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
-        rel="stylesheet">
     <!-- html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
     <!-- Custom Modules -->
-    <script src="js/theme.js"></script>
     <script src="js/db.js"></script>
-    <script src="js/validation.js"></script>
+    <script src="js/theme.js"></script>
 
     <style>
         body {
-            font-family: 'Noto Sans KR', 'Inter', sans-serif;
+            font-family: 'Noto Sans KR', sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             transition: background-color 0.3s, color 0.3s;
         }
 
-        .speech-bubble {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: .4em;
-            padding: 1.5rem;
-            width: 100%;
-        }
-
-        .speech-bubble.error {
-            background-color: #fee2e2;
-            color: #991b1b;
-        }
-
-        .speech-bubble.success {
-            background-color: #d1fae5;
-            color: #065f46;
-        }
-
-        input[type="checkbox"]:disabled+label {
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
-
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-radius: 50%;
-            border-top: 4px solid var(--primary-color);
-            width: 24px;
-            height: 24px;
-            animation: spin 2s linear infinite;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        .animated-gradient {
-            background: linear-gradient(-45deg, var(--primary-color), var(--secondary-color), #a855f7, #ec4899);
-            background-size: 400% 400%;
-            animation: gradient 15s ease infinite;
-        }
-
-        @keyframes gradient {
-            0% {
-                background-position: 0% 50%;
-            }
-
-            50% {
-                background-position: 100% 50%;
-            }
-
-            100% {
-                background-position: 0% 50%;
-            }
-        }
-
-        /* Theme variables are handled by js/theme.js */
-        .card {
+        /* Custom styles for theme compatibility */
+        .theme-card {
             background-color: var(--card-bg);
             border: 1px solid var(--border-color);
+        }
+
+        .theme-text {
+            color: var(--text-color);
+        }
+
+        .theme-text-muted {
+            color: var(--text-muted);
+        }
+
+        .theme-border {
+            border-color: var(--border-color);
         }
 
         input,
@@ -109,28 +53,7 @@
             box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2);
         }
 
-        /* Custom scrollbar for dark mode */
-        .dark ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .dark ::-webkit-scrollbar-track {
-            background: #2d3748;
-            /* dark gray */
-        }
-
-        .dark ::-webkit-scrollbar-thumb {
-            background: #4a5568;
-            /* darker gray */
-            border-radius: 4px;
-        }
-
-        .dark ::-webkit-scrollbar-thumb:hover {
-            background: #718096;
-            /* even darker gray */
-        }
-
-        /* Custom scrollbar for helper section */
+        /* Custom scrollbar */
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
         }
@@ -144,218 +67,189 @@
             border-radius: 3px;
         }
 
-        .truncate-lines-1 {
-            display: -webkit-box;
-            -webkit-line-clamp: 1;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(156, 163, 175, 0.8);
+        }
+
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+
+        @keyframes spinner {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </head>
 
 <body class="min-h-screen p-4 md:p-8">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-        <!-- Left Column: Course Selection -->
-        <div class="lg:col-span-2 space-y-8">
-            <header class="mb-8">
-                <h1 class="text-4xl font-bold mb-2 bg-clip-text text-transparent animated-gradient">
-                    개인별 교육과정 설계표
-                </h1>
-                <p class="text-gray-500 dark:text-gray-400">자신의 진로에 맞춰 과목을 선택하고 설계해보세요.</p>
+        <!-- Left Column: Student Info & Course Selection -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Header -->
+            <header class="flex justify-between items-center mb-4">
+                <h1 class="text-2xl font-bold theme-text">🎓 수강신청 도우미</h1>
+                <div class="text-sm theme-text-muted">2025학년도 교육과정</div>
             </header>
 
-            <!-- Student Info -->
-            <section class="card p-6 rounded-xl shadow-md">
-                <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-                    <span class="text-2xl">📝</span> 학생 정보
-                </h2>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">학년</label>
-                        <select id="student-grade" class="w-full p-2 rounded border"
-                            style="background-color: var(--input-bg);">
-                            <option value="1">1학년</option>
-                            <option value="2">2학년</option>
-                            <option value="3">3학년</option>
-                        </select>
+            <!-- Student Info Input -->
+            <div class="theme-card p-6 rounded-lg shadow-md">
+                <h2 class="text-lg font-semibold mb-4 theme-text">학생 정보 입력</h2>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <select id="student-grade" class="p-2 border rounded">
+                        <option value="1">1학년</option>
+                        <option value="2">2학년</option>
+                        <option value="3">3학년</option>
+                    </select>
+                    <div class="flex items-center">
+                        <input type="number" id="student-class" class="w-full p-2 border rounded text-center"
+                            placeholder="반" min="1" max="15">
+                        <span class="ml-1 theme-text">반</span>
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">반</label>
-                        <input type="number" id="student-class" class="w-full p-2 rounded border" placeholder="반"
-                            style="background-color: var(--input-bg);">
+                    <div class="flex items-center">
+                        <input type="number" id="student-number" class="w-full p-2 border rounded text-center"
+                            placeholder="번호" min="1" max="40">
+                        <span class="ml-1 theme-text">번</span>
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">번호</label>
-                        <input type="number" id="student-number" class="w-full p-2 rounded border" placeholder="번호"
-                            style="background-color: var(--input-bg);">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">이름</label>
-                        <input type="text" id="student-name" class="w-full p-2 rounded border" placeholder="이름"
-                            autocomplete="off" style="background-color: var(--input-bg);">
-                    </div>
-                    <div class="col-span-2 md:col-span-4">
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">희망 진로</label>
-                        <input type="text" id="student-major" class="w-full p-2 rounded border"
-                            placeholder="예: 컴퓨터공학자, 경영 컨설턴트 (AI 추천을 위해 구체적으로 입력해주세요)"
-                            style="background-color: var(--input-bg);">
-                    </div>
+                    <input type="text" id="student-name" class="p-2 border rounded md:col-span-2" placeholder="이름"
+                        autocomplete="off" style="background-color: var(--input-bg);">
+                    <input type="text" id="student-major" class="p-2 border rounded md:col-span-5"
+                        placeholder="희망 진로 (예: 컴퓨터공학자, 간호사) - AI 추천에 활용됩니다" style="background-color: var(--input-bg);">
                 </div>
-            </section>
+            </div>
 
-            <!-- Course Selection Area -->
-            <section class="card p-6 rounded-xl shadow-md">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl font-bold flex items-center gap-2">
-                        <span class="text-2xl">📚</span> 과목 선택
-                    </h2>
-                    <div class="text-sm text-gray-500">
-                        * 필수 과목은 자동 선택됩니다.
+            <!-- Course Selection Table -->
+            <div class="theme-card p-6 rounded-lg shadow-md">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold theme-text">과목 선택</h2>
+                    <div class="text-sm theme-text-muted">
+                        총 신청 학점: <span id="total-credits" class="font-bold text-blue-600">0</span>학점
                     </div>
                 </div>
 
-                <div id="course-list-container" class="space-y-8">
-                    <div class="text-center py-12 text-gray-500">
-                        <div class="loader mx-auto mb-4"></div>
-                        과목 데이터를 불러오는 중입니다...
+                <!-- Dynamic Course List -->
+                <div id="course-list-container" class="space-y-6">
+                    <div class="text-center py-8 theme-text-muted">
+                        <div
+                            class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4 mx-auto">
+                        </div>
+                        데이터를 불러오는 중입니다...
                     </div>
                 </div>
-            </section>
+            </div>
+
+            <!-- Joint Course Input -->
+            <div class="theme-card p-6 rounded-lg shadow-md">
+                <h2 class="text-lg font-semibold mb-4 theme-text">공동 교육과정 (외부 수강)</h2>
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="joint-course-name" class="flex-1 p-2 border rounded" placeholder="과목명">
+                    <select id="joint-course-credits" class="p-2 border rounded w-24">
+                        <option value="2">2학점</option>
+                        <option value="3">3학점</option>
+                        <option value="4">4학점</option>
+                    </select>
+                    <select id="joint-course-category" class="p-2 border rounded w-32">
+                        <option value="2-1">2학년 1학기</option>
+                        <option value="2-2">2학년 2학기</option>
+                        <option value="3-1">3학년 1학기</option>
+                        <option value="3-2">3학년 2학기</option>
+                    </select>
+                    <button id="add-joint-btn"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">추가</button>
+                </div>
+                <ul id="joint-course-list" class="space-y-2 text-sm theme-text">
+                    <!-- Added joint courses will appear here -->
+                </ul>
+            </div>
         </div>
 
-        <!-- Right Column: Helper & Summary -->
-        <div class="space-y-6">
-
-            <!-- Sticky Helper Section -->
-            <div class="sticky top-6 space-y-6">
-
-                <!-- Helper Message & Validation -->
-                <section class="card p-6 rounded-xl shadow-md border-l-4 border-purple-500">
-                    <h3 class="font-bold text-lg mb-3 flex items-center gap-2">
-                        <span class="text-xl">🤖</span> AI 도우미 & 검증
-                    </h3>
-
-                    <div class="speech-bubble relative min-h-[100px] max-h-[300px] overflow-y-auto custom-scrollbar">
-                        <div id="ai-loader"
-                            class="hidden absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 z-10">
-                            <div class="loader"></div>
-                        </div>
-                        <div id="helper-msg" class="text-sm leading-relaxed">
-                            안녕하세요! 희망 진로를 입력하면 과목을 추천해 드릴게요.<br>
-                            과목을 선택하면 규칙을 잘 지키고 있는지 알려드릴게요!
-                        </div>
-                        <div id="validation-messages" class="mt-4 space-y-2 border-t pt-4">
-                            <!-- Validation messages will appear here -->
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Selected Courses Summary -->
-                <section class="card p-6 rounded-xl shadow-md">
-                    <div class="flex justify-between items-end mb-4">
-                        <h3 class="font-bold text-lg">선택한 과목</h3>
-                        <span class="text-sm font-bold text-purple-600">총 <span id="total-credits">0</span>학점</span>
-                    </div>
-
-                    <div id="selected-courses-list"
-                        class="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                        <div class="text-gray-400 text-sm text-center py-4">선택된 과목이 없습니다.</div>
-                    </div>
-
-                    <!-- Subject Category Summary -->
-                    <div class="mt-6 pt-4 border-t">
-                        <h4 class="text-xs font-bold text-gray-500 uppercase mb-2">교과별 이수 현황</h4>
-                        <div id="category-summary-content" class="text-sm space-y-1">
-                            <!-- Dynamic Content -->
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Joint Curriculum -->
-                <section class="card p-6 rounded-xl shadow-md">
-                    <h3 class="font-bold text-lg mb-3">공동교육과정 추가</h3>
-                    <div class="flex flex-col gap-2 mb-3">
-                        <input type="text" id="joint-course-name" placeholder="과목명" class="p-2 border rounded text-sm">
-                        <div class="flex gap-2">
-                            <input type="number" id="joint-course-credits" placeholder="학점"
-                                class="p-2 border rounded text-sm w-20">
-                            <select id="joint-course-category" class="p-2 border rounded text-sm flex-1">
-                                <!-- Categories populated by JS -->
-                            </select>
-                            <button id="add-joint-btn"
-                                class="bg-purple-600 text-white px-3 py-2 rounded text-sm hover:bg-purple-700">+</button>
-                        </div>
-                    </div>
-                    <ul id="joint-course-list" class="space-y-2 text-sm">
-                        <!-- List -->
-                    </ul>
-                </section>
-
-                <!-- Action Buttons -->
-                <div class="grid grid-cols-2 gap-4">
-                    <button id="save-img-btn"
-                        class="bg-gray-800 text-white py-3 rounded-xl hover:bg-gray-900 transition shadow-lg flex items-center justify-center gap-2">
-                        <span>📸</span> 이미지 저장
-                    </button>
-                    <button id="submit-btn"
-                        class="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl hover:opacity-90 transition shadow-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed">
-                        제출하기
-                    </button>
+        <!-- Right Column: Validation & AI Helper -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Validation Status -->
+            <div class="theme-card p-6 rounded-lg shadow-md sticky top-6">
+                <h2 class="text-lg font-semibold mb-4 theme-text">검증 현황</h2>
+                <div id="validation-messages" class="space-y-2 mb-6 max-h-[200px] overflow-y-auto custom-scrollbar">
+                    <div class="text-sm text-gray-500">과목을 선택하면 검증 결과가 표시됩니다.</div>
                 </div>
 
+                <h3 class="font-bold mb-2 theme-text">선택한 과목 목록</h3>
+                <div id="selected-courses-list"
+                    class="space-y-2 text-sm max-h-[300px] overflow-y-auto custom-scrollbar mb-6">
+                    <div class="text-gray-400 italic">선택된 과목이 없습니다.</div>
+                </div>
+
+                <button id="submit-btn" disabled
+                    class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">
+                    수강신청 완료 및 제출
+                </button>
+            </div>
+
+            <!-- AI Helper -->
+            <div
+                class="theme-card p-6 rounded-lg shadow-md bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 border-purple-100 dark:border-gray-700">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-purple-700 dark:text-purple-400">🤖 AI 과목 추천 도우미</h2>
+                    <span class="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full">Beta</span>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                    희망 진로를 입력하고 과목을 추천받아보세요.
+                </p>
+                <div id="ai-helper-content"
+                    class="bg-white dark:bg-gray-800 p-4 rounded border border-purple-100 dark:border-gray-600 h-[300px] overflow-y-auto custom-scrollbar shadow-inner">
+                    <div id="helper-msg" class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                        진로를 입력하면 AI가 관련 과목을 추천해줍니다.
+                    </div>
+                    <div id="ai-loader" class="hidden flex justify-center items-center h-full">
+                        <div class="loader ease-linear rounded-full border-4 border-t-4 border-purple-200 h-8 w-8">
+                        </div>
+                    </div>
+                </div>
+                <button onclick="getAiRecommendation()"
+                    class="w-full mt-4 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition-colors">
+                    AI 추천 받기
+                </button>
             </div>
         </div>
     </div>
 
     <!-- Submit Modal -->
     <div id="submit-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl max-w-lg w-full m-4">
-            <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">제출 확인</h3>
-            <p class="mb-6 text-gray-600 dark:text-gray-300">선택한 과목으로 교육과정 설계표를 제출하시겠습니까?</p>
-
-            <div id="final-selection-preview"
-                class="mb-6 max-h-60 overflow-y-auto bg-gray-50 dark:bg-gray-700 p-4 rounded border">
-                <!-- Preview content -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl">
+            <h2 class="text-2xl font-bold mb-4 theme-text">수강신청 확인</h2>
+            <div class="mb-6">
+                <p class="mb-2 theme-text">아래 내용으로 제출하시겠습니까?</p>
+                <div id="final-selection-preview"
+                    class="bg-gray-50 dark:bg-gray-700 p-4 rounded border theme-border text-sm">
+                    <!-- Preview content -->
+                </div>
             </div>
-
             <div class="flex justify-end gap-3">
-                <button id="cancel-submit-btn" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">취소</button>
+                <button id="save-img-btn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">이미지로
+                    저장</button>
+                <button id="cancel-submit-btn"
+                    class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">취소</button>
                 <button id="confirm-submit-btn"
-                    class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold">제출</button>
+                    class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">제출하기</button>
             </div>
         </div>
     </div>
 
-    <!-- Floating Theme Selector -->
-    <div class="fixed bottom-6 left-6 z-50 group">
-        <div id="theme-menu"
-            class="absolute bottom-full left-0 mb-2 hidden bg-white rounded-lg shadow-xl border p-2 min-w-[150px] transition-all transform origin-bottom-left">
-            <div class="text-xs font-bold text-gray-400 mb-2 px-2">테마 선택</div>
-            <button onclick="changeTheme('light')"
-                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>☀️</span>라이트
-                모드</button>
-            <button onclick="changeTheme('dark-neon')"
-                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌙</span>다크
-                네온</button>
-            <button onclick="changeTheme('tokyo-night')"
-                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌃</span>도쿄
-                나이트</button>
-            <button onclick="changeTheme('solarized-light')"
-                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌅</span>솔라라이즈드</button>
-        </div>
-        <button onclick="toggleThemeMenu()"
-            class="bg-white p-3 rounded-full shadow-lg border-2 border-purple-100 hover:border-purple-300 hover:shadow-xl transition-all flex items-center justify-center w-12 h-12">
-            <span class="text-2xl">🎨</span>
-        </button>
-    </div>
-
+    <!-- Scripts -->
     <script>
         // Global Variables
         let PROCESSED_COURSES = [];
         let jointCourses = [];
         let selectionRules = {};
+        let multiSemesterRules = {};
 
         // Elements
         const courseListEl = document.getElementById('course-list-container');
@@ -413,13 +307,16 @@
             try {
                 // Fetch Settings (Rules)
                 const settings = await DB.fetchSettings();
-                if (settings && settings.selectionRules) {
-                    selectionRules = settings.selectionRules;
-                } else if (settings && settings.selectionLimits) {
+                if (settings) {
+                    if (settings.selectionRules) selectionRules = settings.selectionRules;
+                    if (settings.multiSemesterRules) multiSemesterRules = settings.multiSemesterRules;
+
                     // Migration for old format
-                    Object.keys(settings.selectionLimits).forEach(key => {
-                        selectionRules[key] = [{ credits: 'all', count: settings.selectionLimits[key].maxCount }];
-                    });
+                    if (settings.selectionLimits && !settings.selectionRules) {
+                        Object.keys(settings.selectionLimits).forEach(key => {
+                            selectionRules[key] = [{ credits: 'all', count: settings.selectionLimits[key].maxCount }];
+                        });
+                    }
                 }
 
                 // Fetch Courses
@@ -438,6 +335,8 @@
         }
 
         function renderCourses() {
+            courseListEl.innerHTML = '';
+
             // Group by Grade-Semester
             const grouped = {};
             PROCESSED_COURSES.forEach(c => {
@@ -446,49 +345,40 @@
                 grouped[key].push(c);
             });
 
-            let html = '';
-            Object.keys(grouped).sort().forEach(key => {
+            // Sort keys
+            const keys = Object.keys(grouped).sort();
+
+            keys.forEach(key => {
                 const [g, s] = key.split('-');
-                const courses = grouped[key];
+                const groupCourses = grouped[key];
 
-                // Get rules for this semester
-                const rules = selectionRules[key] || [];
-                let ruleText = '';
-                if (rules.length > 0) {
-                    ruleText = rules.map(r => {
-                        if (r.credits === 'all') return `총 ${r.count}과목`;
-                        return `${r.credits}학점 ${r.count}개`;
-                    }).join(', ');
-                }
+                const section = document.createElement('div');
+                section.className = 'border rounded-lg p-4 theme-border';
+                section.style.backgroundColor = 'var(--hover-bg)';
 
-                html += `
-                    <div class="border-b pb-6 last:border-b-0">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-bold text-gray-700 dark:text-gray-200">${g}학년 ${s}학기</h3>
-                            ${ruleText ? `<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">선택 기준: ${ruleText}</span>` : ''}
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            ${courses.map(c => `
-                                <div class="flex items-center p-3 rounded border hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${c.required ? 'bg-gray-100 dark:bg-gray-800 opacity-75' : 'bg-white dark:bg-gray-800'}">
-                                    <input type="checkbox" 
-                                        id="course-${c.id}" 
-                                        value="${c.id}" 
-                                        class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
-                                        ${c.required ? 'checked disabled' : ''}
-                                        onchange="validateSelections()">
-                                    <label for="course-${c.id}" class="ml-3 text-sm cursor-pointer flex-1">
-                                        <span class="font-medium block">${c.subjectName}</span>
-                                        <span class="text-xs text-gray-500">${c.credits}학점 | ${c.category}</span>
-                                    </label>
+                section.innerHTML = `
+                    <h3 class="font-bold text-lg mb-3 theme-text border-b pb-2 theme-border">${g}학년 ${s}학기</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        ${groupCourses.map(c => `
+                            <label class="flex items-start p-3 rounded border cursor-pointer hover:bg-opacity-50 transition-colors ${c.required ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800' : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700'}">
+                                <input type="checkbox" value="${c.id}" 
+                                    class="mt-1 mr-3 form-checkbox h-5 w-5 text-blue-600 transition duration-150 ease-in-out"
+                                    ${c.required ? 'checked disabled' : ''}
+                                    onchange="validateSelections()">
+                                <div>
+                                    <div class="font-bold theme-text">${c.subjectName}</div>
+                                    <div class="text-xs theme-text-muted">${c.classification} | ${c.credits}학점</div>
+                                    ${c.description ? `<div class="text-xs text-gray-400 mt-1">${c.description}</div>` : ''}
                                 </div>
-                            `).join('')}
-                        </div>
+                            </label>
+                        `).join('')}
                     </div>
                 `;
+                courseListEl.appendChild(section);
             });
 
-            courseListEl.innerHTML = html;
-            validateSelections(); // Initial validation
+            // Initial Validation
+            validateSelections();
         }
 
         function getSelected() {
@@ -506,24 +396,84 @@
             const messages = [];
 
             // 1. Multi-Semester Exclusion (Strict)
-            // If a course is selected, disable same-named courses in other semesters
+            const selectedIds = new Set(selected.map(c => c.id));
             const selectedNames = new Set(selected.map(c => c.subjectName));
+
+            // Helper: Get all semesters for a given subject name from manual rules
+            const getManualSemesters = (name) => multiSemesterRules[name] || [];
 
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 const course = PROCESSED_COURSES.find(c => c.id == cb.value);
                 if (!course) return;
 
-                // Skip if this checkbox is already checked or required
-                if (cb.checked || cb.disabled && course.required) return;
+                // Skip if this checkbox is already checked or required (unless we want to show conflict even for required?)
+                // If it's checked, we don't disable it (it's the selection).
+                // If it's disabled AND required, it's a mandatory course, so we shouldn't touch it.
+                if (cb.checked || (cb.disabled && course.required)) return;
 
-                // If this course's name is in the selected list, but it's not the one selected (different ID), disable it
-                // Actually, we just check if the name is in selectedNames
+                let shouldDisable = false;
+
+                // Check 1: Same Name (Automatic)
                 if (selectedNames.has(course.subjectName)) {
+                    // If a course with this name is selected, and it's NOT this one
+                    const isSelectedInstance = selectedIds.has(course.id);
+                    if (!isSelectedInstance) shouldDisable = true;
+                }
+
+                // Check 2: Manual Rules
+                // If this course is part of a manual group that has a selection
+                // Iterate over all selected courses
+                selected.forEach(sel => {
+                    // If the selected course has a manual rule entry
+                    const manualGroup = getManualSemesters(sel.subjectName);
+                    if (manualGroup.length > 0) {
+                        // If the current course (cb) is ALSO in this manual group (same name)
+                        // AND it is in one of the semesters listed in the rule
+                        // Then it is mutually exclusive.
+                        // Actually, the manual rule key IS the subject name.
+                        // So if sel.subjectName === course.subjectName, it's caught by Check 1.
+                        // The manual rule just confirms WHICH semesters are exclusive.
+                        // If the rule says "Math: 1-1, 1-2", and we selected Math (1-1).
+                        // Then Math (1-2) should be disabled.
+                        // Math (2-1) should NOT be disabled if it's not in the list.
+
+                        if (sel.subjectName === course.subjectName) {
+                            const currentSem = `${course.grade}-${course.semester}`;
+                            if (manualGroup.includes(currentSem)) {
+                                shouldDisable = true;
+                            }
+                        }
+                    }
+                });
+
+                // Refined Logic:
+                // If automatic detection (Check 1) says disable, we should check if manual rules EXIST.
+                // If manual rules exist for this subject, we ONLY disable if the current semester is in the manual list.
+                // If NO manual rules exist, we default to "disable all same-named courses" (Automatic Strict Mode).
+
+                if (selectedNames.has(course.subjectName)) {
+                    const manualGroup = getManualSemesters(course.subjectName);
+                    if (manualGroup.length > 0) {
+                        // Manual Mode: Only disable if this semester is in the list
+                        const currentSem = `${course.grade}-${course.semester}`;
+                        if (manualGroup.includes(currentSem)) {
+                            shouldDisable = true;
+                        } else {
+                            // If it's same name but NOT in the manual list, do we allow it?
+                            // User request: "Select duplicate courses... and select grade-semesters"
+                            // This implies that unselected semesters are NOT exclusive.
+                            shouldDisable = false;
+                        }
+                    } else {
+                        // Automatic Mode: Disable all same-named
+                        shouldDisable = true;
+                    }
+                }
+
+                if (shouldDisable) {
                     cb.disabled = true;
                     cb.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
-                    // Optional: Add tooltip or visual cue?
                 } else {
-                    // Re-enable if not selected
                     cb.disabled = false;
                     cb.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
                 }
@@ -553,62 +503,62 @@
             renderSelectedList(allSelected);
         }
 
-        function validateSelectionRules(selectedCourses) {
+        function validateSelectionRules(selected) {
+            const messages = [];
+            let allValid = true;
+
+            // Group selected by Grade-Semester
             const grouped = {};
-            selectedCourses.forEach(c => {
+            selected.forEach(c => {
                 const key = `${c.grade}-${c.semester}`;
                 if (!grouped[key]) grouped[key] = [];
                 grouped[key].push(c);
             });
 
-            const messages = [];
-            let isValid = true;
-
+            // Check each rule
             Object.keys(selectionRules).forEach(key => {
                 const rules = selectionRules[key];
-                const courses = grouped[key] || [];
-                const [g, s] = key.split('-');
+                const semesterCourses = grouped[key] || [];
 
                 rules.forEach(rule => {
                     let count = 0;
                     if (rule.credits === 'all') {
-                        count = courses.length;
+                        count = semesterCourses.length;
                     } else {
-                        count = courses.filter(c => c.credits == rule.credits).length;
+                        count = semesterCourses.filter(c => c.credits == rule.credits).length;
                     }
 
                     if (count !== parseInt(rule.count)) {
-                        isValid = false;
-                        const criteria = rule.credits === 'all' ? '과목' : `${rule.credits}학점 과목`;
-                        messages.push(`${g}학년 ${s}학기: ${criteria}을 ${rule.count}개 선택해야 합니다. (현재 ${count}개)`);
+                        allValid = false;
+                        const [g, s] = key.split('-');
+                        const creditText = rule.credits === 'all' ? '모든' : `${rule.credits}학점`;
+                        messages.push(`${g}학년 ${s}학기: ${creditText} 과목을 ${rule.count}개 선택해야 합니다. (현재 ${count}개)`);
                     }
                 });
             });
 
-            return { valid: isValid, messages };
+            return { valid: allValid, messages };
         }
 
-        function renderSelectedList(selectedCourses) {
-            let html = '';
+        function renderSelectedList(courses) {
+            // Group by Grade-Semester
             const grouped = {};
-
-            selectedCourses.forEach(c => {
-                const k = `${c.grade}-${c.semester}`;
-                if (!grouped[k]) grouped[k] = [];
-                grouped[k].push(c);
+            courses.forEach(c => {
+                const key = c.category ? `공동-${c.category}` : `${c.grade}-${c.semester}`;
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(c);
             });
 
+            let html = '';
             Object.keys(grouped).sort().forEach(k => {
-                const [g, s] = k.split('-');
-                const semesterCredits = grouped[k].reduce((sum, c) => sum + c.credits, 0);
+                const [g, s] = k.replace('공동-', '').split('-');
+                const isJoint = k.startsWith('공동');
+                const title = isJoint ? `공동교육과정 (${g}-${s})` : `${g}학년 ${s}학기`;
 
                 html += `
-                    <div class="p-3 border-b last:border-b-0">
-                        <div class="font-bold text-sm text-gray-500 mb-2 flex justify-between items-center">
-                            <span>${g}학년 ${s}학기</span>
-                            <span class="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">선택: ${semesterCredits}학점</span>
-                        </div>
-                        <div class="flex flex-wrap gap-x-3 gap-y-1">
+                    <div class="border-b pb-2 last:border-0 theme-border">
+                        <h4 class="font-bold text-xs text-gray-500 mb-1">${title}</h4>
+                        <div class="flex flex-wrap gap-1">
                             ${grouped[k].map(c => {
                     // Use lighter/brighter colors for dark mode visibility
                     const colors = [
@@ -635,10 +585,13 @@
             // Update Final Modal Content
             let finalHtml = '';
             Object.keys(grouped).sort().forEach(k => {
-                const [g, s] = k.split('-');
+                const [g, s] = k.replace('공동-', '').split('-');
+                const isJoint = k.startsWith('공동');
+                const title = isJoint ? `공동교육과정 (${g}-${s})` : `${g}학년 ${s}학기`;
+
                 finalHtml += `
                     <div class="border p-3 rounded bg-white mb-2 text-gray-800">
-                        <h4 class="font-bold text-purple-600 mb-2">${g}학년 ${s}학기</h4>
+                        <h4 class="font-bold text-purple-600 mb-2">${title}</h4>
                         <ul class="text-sm space-y-1">
                             ${grouped[k].map(c => `<li>${c.subjectName} (${c.credits})</li>`).join('')}
                         </ul>
@@ -646,80 +599,28 @@
                 `;
             });
             finalSelectionEl.innerHTML = finalHtml;
-
-            renderCategorySummary(selectedCourses);
         }
 
-        function renderCategorySummary(selectedCourses) {
-            const summary = {};
-            const allCourses = [...selectedCourses]; // jointCourses are already in selectedCourses if passed from validateSelections
-
-            allCourses.forEach(c => {
-                const cat = c.subjectCategory || c.category || '기타';
-                if (!summary[cat]) summary[cat] = { credits: 0, courses: [] };
-                summary[cat].credits += c.credits;
-                summary[cat].courses.push(c.subjectName);
-            });
-
-            const summaryEl = document.getElementById('category-summary-content');
-            if (!summaryEl) return;
-
-            if (Object.keys(summary).length === 0) {
-                summaryEl.innerHTML = '<div class="text-gray-400 text-center">선택된 과목이 없습니다.</div>';
-                return;
-            }
-
-            summaryEl.innerHTML = Object.entries(summary).map(([cat, data]) => {
-                const isLong = data.courses.length > 2;
-                const courseListHtml = data.courses.join(', ');
-
-                return `
-                    <div class="flex flex-col border-b last:border-b-0 py-2">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="font-medium text-gray-600 dark:text-gray-400">${cat}</span>
-                            <span class="font-bold text-blue-600 dark:text-blue-400">${data.credits}학점</span>
-                        </div>
-                        <div class="text-xs text-gray-400 relative group">
-                            <div class="truncate-lines-1" id="summary-text-${cat}">${courseListHtml}</div>
-                            ${isLong ? `<button onclick="toggleSummary('${cat}')" id="summary-btn-${cat}" class="text-xs text-blue-400 hover:text-blue-600 mt-1 focus:outline-none">더보기 ▼</button>` : ''}
-                            <div id="summary-full-${cat}" class="hidden mt-1 text-gray-500 dark:text-gray-300 break-words bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                                ${courseListHtml}
-                            </div>
-                        </div>
-                    </div>
-                `
-            }).join('');
-        }
-
-        window.toggleSummary = (cat) => {
-            const fullEl = document.getElementById(`summary-full-${cat}`);
-            const btnEl = document.getElementById(`summary-btn-${cat}`);
-            if (fullEl.classList.contains('hidden')) {
-                fullEl.classList.remove('hidden');
-                btnEl.innerHTML = '접기 ▲';
-            } else {
-                fullEl.classList.add('hidden');
-                btnEl.innerHTML = '더보기 ▼';
-            }
-        };
-
+        // Joint Courses
         function initJointCourses() {
-            const categories = ['인문', '사회', '과학', '체육', '예술', '교양'];
-            jointCategoryEl.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
-
             addJointBtn.addEventListener('click', () => {
                 const name = jointNameEl.value.trim();
                 const credits = parseInt(jointCreditsEl.value);
                 const category = jointCategoryEl.value;
 
-                if (!name || !credits) {
-                    alert('과목명과 학점을 입력해주세요.');
-                    return;
-                }
+                if (!name) return alert('과목명을 입력해주세요.');
 
-                jointCourses.push({ subjectName: name, credits, category, isJoint: true });
+                jointCourses.push({
+                    id: 'joint-' + Date.now(),
+                    subjectName: name,
+                    credits: credits,
+                    category: category,
+                    grade: category.split('-')[0],
+                    semester: category.split('-')[1],
+                    required: false
+                });
+
                 jointNameEl.value = '';
-                jointCreditsEl.value = '';
                 renderJointCourses();
                 validateSelections();
             });
@@ -727,8 +628,8 @@
 
         function renderJointCourses() {
             jointCoursesEl.innerHTML = jointCourses.map((c, idx) => `
-                <li class="flex justify-between items-center bg-gray-50 p-2 rounded">
-                    <span>${c.subjectName} (${c.credits})</span>
+                <li class="flex justify-between items-center bg-gray-50 p-2 rounded theme-card theme-text">
+                    <span>${c.subjectName} (${c.credits}학점, ${c.category})</span>
                     <button onclick="removeJointCourse(${idx})" class="text-red-500 hover:text-red-700">×</button>
                 </li>
             `).join('');
@@ -740,25 +641,65 @@
             validateSelections();
         };
 
-        // Helper Message Function
-        function showHelperMsg(msg, type = 'info') {
-            helperMsgEl.innerHTML = msg;
-            const bubble = helperMsgEl.closest('.speech-bubble');
-            bubble.className = 'speech-bubble w-full'; // Reset
-            if (type === 'error') bubble.classList.add('error');
-            else if (type === 'success') bubble.classList.add('success');
-        }
-
-        // AI Recommendation Logic
-        let debounceTimer;
-        majorInput.addEventListener('input', () => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                const major = majorInput.value.trim();
-                if (major && major !== '탐색중') getAiRecs(major);
-                else showHelperMsg('안녕하세요! 희망 진로를 입력하면 과목을 추천해 드릴게요. 과목을 선택하면 규칙을 잘 지키고 있는지 알려드릴게요!');
-            }, 1000);
+        // Submit Logic
+        submitBtn.addEventListener('click', () => {
+            submitModalEl.classList.remove('hidden');
         });
+
+        cancelBtn.addEventListener('click', () => {
+            submitModalEl.classList.add('hidden');
+        });
+
+        confirmBtn.addEventListener('click', async () => {
+            if (!confirm('정말 제출하시겠습니까?')) return;
+
+            const selected = [...getSelected(), ...jointCourses];
+            const courseNames = selected.map(c => c.subjectName).join(', ');
+
+            const data = {
+                Grade: gradeEl.value,
+                Class: classNumEl.value,
+                Number: studentNumEl.value,
+                Name: studentNameEl.value,
+                Major: majorInput.value,
+                SelectedCourses: courseNames,
+                TotalCredits: totalCreditsEl.textContent,
+                Timestamp: new Date().toISOString()
+            };
+
+            try {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = '제출 중...';
+
+                await DB.submitResponse(data);
+
+                alert('제출되었습니다!');
+                submitModalEl.classList.add('hidden');
+                // Reset or Redirect?
+            } catch (e) {
+                alert('제출 실패: ' + e.message);
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = '제출하기';
+            }
+        });
+
+        // Save Image
+        saveImgBtn.addEventListener('click', () => {
+            html2canvas(finalSelectionEl).then(canvas => {
+                const link = document.createElement('a');
+                link.download = '수강신청_내역.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        });
+
+        // AI Recommendation
+        function getAiRecommendation() {
+            const major = majorInput.value.trim();
+            if (!major) return alert('희망 진로를 입력해주세요.');
+            getAiRecs(major);
+        }
 
         async function getAiRecs(major) {
             helperMsgEl.classList.add('hidden');
@@ -767,7 +708,6 @@
             const availableCourses = PROCESSED_COURSES.filter(c => !c.required).map(c => c.subjectName).join(', ');
 
             try {
-                // Call Netlify Function instead of direct OpenAI API
                 const response = await fetch('/.netlify/functions/ai-recommendation', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -795,89 +735,52 @@
             }
         }
 
-        // Image Save
-        saveImgBtn.addEventListener('click', () => {
-            html2canvas(finalSelectionEl).then(canvas => {
-                const link = document.createElement('a');
-                link.download = '나의_교육과정_설계표.png';
-                link.href = canvas.toDataURL();
-                link.click();
-            });
-        });
+        function showHelperMsg(msg, type = 'info') {
+            const color = type === 'error' ? 'text-red-500' : 'text-gray-700 dark:text-gray-300';
+            helperMsgEl.innerHTML = `<div class="${color}">${msg}</div>`;
+        }
 
-        // Submit Logic
-        submitBtn.addEventListener('click', () => {
-            submitModalEl.classList.remove('hidden');
-        });
+        // Floating Theme Selector
+        function toggleThemeMenu() {
+            document.getElementById('theme-menu').classList.toggle('hidden');
+        }
 
-        cancelBtn.addEventListener('click', () => {
-            submitModalEl.classList.add('hidden');
-        });
-
-        confirmBtn.addEventListener('click', async () => {
-            const studentInfo = {
-                grade: gradeEl.value,
-                classNum: classNumEl.value,
-                studentNum: studentNumEl.value,
-                name: studentNameEl.value,
-                major: majorInput.value
-            };
-
-            if (!studentInfo.grade || !studentInfo.classNum || !studentInfo.studentNum || !studentInfo.name) {
-                alert('학생 정보를 모두 입력해주세요.');
-                return;
-            }
-
-            const selectedCourses = getSelected();
-            const allCourses = [...selectedCourses, ...jointCourses];
-            const courseNames = allCourses.map(c => c.subjectName).join(', ');
-
-            confirmBtn.disabled = true;
-            confirmBtn.textContent = '제출 중...';
-
-            try {
-                const result = await DB.submitResponse({
-                    ...studentInfo,
-                    selectedCourses: courseNames,
-                    totalCredits: totalCreditsEl.textContent
-                });
-
-                if (result.status === 'success') {
-                    alert('제출이 완료되었습니다.');
-                    submitModalEl.classList.add('hidden');
-                    // Optional: Reset form or redirect
-                } else {
-                    throw new Error('제출 실패');
-                }
-            } catch (e) {
-                console.error(e);
-                alert('제출 중 오류가 발생했습니다: ' + e.message);
-            } finally {
-                confirmBtn.disabled = false;
-                confirmBtn.textContent = '제출';
-            }
-        });
-
-        // Theme Helper
         function changeTheme(themeName) {
             applyTheme(themeName);
             localStorage.setItem('theme', themeName);
             document.getElementById('theme-menu').classList.add('hidden');
         }
 
-        function toggleThemeMenu() {
-            document.getElementById('theme-menu').classList.toggle('hidden');
-        }
-
         // Initialize Theme
         document.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('theme') || 'light';
             applyTheme(savedTheme);
+            init();
         });
-
-        // Start
-        document.addEventListener('DOMContentLoaded', init);
     </script>
+
+    <!-- Floating Theme Selector UI -->
+    <div class="fixed bottom-6 left-6 z-50 group">
+        <div id="theme-menu"
+            class="absolute bottom-full left-0 mb-2 hidden bg-white rounded-lg shadow-xl border p-2 min-w-[150px] transition-all transform origin-bottom-left">
+            <div class="text-xs font-bold text-gray-400 mb-2 px-2">테마 선택</div>
+            <button onclick="changeTheme('light')"
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>☀️</span>라이트
+                모드</button>
+            <button onclick="changeTheme('dark-neon')"
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌙</span>다크
+                네온</button>
+            <button onclick="changeTheme('tokyo-night')"
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌃</span>도쿄
+                나이트</button>
+            <button onclick="changeTheme('solarized-light')"
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌅</span>솔라라이즈드</button>
+        </div>
+        <button onclick="toggleThemeMenu()"
+            class="bg-white p-3 rounded-full shadow-lg border-2 border-purple-100 hover:border-purple-300 hover:shadow-xl transition-all flex items-center justify-center w-12 h-12">
+            <span class="text-2xl">🎨</span>
+        </button>
+    </div>
 </body>
 
 </html>
