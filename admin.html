@@ -178,12 +178,25 @@
                 </div>
 
                 <!-- Course Classification View -->
-                <div class="theme-card p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold mb-4 theme-text">과목 편제 확인</h2>
-                    <p class="text-sm mb-4 theme-text-muted">등록된 과목이 학년-학기별로 올바르게 분류되었는지 확인하세요.</p>
-                    <div id="course-classification-view"
-                        class="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar">
-                        <!-- Dynamic Content -->
+                <div class="space-y-6">
+                    <div class="theme-card p-6 rounded-lg shadow-md">
+                        <h2 class="text-xl font-semibold mb-4 theme-text">과목 편제 확인</h2>
+                        <p class="text-sm mb-4 theme-text-muted">등록된 과목이 학년-학기별로 올바르게 분류되었는지 확인하세요.</p>
+                        <div id="course-classification-view"
+                            class="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
+                            <!-- Dynamic Content -->
+                        </div>
+                    </div>
+
+                    <!-- Multi-Semester Course Config -->
+                    <div class="theme-card p-6 rounded-lg shadow-md">
+                        <h2 class="text-xl font-semibold mb-4 theme-text">복수 편제 과목 관리</h2>
+                        <p class="text-sm mb-4 theme-text-muted">여러 학기(학년)에 중복 개설된 과목 목록입니다. 이 과목들은 학생 페이지에서 자동으로 상호
+                            배타적으로 처리됩니다.</p>
+                        <div id="multi-semester-config-container"
+                            class="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar">
+                            <!-- Dynamic Content -->
+                        </div>
                     </div>
                 </div>
             </div>
@@ -428,6 +441,49 @@
                 limitContainer.appendChild(wrapper);
                 renderRulesList(key);
             });
+
+            // 5. Render Multi-Semester Course Config
+            renderMultiSemesterConfig(courses);
+        }
+
+        function renderMultiSemesterConfig(courses) {
+            const container = document.getElementById('multi-semester-config-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            // Group by Subject Name
+            const nameMap = {};
+            courses.forEach(c => {
+                if (!nameMap[c.subjectName]) nameMap[c.subjectName] = [];
+                nameMap[c.subjectName].push(`${c.grade}-${c.semester}`);
+            });
+
+            // Filter for duplicates
+            const duplicates = Object.entries(nameMap).filter(([name, semesters]) => semesters.length > 1);
+
+            if (duplicates.length === 0) {
+                container.innerHTML = '<div class="text-sm text-gray-500 italic">중복 편제된 과목이 없습니다.</div>';
+                return;
+            }
+
+            duplicates.forEach(([name, semesters]) => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center p-3 border rounded bg-opacity-50';
+                div.style.borderColor = 'var(--border-color)';
+                div.style.backgroundColor = 'var(--card-bg)';
+
+                div.innerHTML = `
+                    <div>
+                        <span class="font-bold theme-text">${name}</span>
+                        <span class="text-xs text-gray-500 ml-2">(${semesters.join(', ')})</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">자동 상호 배타 적용됨</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
         }
 
         function renderRulesList(key) {
@@ -616,17 +672,44 @@
         loadConfig();
     </script>
     <!-- Floating Theme Selector -->
-    <div class="fixed bottom-6 left-6 z-50 flex items-center gap-2 p-2 rounded-full shadow-lg border hover:shadow-xl transition-shadow"
-        style="background-color: var(--card-bg); border-color: var(--border-color)">
-        <span class="text-xl pl-2">🎨</span>
-        <select id="theme-selector"
-            class="bg-transparent border-none focus:ring-0 text-sm font-medium cursor-pointer pr-8 py-1 theme-text">
-            <option value="light">Light Mode</option>
-            <option value="dark-neon">Dark Neon</option>
-            <option value="tokyo-night">Tokyo Night</option>
-            <option value="solarized-light">Solarized Light</option>
-        </select>
+    <div class="fixed bottom-6 left-6 z-50 group">
+        <div id="theme-menu"
+            class="absolute bottom-full left-0 mb-2 hidden bg-white rounded-lg shadow-xl border p-2 min-w-[150px] transition-all transform origin-bottom-left">
+            <div class="text-xs font-bold text-gray-400 mb-2 px-2">테마 선택</div>
+            <button onclick="changeTheme('light')"
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>☀️</span>라이트
+                모드</button>
+            <button onclick="changeTheme('dark-neon')"
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>�</span>다크
+                네온</button>
+            <button onclick="changeTheme('tokyo-night')"
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌃</span>도쿄
+                나이트</button>
+            <button onclick="changeTheme('solarized-light')"
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌅</span>솔라라이즈드</button>
+        </div>
+        <button onclick="toggleThemeMenu()"
+            class="bg-white p-3 rounded-full shadow-lg border-2 border-purple-100 hover:border-purple-300 hover:shadow-xl transition-all flex items-center justify-center w-12 h-12">
+            <span class="text-2xl">🎨</span>
+        </button>
     </div>
+    <script>
+        function changeTheme(themeName) {
+            applyTheme(themeName);
+            localStorage.setItem('theme', themeName);
+            document.getElementById('theme-menu').classList.add('hidden');
+        }
+
+        function toggleThemeMenu() {
+            document.getElementById('theme-menu').classList.toggle('hidden');
+        }
+
+        // Initialize Theme
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            applyTheme(savedTheme);
+        });
+    </script>
 </body>
 
 </html>
