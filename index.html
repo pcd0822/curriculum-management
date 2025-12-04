@@ -330,22 +330,22 @@
 
     <!-- Floating Theme Selector -->
     <div class="fixed bottom-6 left-6 z-50 group">
-        <div
-            class="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-white rounded-lg shadow-xl border p-2 min-w-[150px] transition-all transform origin-bottom-left">
+        <div id="theme-menu"
+            class="absolute bottom-full left-0 mb-2 hidden bg-white rounded-lg shadow-xl border p-2 min-w-[150px] transition-all transform origin-bottom-left">
             <div class="text-xs font-bold text-gray-400 mb-2 px-2">테마 선택</div>
             <button onclick="changeTheme('light')"
-                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2"><span>☀️</span>라이트
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>☀️</span>라이트
                 모드</button>
             <button onclick="changeTheme('dark-neon')"
-                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2"><span>🌙</span>다크
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌙</span>다크
                 네온</button>
             <button onclick="changeTheme('tokyo-night')"
-                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2"><span>🌃</span>도쿄
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌃</span>도쿄
                 나이트</button>
             <button onclick="changeTheme('solarized-light')"
-                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2"><span>🌅</span>솔라라이즈드</button>
+                class="w-full text-left px-2 py-1.5 hover:bg-purple-50 rounded text-sm flex items-center gap-2 text-gray-800"><span>🌅</span>솔라라이즈드</button>
         </div>
-        <button
+        <button onclick="toggleThemeMenu()"
             class="bg-white p-3 rounded-full shadow-lg border-2 border-purple-100 hover:border-purple-300 hover:shadow-xl transition-all flex items-center justify-center w-12 h-12">
             <span class="text-2xl">🎨</span>
         </button>
@@ -505,34 +505,29 @@
             const allSelected = [...selected, ...jointCourses];
             const messages = [];
 
-            // 1. Duplicate Check (Strict)
-            const nameMap = {};
-            allSelected.forEach(c => {
-                if (!nameMap[c.subjectName]) nameMap[c.subjectName] = 0;
-                nameMap[c.subjectName]++;
-            });
+            // 1. Multi-Semester Exclusion (Strict)
+            // If a course is selected, disable same-named courses in other semesters
+            const selectedNames = new Set(selected.map(c => c.subjectName));
 
-            const duplicates = Object.keys(nameMap).filter(k => nameMap[k] > 1);
-            if (duplicates.length > 0) {
-                messages.push({ type: 'error', text: `중복 선택된 과목이 있습니다: ${duplicates.join(', ')}` });
-                // Disable duplicates in UI
-                document.querySelectorAll('input[type="checkbox"]:not(:checked)').forEach(cb => {
-                    const course = PROCESSED_COURSES.find(c => c.id == cb.value);
-                    if (course && duplicates.includes(course.subjectName)) {
-                        cb.disabled = true;
-                        cb.parentElement.classList.add('opacity-50');
-                    }
-                });
-            } else {
-                // Re-enable
-                document.querySelectorAll('input[type="checkbox"]:not(:disabled)').forEach(cb => {
-                    const course = PROCESSED_COURSES.find(c => c.id == cb.value);
-                    if (course && !course.required) {
-                        cb.disabled = false;
-                        cb.parentElement.classList.remove('opacity-50');
-                    }
-                });
-            }
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                const course = PROCESSED_COURSES.find(c => c.id == cb.value);
+                if (!course) return;
+
+                // Skip if this checkbox is already checked or required
+                if (cb.checked || cb.disabled && course.required) return;
+
+                // If this course's name is in the selected list, but it's not the one selected (different ID), disable it
+                // Actually, we just check if the name is in selectedNames
+                if (selectedNames.has(course.subjectName)) {
+                    cb.disabled = true;
+                    cb.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
+                    // Optional: Add tooltip or visual cue?
+                } else {
+                    // Re-enable if not selected
+                    cb.disabled = false;
+                    cb.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            });
 
             // 2. Advanced Rules Check
             const ruleResult = validateSelectionRules(selected);
@@ -615,7 +610,17 @@
                         </div>
                         <div class="flex flex-wrap gap-x-3 gap-y-1">
                             ${grouped[k].map(c => {
-                    const colors = ['text-pink-500', 'text-purple-500', 'text-indigo-500', 'text-blue-500', 'text-teal-500', 'text-emerald-500', 'text-orange-500', 'text-rose-500'];
+                    // Use lighter/brighter colors for dark mode visibility
+                    const colors = [
+                        'text-pink-500 dark:text-pink-400',
+                        'text-purple-500 dark:text-purple-400',
+                        'text-indigo-500 dark:text-indigo-400',
+                        'text-blue-500 dark:text-blue-400',
+                        'text-teal-500 dark:text-teal-400',
+                        'text-emerald-500 dark:text-emerald-400',
+                        'text-orange-500 dark:text-orange-400',
+                        'text-rose-500 dark:text-rose-400'
+                    ];
                     const hash = c.subjectName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
                     const colorClass = colors[hash % colors.length];
                     return `<span class="text-sm font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" style="text-shadow: 0 0 1px currentColor;">${c.subjectName}</span>`;
@@ -632,7 +637,7 @@
             Object.keys(grouped).sort().forEach(k => {
                 const [g, s] = k.split('-');
                 finalHtml += `
-                    <div class="border p-3 rounded bg-white mb-2">
+                    <div class="border p-3 rounded bg-white mb-2 text-gray-800">
                         <h4 class="font-bold text-purple-600 mb-2">${g}학년 ${s}학기</h4>
                         <ul class="text-sm space-y-1">
                             ${grouped[k].map(c => `<li>${c.subjectName} (${c.credits})</li>`).join('')}
@@ -671,13 +676,13 @@
                 return `
                     <div class="flex flex-col border-b last:border-b-0 py-2">
                         <div class="flex justify-between items-center mb-1">
-                            <span class="font-medium text-gray-600">${cat}</span>
-                            <span class="font-bold text-blue-600">${data.credits}학점</span>
+                            <span class="font-medium text-gray-600 dark:text-gray-400">${cat}</span>
+                            <span class="font-bold text-blue-600 dark:text-blue-400">${data.credits}학점</span>
                         </div>
                         <div class="text-xs text-gray-400 relative group">
                             <div class="truncate-lines-1" id="summary-text-${cat}">${courseListHtml}</div>
                             ${isLong ? `<button onclick="toggleSummary('${cat}')" id="summary-btn-${cat}" class="text-xs text-blue-400 hover:text-blue-600 mt-1 focus:outline-none">더보기 ▼</button>` : ''}
-                            <div id="summary-full-${cat}" class="hidden mt-1 text-gray-500 break-words bg-gray-50 p-2 rounded">
+                            <div id="summary-full-${cat}" class="hidden mt-1 text-gray-500 dark:text-gray-300 break-words bg-gray-50 dark:bg-gray-700 p-2 rounded">
                                 ${courseListHtml}
                             </div>
                         </div>
@@ -857,6 +862,11 @@
         function changeTheme(themeName) {
             applyTheme(themeName);
             localStorage.setItem('theme', themeName);
+            document.getElementById('theme-menu').classList.add('hidden');
+        }
+
+        function toggleThemeMenu() {
+            document.getElementById('theme-menu').classList.toggle('hidden');
         }
 
         // Initialize Theme
