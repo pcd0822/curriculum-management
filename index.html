@@ -174,7 +174,8 @@
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">학년</label>
-                        <select id="student-grade" class="w-full p-2 rounded border">
+                        <select id="student-grade" class="w-full p-2 rounded border"
+                            style="background-color: var(--input-bg);">
                             <option value="1">1학년</option>
                             <option value="2">2학년</option>
                             <option value="3">3학년</option>
@@ -182,20 +183,24 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">반</label>
-                        <input type="number" id="student-class" class="w-full p-2 rounded border" placeholder="반">
+                        <input type="number" id="student-class" class="w-full p-2 rounded border" placeholder="반"
+                            style="background-color: var(--input-bg);">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">번호</label>
-                        <input type="number" id="student-number" class="w-full p-2 rounded border" placeholder="번호">
+                        <input type="number" id="student-number" class="w-full p-2 rounded border" placeholder="번호"
+                            style="background-color: var(--input-bg);">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">이름</label>
-                        <input type="text" id="student-name" class="w-full p-2 rounded border" placeholder="이름">
+                        <input type="text" id="student-name" class="w-full p-2 rounded border" placeholder="이름"
+                            autocomplete="off" style="background-color: var(--input-bg);">
                     </div>
                     <div class="col-span-2 md:col-span-4">
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">희망 진로</label>
                         <input type="text" id="student-major" class="w-full p-2 rounded border"
-                            placeholder="예: 컴퓨터공학자, 경영 컨설턴트 (AI 추천을 위해 구체적으로 입력해주세요)">
+                            placeholder="예: 컴퓨터공학자, 경영 컨설턴트 (AI 추천을 위해 구체적으로 입력해주세요)"
+                            style="background-color: var(--input-bg);">
                     </div>
                 </div>
             </section>
@@ -350,7 +355,7 @@
         // Global Variables
         let PROCESSED_COURSES = [];
         let jointCourses = [];
-        let selectionLimits = {}; // Will be fetched from settings
+        let selectionRules = {};
 
         // Elements
         const courseListEl = document.getElementById('course-list-container');
@@ -384,7 +389,211 @@
             // Check for API Key in URL
             const urlParams = new URLSearchParams(window.location.search);
             const key = urlParams.get('key');
-            // Update UI List
+
+            if (key) {
+                try {
+                    const decodedUrl = atob(key);
+                    DB.init(decodedUrl);
+                    await loadData();
+                } catch (e) {
+                    console.error('Invalid Key', e);
+                    alert('유효하지 않은 접근 키입니다.');
+                }
+            } else {
+                console.warn('No API Key provided');
+            }
+
+            initJointCourses();
+        }
+
+        async function loadData() {
+            const loader = document.querySelector('.loader');
+            if (loader) loader.classList.remove('hidden');
+
+            try {
+                // Fetch Settings (Rules)
+                const settings = await DB.fetchSettings();
+                if (settings && settings.selectionRules) {
+                    selectionRules = settings.selectionRules;
+                } else if (settings && settings.selectionLimits) {
+                    // Migration for old format
+                    Object.keys(settings.selectionLimits).forEach(key => {
+                        selectionRules[key] = [{ credits: 'all', count: settings.selectionLimits[key].maxCount }];
+                    });
+                }
+
+                // Fetch Courses
+                const courses = await DB.fetchConfig();
+                if (!courses) throw new Error('과목 데이터를 불러올 수 없습니다.');
+
+                PROCESSED_COURSES = courses.filter(c => c.subjectName);
+                renderCourses();
+
+            } catch (e) {
+                console.error(e);
+                courseListEl.innerHTML = `<div class="text-center text-red-500 py-8">데이터 로딩 실패: ${e.message}</div>`;
+            } finally {
+                if (loader) loader.classList.add('hidden');
+            }
+        }
+
+        function renderCourses() {
+            // Group by Grade-Semester
+            const grouped = {};
+            PROCESSED_COURSES.forEach(c => {
+                const key = `${c.grade}-${c.semester}`;
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(c);
+            });
+
+            let html = '';
+            Object.keys(grouped).sort().forEach(key => {
+                const [g, s] = key.split('-');
+                const courses = grouped[key];
+
+                // Get rules for this semester
+                const rules = selectionRules[key] || [];
+                let ruleText = '';
+                if (rules.length > 0) {
+                    ruleText = rules.map(r => {
+                        if (r.credits === 'all') return `총 ${r.count}과목`;
+                        return `${r.credits}학점 ${r.count}개`;
+                    }).join(', ');
+                }
+
+                html += `
+                    <div class="border-b pb-6 last:border-b-0">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-gray-700 dark:text-gray-200">${g}학년 ${s}학기</h3>
+                            ${ruleText ? `<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">선택 기준: ${ruleText}</span>` : ''}
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            ${courses.map(c => `
+                                <div class="flex items-center p-3 rounded border hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${c.required ? 'bg-gray-100 dark:bg-gray-800 opacity-75' : 'bg-white dark:bg-gray-800'}">
+                                    <input type="checkbox" 
+                                        id="course-${c.id}" 
+                                        value="${c.id}" 
+                                        class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
+                                        ${c.required ? 'checked disabled' : ''}
+                                        onchange="validateSelections()">
+                                    <label for="course-${c.id}" class="ml-3 text-sm cursor-pointer flex-1">
+                                        <span class="font-medium block">${c.subjectName}</span>
+                                        <span class="text-xs text-gray-500">${c.credits}학점 | ${c.category}</span>
+                                    </label>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            courseListEl.innerHTML = html;
+            validateSelections(); // Initial validation
+        }
+
+        function getSelected() {
+            const selected = [];
+            document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+                const course = PROCESSED_COURSES.find(c => c.id == cb.value);
+                if (course) selected.push(course);
+            });
+            return selected;
+        }
+
+        function validateSelections() {
+            const selected = getSelected();
+            const allSelected = [...selected, ...jointCourses];
+            const messages = [];
+
+            // 1. Duplicate Check (Strict)
+            const nameMap = {};
+            allSelected.forEach(c => {
+                if (!nameMap[c.subjectName]) nameMap[c.subjectName] = 0;
+                nameMap[c.subjectName]++;
+            });
+
+            const duplicates = Object.keys(nameMap).filter(k => nameMap[k] > 1);
+            if (duplicates.length > 0) {
+                messages.push({ type: 'error', text: `중복 선택된 과목이 있습니다: ${duplicates.join(', ')}` });
+                // Disable duplicates in UI
+                document.querySelectorAll('input[type="checkbox"]:not(:checked)').forEach(cb => {
+                    const course = PROCESSED_COURSES.find(c => c.id == cb.value);
+                    if (course && duplicates.includes(course.subjectName)) {
+                        cb.disabled = true;
+                        cb.parentElement.classList.add('opacity-50');
+                    }
+                });
+            } else {
+                // Re-enable
+                document.querySelectorAll('input[type="checkbox"]:not(:disabled)').forEach(cb => {
+                    const course = PROCESSED_COURSES.find(c => c.id == cb.value);
+                    if (course && !course.required) {
+                        cb.disabled = false;
+                        cb.parentElement.classList.remove('opacity-50');
+                    }
+                });
+            }
+
+            // 2. Advanced Rules Check
+            const ruleResult = validateSelectionRules(selected);
+            if (!ruleResult.valid) {
+                messages.push(...ruleResult.messages.map(m => ({ type: 'error', text: m })));
+            } else {
+                messages.push({ type: 'success', text: '모든 선택 규칙을 만족합니다!' });
+            }
+
+            // Render Messages
+            validationMessagesEl.innerHTML = messages.map(m => `
+                <div class="text-sm p-2 rounded ${m.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}">
+                    ${m.type === 'error' ? '⚠️' : '✅'} ${m.text}
+                </div>
+            `).join('');
+
+            // Update UI
+            let total = 0;
+            allSelected.forEach(c => total += c.credits);
+            totalCreditsEl.textContent = total;
+            submitBtn.disabled = total === 0;
+
+            renderSelectedList(allSelected);
+        }
+
+        function validateSelectionRules(selectedCourses) {
+            const grouped = {};
+            selectedCourses.forEach(c => {
+                const key = `${c.grade}-${c.semester}`;
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(c);
+            });
+
+            const messages = [];
+            let isValid = true;
+
+            Object.keys(selectionRules).forEach(key => {
+                const rules = selectionRules[key];
+                const courses = grouped[key] || [];
+                const [g, s] = key.split('-');
+
+                rules.forEach(rule => {
+                    let count = 0;
+                    if (rule.credits === 'all') {
+                        count = courses.length;
+                    } else {
+                        count = courses.filter(c => c.credits == rule.credits).length;
+                    }
+
+                    if (count !== parseInt(rule.count)) {
+                        isValid = false;
+                        const criteria = rule.credits === 'all' ? '과목' : `${rule.credits}학점 과목`;
+                        messages.push(`${g}학년 ${s}학기: ${criteria}을 ${rule.count}개 선택해야 합니다. (현재 ${count}개)`);
+                    }
+                });
+            });
+
+            return { valid: isValid, messages };
+        }
+
+        function renderSelectedList(selectedCourses) {
             let html = '';
             const grouped = {};
 
@@ -406,11 +615,9 @@
                         </div>
                         <div class="flex flex-wrap gap-x-3 gap-y-1">
                             ${grouped[k].map(c => {
-                    // Dynamic color generation based on subject name hash
                     const colors = ['text-pink-500', 'text-purple-500', 'text-indigo-500', 'text-blue-500', 'text-teal-500', 'text-emerald-500', 'text-orange-500', 'text-rose-500'];
                     const hash = c.subjectName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
                     const colorClass = colors[hash % colors.length];
-
                     return `<span class="text-sm font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" style="text-shadow: 0 0 1px currentColor;">${c.subjectName}</span>`;
                 }).join('')}
                         </div>
@@ -419,15 +626,6 @@
             });
 
             selectedCoursesEl.innerHTML = html;
-
-            // Update Total Credits
-            let total = 0;
-            selectedCourses.forEach(c => total += c.credits);
-            jointCourses.forEach(c => total += c.credits);
-            totalCreditsEl.textContent = total;
-
-            // Enable/Disable Submit
-            submitBtn.disabled = total === 0;
 
             // Update Final Modal Content
             let finalHtml = '';
@@ -442,17 +640,6 @@
                     </div>
                 `;
             });
-
-            if (jointCourses.length > 0) {
-                finalHtml += `
-                    <div class="border p-3 rounded bg-white mb-2">
-                        <h4 class="font-bold text-pink-600 mb-2">공동교육과정</h4>
-                        <ul class="text-sm space-y-1">
-                            ${jointCourses.map(c => `<li>${c.subjectName} (${c.credits})</li>`).join('')}
-                        </ul>
-                    </div>
-                `;
-            }
             finalSelectionEl.innerHTML = finalHtml;
 
             renderCategorySummary(selectedCourses);
@@ -460,7 +647,7 @@
 
         function renderCategorySummary(selectedCourses) {
             const summary = {};
-            const allCourses = [...selectedCourses, ...jointCourses];
+            const allCourses = [...selectedCourses]; // jointCourses are already in selectedCourses if passed from validateSelections
 
             allCourses.forEach(c => {
                 const cat = c.subjectCategory || c.category || '기타';
@@ -478,7 +665,7 @@
             }
 
             summaryEl.innerHTML = Object.entries(summary).map(([cat, data]) => {
-                const isLong = data.courses.length > 2; // Show toggle if more than 2 courses
+                const isLong = data.courses.length > 2;
                 const courseListHtml = data.courses.join(', ');
 
                 return `
