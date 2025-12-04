@@ -35,9 +35,6 @@ const DB = {
         if (!DB.apiUrl) throw new Error("API URL not configured");
         const response = await fetch(DB.apiUrl, {
             method: 'POST',
-            mode: 'no-cors', // Google Apps Script requires no-cors for simple POSTs usually, but we need response.
-            // Actually, for GAS web app, we usually use text/plain to avoid preflight CORS issues if we want to read response,
-            // or use form-data. Let's try standard JSON with simple content type.
             headers: {
                 'Content-Type': 'text/plain;charset=utf-8',
             },
