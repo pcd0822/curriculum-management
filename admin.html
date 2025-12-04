@@ -21,172 +21,227 @@
     <style>
         body {
             font-family: 'Noto Sans KR', sans-serif;
-            background-color: #f3f4f6;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
         }
 
         .tab-btn.active {
-            border-bottom: 2px solid #2563eb;
-            color: #2563eb;
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color);
             font-weight: bold;
+        }
+
+        /* Custom styles for theme compatibility */
+        .theme-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+        }
+
+        .theme-text {
+            color: var(--text-color);
+        }
+
+        .theme-text-muted {
+            color: var(--text-muted);
+        }
+
+        .theme-border {
+            border-color: var(--border-color);
+        }
+
+        input,
+        select {
+            background-color: var(--input-bg);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+
+        input:focus,
+        select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2);
+        }
+
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(156, 163, 175, 0.5);
+            border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(156, 163, 175, 0.8);
         }
     </style>
 </head>
 
-<body class="p-8">
-    <div class="max-w-6xl mx-auto">
-        <header class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800">관리자 대시보드</h1>
-            <a href="index.html" target="_blank" class="text-blue-600 hover:underline">학생 페이지 보기 &rarr;</a>
-        </header>
+<body class="min-h-screen p-8">
+    <header class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold theme-text">관리자 대시보드</h1>
+        <a href="index.html" target="_blank" class="text-blue-600 hover:underline">학생 페이지 보기 &rarr;</a>
+    </header>
 
-        <!-- Tabs -->
-        <div class="flex border-b mb-6">
-            <button class="tab-btn px-6 py-3 text-gray-600 hover:text-blue-600 active" onclick="switchTab('system')">시스템
-                설정</button>
-            <button class="tab-btn px-6 py-3 text-gray-600 hover:text-blue-600" onclick="switchTab('courses')">과목 데이터
-                관리</button>
-            <button class="tab-btn px-6 py-3 text-gray-600 hover:text-blue-600" onclick="switchTab('share')">배포 및
-                공유</button>
-            <button class="tab-btn px-6 py-3 text-gray-600 hover:text-blue-600" onclick="switchTab('dashboard')">학생 신청
-                현황</button>
+    <!-- Tabs -->
+    <div class="flex border-b mb-6 theme-border">
+        <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600 active" onclick="switchTab('system')">시스템
+            설정</button>
+        <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('courses')">과목 데이터
+            관리</button>
+        <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('rules')">선택
+            규칙</button>
+        <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('share')">배포 및
+            공유</button>
+        <button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('dashboard')">학생 신청
+            현황</button>
+    </div>
+
+    <!-- 1. System Config -->
+    <div id="tab-system" class="tab-content">
+        <div class="theme-card p-6 rounded-lg shadow-md max-w-2xl">
+            <h2 class="text-xl font-semibold mb-4 theme-text">Google Apps Script API 설정</h2>
+            <p class="text-sm mb-4 theme-text-muted">배포된 Google Apps Script 웹 앱 URL을 입력하세요. 이 URL은 데이터베이스(Google
+                Sheets)와의 통신에 사용됩니다.</p>
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-1 theme-text">API URL</label>
+                <input type="text" id="api-url" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
+                    placeholder="https://script.google.com/macros/s/.../exec">
+            </div>
+            <div class="flex gap-2">
+                <button id="save-url-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">저장</button>
+                <button id="test-connection-btn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300"
+                    style="background-color: var(--hover-bg); color: var(--text-color)">연결 테스트</button>
+            </div>
+            <div id="connection-status" class="mt-4 text-sm"></div>
         </div>
+    </div>
 
-        <!-- 1. System Config -->
-        <div id="tab-system" class="tab-content">
-            <div class="bg-white p-6 rounded-lg shadow-md max-w-2xl">
-                <h2 class="text-xl font-semibold mb-4">Google Apps Script API 설정</h2>
-                <p class="text-sm text-gray-500 mb-4">
-                    배포된 Google Apps Script 웹 앱 URL을 입력하세요.
-                    이 URL은 데이터베이스(Google Sheets)와의 통신에 사용됩니다.
-                </p>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">API URL</label>
-                    <input type="text" id="api-url" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
-                        placeholder="https://script.google.com/macros/s/.../exec">
-                </div>
-                <div class="flex gap-2">
-                    <button id="save-url-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                        저장
+    <!-- 2. Course Data Management -->
+    <div id="tab-courses" class="tab-content hidden">
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="theme-card p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4 theme-text">과목 엑셀 업로드</h2>
+                <p class="text-sm mb-4 theme-text-muted">'편제표' 시트가 포함된 엑셀 파일을 업로드하세요. 기존 데이터는 덮어씌워집니다.</p>
+                <div class="space-y-4">
+                    <button onclick="ExcelHandler.downloadTemplate()"
+                        class="text-blue-600 hover:underline text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        템플릿 양식 다운로드
                     </button>
-                    <button id="test-connection-btn"
-                        class="bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300">
-                        연결 테스트
-                    </button>
+                    <input type="file" id="course-excel-file" accept=".xlsx, .xls"
+                        class="block w-full text-sm theme-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                    <button id="upload-course-btn"
+                        class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">데이터 업로드 및
+                        저장</button>
                 </div>
-                <div id="connection-status" class="mt-4 text-sm"></div>
+                <div id="upload-status" class="mt-4 text-sm"></div>
+            </div>
+
+            <div class="theme-card p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4 theme-text">현재 등록된 과목</h2>
+                <div id="current-course-count" class="text-3xl font-bold mb-2 theme-text">-</div>
+                <p class="text-sm theme-text-muted">개의 과목이 등록되어 있습니다.</p>
+                <button id="refresh-course-btn" class="mt-4 text-sm text-blue-600 hover:underline">새로고침</button>
             </div>
         </div>
+    </div>
 
-        <!-- 2. Course Data Management -->
-        <div id="tab-courses" class="tab-content hidden">
-            <div class="grid md:grid-cols-2 gap-6">
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold mb-4">과목 엑셀 업로드</h2>
-                    <p class="text-sm text-gray-500 mb-4">
-                        '편제표' 시트가 포함된 엑셀 파일을 업로드하세요.
-                        기존 데이터는 덮어씌워집니다.
-                    </p>
-                    <div class="space-y-4">
-                        <button onclick="ExcelHandler.downloadTemplate()"
-                            class="text-blue-600 hover:underline text-sm flex items-center">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-                            </svg>
-                            템플릿 양식 다운로드
-                        </button>
-                        <input type="file" id="course-excel-file" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500
-                            file:mr-4 file:py-2 file:px-4
-                            file:rounded-full file:border-0
-                            file:text-sm file:font-semibold
-                            file:bg-blue-50 file:text-blue-700
-                            hover:file:bg-blue-100
-                        " />
-                        <button id="upload-course-btn"
-                            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">
-                            데이터 업로드 및 저장
-                        </button>
-                    </div>
-                    <div id="upload-status" class="mt-4 text-sm"></div>
+    <!-- 2.5 Selection Rules -->
+    <div id="tab-rules" class="tab-content hidden">
+        <div class="grid md:grid-cols-2 gap-6">
+            <!-- Limit Configuration -->
+            <div class="theme-card p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4 theme-text">학년-학기별 선택 규칙 설정</h2>
+                <p class="text-sm mb-4 theme-text-muted">각 학기별로 학생이 선택해야 하는 과목 수를 설정하세요.</p>
+                <div id="limit-config-container" class="space-y-4">
+                    <!-- Dynamic Content -->
                 </div>
+                <button id="save-rules-btn"
+                    class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full">규칙 저장</button>
+            </div>
 
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold mb-4">현재 등록된 과목</h2>
-                    <div id="current-course-count" class="text-3xl font-bold text-gray-700 mb-2">-</div>
-                    <p class="text-sm text-gray-500">개의 과목이 등록되어 있습니다.</p>
-                    <button id="refresh-course-btn" class="mt-4 text-sm text-blue-600 hover:underline">새로고침</button>
+            <!-- Course Classification View -->
+            <div class="theme-card p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4 theme-text">과목 편제 확인</h2>
+                <p class="text-sm mb-4 theme-text-muted">등록된 과목이 학년-학기별로 올바르게 분류되었는지 확인하세요.</p>
+                <div id="course-classification-view" class="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar">
+                    <!-- Dynamic Content -->
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 3. Share & Deploy -->
-        <div id="tab-share" class="tab-content hidden">
-            <div class="bg-white p-6 rounded-lg shadow-md max-w-2xl">
-                <h2 class="text-xl font-semibold mb-4">학생용 링크 생성</h2>
-                <p class="text-sm text-gray-500 mb-4">
-                    아래 QR 코드 또는 링크를 학생들에게 공유하세요.
-                    링크에는 API URL 정보가 포함되어 있어 학생들이 별도의 설정 없이 바로 접속할 수 있습니다.
-                </p>
+    <!-- 3. Share & Deploy -->
+    <div id="tab-share" class="tab-content hidden">
+        <div class="theme-card p-6 rounded-lg shadow-md max-w-2xl">
+            <h2 class="text-xl font-semibold mb-4 theme-text">학생용 링크 생성</h2>
+            <p class="text-sm mb-4 theme-text-muted">아래 QR 코드 또는 링크를 학생들에게 공유하세요. 링크에는 API URL 정보가 포함되어 있어 학생들이 별도의 설정
+                없이 바로
+                접속할 수 있습니다.</p>
 
-                <div id="share-container" class="hidden">
-                    <div class="flex flex-col items-center p-4 bg-white rounded border mb-4">
-                        <div id="qrcode" class="mb-4"></div>
-                        <p class="text-sm font-mono break-all text-center text-gray-600" id="share-link-text"></p>
-                    </div>
-                    <button id="copy-link-btn"
-                        class="w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
-                        링크 복사하기
-                    </button>
+            <div id="share-container" class="hidden">
+                <div class="flex flex-col items-center p-4 rounded border mb-4 theme-border"
+                    style="background-color: var(--card-bg)">
+                    <div id="qrcode" class="mb-4 bg-white p-2 rounded"></div>
+                    <p class="text-sm font-mono break-all text-center theme-text-muted" id="share-link-text"></p>
                 </div>
-
-                <div id="share-error" class="hidden text-red-500">
-                    시스템 설정에서 API URL을 먼저 설정해주세요.
-                </div>
+                <button id="copy-link-btn"
+                    class="w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">링크 복사하기</button>
             </div>
+            <div id="share-error" class="hidden text-red-500">시스템 설정에서 API URL을 먼저 설정해주세요.</div>
         </div>
+    </div>
 
-        <!-- 4. Student Dashboard -->
-        <div id="tab-dashboard" class="tab-content hidden">
-            <div class="flex justify-between items-center mb-4">
-                <div class="flex gap-2">
-                    <select id="filter-grade" class="p-2 border rounded">
-                        <option value="">전체 학년</option>
-                        <option value="1">1학년</option>
-                        <option value="2">2학년</option>
-                        <option value="3">3학년</option>
-                    </select>
-                    <select id="filter-class" class="p-2 border rounded">
-                        <option value="">전체 반</option>
-                        <!-- Options will be populated dynamically -->
-                    </select>
-                    <button id="refresh-data-btn" class="bg-gray-200 px-3 py-2 rounded hover:bg-gray-300">🔄</button>
-                </div>
-                <button id="download-matrix-btn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
-                    엑셀 다운로드 (0/1 매트릭스)
-                </button>
+    <!-- 4. Student Dashboard -->
+    <div id="tab-dashboard" class="tab-content hidden">
+        <div class="flex justify-between items-center mb-4">
+            <div class="flex gap-2">
+                <select id="filter-grade" class="p-2 border rounded">
+                    <option value="">전체 학년</option>
+                    <option value="1">1학년</option>
+                    <option value="2">2학년</option>
+                    <option value="3">3학년</option>
+                </select>
+                <select id="filter-class" class="p-2 border rounded">
+                    <option value="">전체 반</option>
+                    <!-- Options will be populated dynamically -->
+                </select>
+                <button id="refresh-data-btn" class="px-3 py-2 rounded hover:bg-gray-300"
+                    style="background-color: var(--hover-bg)">🔄</button>
             </div>
-
-            <div class="overflow-x-auto bg-white rounded-lg shadow-md">
-                <table class="w-full text-sm text-left">
-                    <thead class="bg-gray-100 uppercase">
-                        <tr>
-                            <th class="px-4 py-3">시간</th>
-                            <th class="px-4 py-3">학번</th>
-                            <th class="px-4 py-3">이름</th>
-                            <th class="px-4 py-3">진로</th>
-                            <th class="px-4 py-3">총 학점</th>
-                            <th class="px-4 py-3">검증 결과</th>
-                        </tr>
-                    </thead>
-                    <tbody id="student-table-body">
-                        <tr>
-                            <td colspan="6" class="px-4 py-4 text-center text-gray-500">데이터를 불러오는 중...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <button id="download-matrix-btn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">엑셀
+                다운로드 (0/1 매트릭스)</button>
         </div>
-
+        <div class="overflow-x-auto rounded-lg shadow-md theme-card">
+            <table class="w-full text-sm text-left">
+                <thead class="uppercase" style="background-color: var(--hover-bg); color: var(--text-muted)">
+                    <tr>
+                        <th class="px-4 py-3">시간</th>
+                        <th class="px-4 py-3">학번</th>
+                        <th class="px-4 py-3">이름</th>
+                        <th class="px-4 py-3">진로</th>
+                        <th class="px-4 py-3">총 학점</th>
+                        <th class="px-4 py-3">검증 결과</th>
+                    </tr>
+                </thead>
+                <tbody id="student-table-body">
+                    <tr>
+                        <td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터를 불러오는 중...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -194,87 +249,190 @@
         function switchTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
 
             if (tabName === 'share') updateShareLink();
             if (tabName === 'dashboard') loadStudentData();
-            if (tabName === 'courses') checkCourseStatus();
+            if (tabName === 'rules') loadRulesAndClassification();
         }
 
         // 1. System Config
-        const apiUrlInput = document.getElementById('api-url');
-        const saveUrlBtn = document.getElementById('save-url-btn');
-        const testConnBtn = document.getElementById('test-connection-btn');
-        const connStatus = document.getElementById('connection-status');
-
         function loadConfig() {
             const savedUrl = localStorage.getItem('gas_api_url');
             if (savedUrl) {
-                apiUrlInput.value = savedUrl;
+                document.getElementById('api-url').value = savedUrl;
                 DB.init(savedUrl);
+                loadCourseCount();
             }
         }
 
-        saveUrlBtn.addEventListener('click', () => {
-            const url = apiUrlInput.value.trim();
+        document.getElementById('save-url-btn').addEventListener('click', () => {
+            const url = document.getElementById('api-url').value.trim();
             if (!url) return alert('URL을 입력해주세요.');
             localStorage.setItem('gas_api_url', url);
             DB.init(url);
             alert('저장되었습니다.');
-            updateShareLink();
+            loadCourseCount();
         });
 
-        testConnBtn.addEventListener('click', async () => {
-            if (!DB.isConfigured()) return alert('URL을 먼저 저장해주세요.');
-            connStatus.textContent = '연결 시도 중...';
-            connStatus.className = 'mt-4 text-sm text-gray-600';
+        document.getElementById('test-connection-btn').addEventListener('click', async () => {
+            const statusEl = document.getElementById('connection-status');
+            statusEl.textContent = '연결 테스트 중...';
+            statusEl.className = 'mt-4 text-sm text-blue-600';
+
             try {
-                const data = await DB.fetchConfig();
-                connStatus.textContent = '연결 성공! (' + data.length + '개의 과목 데이터 확인됨)';
-                connStatus.className = 'mt-4 text-sm text-green-600 font-bold';
+                const result = await DB.fetchConfig();
+                if (Array.isArray(result)) {
+                    statusEl.textContent = `연결 성공! (과목 수: ${result.length})`;
+                    statusEl.className = 'mt-4 text-sm text-green-600';
+                } else {
+                    throw new Error('Invalid response');
+                }
             } catch (e) {
-                connStatus.textContent = '연결 실패: ' + e.message;
-                connStatus.className = 'mt-4 text-sm text-red-600 font-bold';
+                statusEl.textContent = '연결 실패: ' + e.message;
+                statusEl.className = 'mt-4 text-sm text-red-600';
             }
         });
 
         // 2. Course Data
-        const uploadCourseBtn = document.getElementById('upload-course-btn');
-        const courseFileInput = document.getElementById('course-excel-file');
-        const uploadStatus = document.getElementById('upload-status');
-
-        uploadCourseBtn.addEventListener('click', async () => {
-            if (!DB.isConfigured()) return alert('시스템 설정에서 API URL을 먼저 설정해주세요.');
-            const file = courseFileInput.files[0];
-            if (!file) return alert('파일을 선택해주세요.');
-
-            uploadStatus.textContent = '파일 처리 중...';
-            try {
-                const jsonData = await ExcelHandler.readExcel(file);
-                uploadStatus.textContent = '서버에 업로드 중...';
-                await DB.saveConfig(jsonData);
-                uploadStatus.textContent = '업로드 완료!';
-                uploadStatus.className = 'mt-4 text-sm text-green-600 font-bold';
-                checkCourseStatus();
-            } catch (e) {
-                console.error(e);
-                uploadStatus.textContent = '오류 발생: ' + e.message;
-                uploadStatus.className = 'mt-4 text-sm text-red-600 font-bold';
-            }
-        });
-
-        async function checkCourseStatus() {
+        async function loadCourseCount() {
             if (!DB.isConfigured()) return;
             try {
-                const data = await DB.fetchConfig();
-                document.getElementById('current-course-count').textContent = data.length;
+                const courses = await DB.fetchConfig();
+                document.getElementById('current-course-count').textContent = courses ? courses.length : 0;
             } catch (e) {
-                document.getElementById('current-course-count').textContent = 'Error';
+                console.error('Failed to load course count', e);
             }
         }
 
-        document.getElementById('refresh-course-btn').addEventListener('click', checkCourseStatus);
+        document.getElementById('refresh-course-btn').addEventListener('click', loadCourseCount);
+
+        document.getElementById('upload-course-btn').addEventListener('click', async () => {
+            const fileInput = document.getElementById('course-excel-file');
+            const file = fileInput.files[0];
+            if (!file) return alert('파일을 선택해주세요.');
+
+            const statusEl = document.getElementById('upload-status');
+            statusEl.textContent = '업로드 중...';
+            statusEl.className = 'mt-4 text-sm text-blue-600';
+
+            try {
+                const jsonData = await ExcelHandler.readExcel(file);
+                const result = await DB.saveConfig(jsonData);
+                if (result.status === 'success') {
+                    statusEl.textContent = '업로드 성공!';
+                    statusEl.className = 'mt-4 text-sm text-green-600';
+                    loadCourseCount();
+                } else {
+                    throw new Error('Upload failed');
+                }
+            } catch (e) {
+                statusEl.textContent = '업로드 실패: ' + e.message;
+                statusEl.className = 'mt-4 text-sm text-red-600';
+            }
+        });
+
+        // 2.5 Selection Rules
+        async function loadRulesAndClassification() {
+            if (!DB.isConfigured()) return;
+
+            // Load Courses
+            const courses = await DB.fetchConfig();
+            if (!courses) return;
+
+            // Render Classification
+            const container = document.getElementById('course-classification-view');
+            container.innerHTML = '';
+
+            const grouped = {};
+            courses.forEach(c => {
+                const key = `${c.grade}-${c.semester}`;
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(c);
+            });
+
+            Object.keys(grouped).sort().forEach(key => {
+                const [g, s] = key.split('-');
+                const groupCourses = grouped[key];
+
+                const section = document.createElement('div');
+                section.className = 'border p-4 rounded bg-opacity-50';
+                section.style.borderColor = 'var(--border-color)';
+                section.style.backgroundColor = 'var(--hover-bg)';
+
+                section.innerHTML = `
+                    <h3 class="font-bold mb-2 theme-text">${g}학년 ${s}학기 (${groupCourses.length}과목)</h3>
+                    <div class="flex flex-wrap gap-2">
+                        ${groupCourses.map(c => `
+                            <span class="text-xs px-2 py-1 rounded border ${c.required ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white text-gray-700 border-gray-200'}">
+                                ${c.subjectName} (${c.credits})
+                            </span>
+                        `).join('')}
+                    </div>
+                `;
+                container.appendChild(section);
+            });
+
+            // Render Limit Config
+            const limitContainer = document.getElementById('limit-config-container');
+            limitContainer.innerHTML = '';
+
+            // Fetch existing settings
+            let currentSettings = {};
+            try {
+                currentSettings = await DB.fetchSettings();
+            } catch (e) { console.log('No settings found'); }
+
+            const limits = currentSettings.selectionLimits || {};
+
+            ['2-1', '2-2', '3-1', '3-2'].forEach(key => {
+                const [g, s] = key.split('-');
+                const savedLimit = limits[key] || {};
+
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between p-3 border rounded';
+                row.style.borderColor = 'var(--border-color)';
+
+                row.innerHTML = `
+                    <span class="font-medium theme-text w-24">${g}학년 ${s}학기</span>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm theme-text-muted">최대 선택:</label>
+                        <select id="limit-count-${key}" class="p-1 border rounded w-20">
+                            ${[...Array(11).keys()].map(i => `<option value="${i}" ${savedLimit.maxCount == i ? 'selected' : ''}>${i}개</option>`).join('')}
+                        </select>
+                    </div>
+                `;
+                limitContainer.appendChild(row);
+            });
+        }
+
+        document.getElementById('save-rules-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('save-rules-btn');
+            btn.disabled = true;
+            btn.textContent = '저장 중...';
+
+            const newLimits = {};
+            ['2-1', '2-2', '3-1', '3-2'].forEach(key => {
+                const count = document.getElementById(`limit-count-${key}`).value;
+                newLimits[key] = {
+                    maxCount: parseInt(count),
+                    targetCredits: 0 // Optional, can be added later
+                };
+            });
+
+            try {
+                await DB.saveSettings({ selectionLimits: newLimits });
+                alert('규칙이 저장되었습니다.');
+            } catch (e) {
+                alert('저장 실패: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '규칙 저장';
+            }
+        });
+
 
         // 3. Share
         function updateShareLink() {
@@ -292,13 +450,11 @@
             errorMsg.classList.add('hidden');
 
             // Generate Link
-            // Assuming index.html is in the same directory
             const baseUrl = window.location.href.replace('admin.html', 'index.html');
-            const encodedKey = btoa(savedUrl); // Simple Base64 encoding
+            const encodedKey = btoa(savedUrl);
             const fullLink = `${baseUrl}?key=${encodedKey}`;
 
             document.getElementById('share-link-text').textContent = fullLink;
-            // Increased size to 256 for better scannability
             QRCodeGenerator.generate('qrcode', fullLink, 256);
 
             document.getElementById('copy-link-btn').onclick = () => {
@@ -312,7 +468,7 @@
         async function loadStudentData() {
             if (!DB.isConfigured()) return;
             const tbody = document.getElementById('student-table-body');
-            tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center">데이터 로딩 중...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터 로딩 중...</td></tr>';
 
             try {
                 allStudentData = await DB.fetchResponses();
@@ -333,25 +489,23 @@
             if (classFilter) filtered = filtered.filter(d => d.Class == classFilter);
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center">데이터가 없습니다.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터가 없습니다.</td></tr>';
                 return;
             }
 
             tbody.innerHTML = filtered.map(d => {
-                // Parse timestamp
                 const date = new Date(d.Timestamp).toLocaleString();
-                // Simple validation check (mock logic for now, real logic needs course data)
-                const isValid = true;
+                const isValid = true; // Mock validation
                 const statusColor = isValid ? 'text-green-600' : 'text-red-600';
                 const statusText = isValid ? '정상' : '주의';
 
                 return `
-                    <tr class="bg-white border-b hover:bg-gray-50">
-                        <td class="px-4 py-2">${date}</td>
-                        <td class="px-4 py-2">${d.Grade}-${d.Class}-${d.Number}</td>
-                        <td class="px-4 py-2 font-medium">${d.Name}</td>
-                        <td class="px-4 py-2">${d.Major}</td>
-                        <td class="px-4 py-2">${d.TotalCredits}</td>
+                    <tr class="border-b hover:bg-opacity-50" style="background-color: var(--card-bg); border-color: var(--border-color)">
+                        <td class="px-4 py-2 theme-text">${date}</td>
+                        <td class="px-4 py-2 theme-text">${d.Grade}-${d.Class}-${d.Number}</td>
+                        <td class="px-4 py-2 font-medium theme-text">${d.Name}</td>
+                        <td class="px-4 py-2 theme-text">${d.Major}</td>
+                        <td class="px-4 py-2 theme-text">${d.TotalCredits}</td>
                         <td class="px-4 py-2 ${statusColor}">${statusText}</td>
                     </tr>
                 `;
@@ -372,7 +526,6 @@
         document.getElementById('download-matrix-btn').addEventListener('click', () => {
             if (allStudentData.length === 0) return alert('데이터가 없습니다.');
 
-            // 1. Get all unique course names
             const allCourses = new Set();
             allStudentData.forEach(d => {
                 if (d.SelectedCourses) {
@@ -381,7 +534,6 @@
             });
             const courseList = [...allCourses].sort();
 
-            // 2. Build Matrix
             const matrix = allStudentData.map(d => {
                 const row = {
                     '학년': d.Grade,
@@ -391,6 +543,7 @@
                     '진로': d.Major
                 };
                 const selected = new Set(d.SelectedCourses ? d.SelectedCourses.split(', ').map(c => c.trim()) : []);
+
                 courseList.forEach(c => {
                     row[c] = selected.has(c) ? 1 : 0;
                 });
@@ -403,33 +556,19 @@
         // Initialize
         loadConfig();
     </script>
+
     <!-- Floating Theme Selector -->
-    <div
-        class="fixed bottom-6 left-6 z-50 flex items-center gap-2 bg-white p-2 rounded-full shadow-lg border hover:shadow-xl transition-shadow">
+    <div class="fixed bottom-6 left-6 z-50 flex items-center gap-2 p-2 rounded-full shadow-lg border hover:shadow-xl transition-shadow"
+        style="background-color: var(--card-bg); border-color: var(--border-color)">
         <span class="text-xl pl-2">🎨</span>
         <select id="theme-selector"
-            class="bg-transparent border-none focus:ring-0 text-sm font-medium cursor-pointer pr-8 py-1">
+            class="bg-transparent border-none focus:ring-0 text-sm font-medium cursor-pointer pr-8 py-1 theme-text">
             <option value="light">Light Mode</option>
             <option value="dark-neon">Dark Neon</option>
             <option value="tokyo-night">Tokyo Night</option>
             <option value="solarized-light">Solarized Light</option>
         </select>
     </div>
-    <script>
-        // Initialize theme selector for admin page
-        document.addEventListener('DOMContentLoaded', () => {
-            const themeSelector = document.getElementById('theme-selector');
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            themeSelector.value = savedTheme;
-            applyTheme(savedTheme);
-
-            themeSelector.addEventListener('change', (e) => {
-                const theme = e.target.value;
-                applyTheme(theme);
-                localStorage.setItem('theme', theme);
-            });
-        });
-    </script>
 </body>
 
 </html>
