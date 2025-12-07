@@ -1287,7 +1287,8 @@
             if (!confirm('정말 제출하시겠습니까?')) return;
 
             const selected = [...getSelected(), ...jointCourses];
-            const courseNames = selected.map(c => c.subjectName).join(', ');
+            // Use ID instead of SubjectName for submission as requested
+            const courseIds = selected.map(c => c.id || c.subjectName).join(', ');
 
             const data = {
                 Grade: gradeEl.value,
@@ -1295,7 +1296,7 @@
                 Number: studentNumEl.value,
                 Name: studentNameEl.value,
                 Major: majorInput.value,
-                SelectedCourses: courseNames,
+                SelectedCourses: courseIds,
                 TotalCredits: totalCreditsEl.textContent,
                 Timestamp: new Date().toISOString()
             };
