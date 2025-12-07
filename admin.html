@@ -677,10 +677,23 @@
             tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터 로딩 중...</td></tr>';
 
             try {
-                allStudentData = await DB.fetchResponses();
+                const response = await DB.fetchResponses();
+                // Handle different response formats
+                if (Array.isArray(response)) {
+                    allStudentData = response;
+                } else if (response && Array.isArray(response.data)) {
+                    allStudentData = response.data;
+                } else if (response && response.status === 'error') {
+                    throw new Error(response.message || 'Server reported an error');
+                } else {
+                    console.warn('Unexpected data format:', response);
+                    allStudentData = []; // Default to empty array
+                }
+
                 renderStudentTable();
                 updateClassFilter();
             } catch (e) {
+                console.error('Failed to load student data:', e);
                 tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-red-500">오류: ${e.message}</td></tr>`;
             }
         }
@@ -689,6 +702,12 @@
             const tbody = document.getElementById('student-table-body');
             const gradeFilter = document.getElementById('filter-grade').value;
             const classFilter = document.getElementById('filter-class').value;
+
+            // Ensure allStudentData is an array
+            if (!Array.isArray(allStudentData)) {
+                console.error('allStudentData is not an array:', allStudentData);
+                allStudentData = [];
+            }
 
             let filtered = allStudentData;
             if (gradeFilter) filtered = filtered.filter(d => d.Grade == gradeFilter);
