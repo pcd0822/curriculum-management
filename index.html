@@ -212,11 +212,21 @@
             <!-- Validation Status (Swapped: Now Bottom & Sticky) -->
             <div class="theme-card p-6 rounded-lg shadow-md sticky top-6">
                 <h2 class="text-lg font-semibold mb-4 theme-text">검증 현황</h2>
-                <div id="validation-messages" class="space-y-2 mb-6 max-h-[200px] overflow-y-auto custom-scrollbar">
+                <div id="validation-messages" class="space-y-2 mb-6">
                     <div class="text-sm text-gray-500">과목을 선택하면 검증 결과가 표시됩니다.</div>
                 </div>
 
-                <h3 class="font-bold mb-2 theme-text">선택한 과목 목록</h3>
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold theme-text">선택한 과목 목록</h3>
+                    <div class="flex gap-2 text-xs">
+                        <button id="toggle-required-btn" class="px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">
+                            학교지정
+                        </button>
+                        <button id="toggle-optional-btn" class="px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+                            학생선택
+                        </button>
+                    </div>
+                </div>
                 <div id="selected-courses-list"
                     class="space-y-2 text-sm max-h-[400px] overflow-y-auto custom-scrollbar mb-6">
                     <div class="text-gray-400 italic">선택된 과목이 없습니다.</div>
@@ -530,13 +540,30 @@
             let requiredElectiveGroupCredits = 0; // 학교지정 교양/제2외국어/정보 학점
 
             const countedCourseSlugs = new Set();
+            const countedMultiSemesterNames = new Set(); // 복수편제과목 중복 방지용
+
+            // Identify Multi-Semester Courses for duplicate prevention
+            const coursesByName = {};
+            PROCESSED_COURSES.forEach(c => {
+                if (!coursesByName[c.subjectName]) coursesByName[c.subjectName] = [];
+                coursesByName[c.subjectName].push(c);
+            });
 
             // 1. Calculate Credits from Required Courses (School Designated)
             requiredCourses.forEach(course => {
+                // 복수편제과목 중복 계산 방지
+                const isMultiSemester = (multiSemesterRules[course.subjectName] && multiSemesterRules[course.subjectName].length > 0) ||
+                    (coursesByName[course.subjectName] && coursesByName[course.subjectName].length > 1);
+                
+                if (isMultiSemester && countedMultiSemesterNames.has(course.subjectName)) {
+                    return; // 이미 계산된 복수편제과목은 건너뛰기
+                }
+                
                 let shouldCount = !duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug);
 
                 if (shouldCount) {
                     if (duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
+                    if (isMultiSemester) countedCourseNames.add(course.subjectName);
 
                     // Ensure credits is a number
                     let credits = course.credits;
@@ -571,10 +598,19 @@
 
             // 2. Calculate Credits from Optional Courses (Student Selected)
             optionalCourses.forEach(course => {
+                // 복수편제과목 중복 계산 방지
+                const isMultiSemester = (multiSemesterRules[course.subjectName] && multiSemesterRules[course.subjectName].length > 0) ||
+                    (coursesByName[course.subjectName] && coursesByName[course.subjectName].length > 1);
+                
+                if (isMultiSemester && countedMultiSemesterNames.has(course.subjectName)) {
+                    return; // 이미 계산된 복수편제과목은 건너뛰기
+                }
+                
                 let shouldCount = !duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug);
 
                 if (shouldCount) {
                     if (duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
+                    if (isMultiSemester) countedMultiSemesterNames.add(course.subjectName);
 
                     // Ensure credits is a number
                     let credits = course.credits;
@@ -763,9 +799,9 @@
             });
 
             // 2. Check Selection Rules (Auto-Disable)
-            // Group selected courses by Grade-Semester
+            // Group selected courses by Grade-Semester (선택과목만 카운트, 학교지정과목 제외)
             const selectedByGroup = {};
-            selected.forEach(c => {
+            selected.filter(c => !c.required).forEach(c => {
                 const key = `${c.grade}-${c.semester}`;
                 if (!selectedByGroup[key]) selectedByGroup[key] = [];
                 selectedByGroup[key].push(c);
@@ -773,7 +809,7 @@
 
             Object.keys(selectionRules).forEach(key => {
                 const rules = selectionRules[key];
-                const currentSelected = selectedByGroup[key] || [];
+                const currentSelected = selectedByGroup[key] || []; // 선택과목만 포함
 
                 rules.forEach(rule => {
                     let count = 0;
@@ -785,11 +821,12 @@
 
                     if (count >= parseInt(rule.count)) {
                         // Disable all UNCHECKED courses in this group (matching credit criteria if specific)
+                        // 학교지정과목은 제외
                         document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                             if (cb.checked || cb.disabled) return;
 
                             const course = PROCESSED_COURSES.find(c => c.id == cb.value);
-                            if (!course) return;
+                            if (!course || course.required) return; // 학교지정과목 제외
 
                             if (`${course.grade}-${course.semester}` === key) {
                                 // If rule is specific to credits, only disable those
@@ -875,8 +912,19 @@
                         <div class="text-xs font-bold text-gray-500 mb-1">${cat} (${categoryCredits}학점)</div>
                         <div class="flex flex-wrap gap-1">
                             ${categoryGroups[cat].map(c => {
-                                const isRequired = c.required ? 'border-red-300 bg-red-50 dark:bg-red-900/20' : '';
-                                return `<span class="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-300 border ${isRequired}">${c.subjectName || c.name}${c.required ? ' (학교지정)' : ''}</span>`;
+                                const colors = [
+                                    'text-pink-500 dark:text-pink-400',
+                                    'text-purple-500 dark:text-purple-400',
+                                    'text-indigo-500 dark:text-indigo-400',
+                                    'text-blue-500 dark:text-blue-400',
+                                    'text-teal-500 dark:text-teal-400',
+                                    'text-emerald-500 dark:text-emerald-400',
+                                    'text-orange-500 dark:text-orange-400',
+                                    'text-rose-500 dark:text-rose-400'
+                                ];
+                                const hash = (c.subjectName || c.name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                                const colorClass = colors[hash % colors.length];
+                                return `<span class="text-xs font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.subjectName || c.name}</span>`;
                             }).join('')}
                         </div>
                     </div>
@@ -912,9 +960,9 @@
                         'text-orange-500 dark:text-orange-400',
                         'text-rose-500 dark:text-rose-400'
                     ];
-                    const hash = c.subjectName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    const hash = (c.subjectName || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
                     const colorClass = colors[hash % colors.length];
-                    return `<span class="text-sm font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" style="text-shadow: 0 0 1px currentColor;">${c.subjectName}</span>`;
+                    return `<span class="text-sm font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.subjectName}</span>`;
                 }).join('')}
                         </div>
                     </div>
@@ -922,6 +970,9 @@
             });
 
             selectedCoursesEl.innerHTML = html;
+            
+            // Apply toggle filter
+            applyCourseToggle();
 
             // Update Final Modal Content
             let finalHtml = '';
@@ -946,9 +997,9 @@
             const messages = [];
             let allValid = true;
 
-            // Group selected by Grade-Semester
+            // Group selected by Grade-Semester (선택과목만 카운트, 학교지정과목 제외)
             const grouped = {};
-            selected.forEach(c => {
+            selected.filter(c => !c.required).forEach(c => {
                 const key = `${c.grade}-${c.semester}`;
                 if (!grouped[key]) grouped[key] = [];
                 grouped[key].push(c);
@@ -957,7 +1008,7 @@
             // Check each rule
             Object.keys(selectionRules).forEach(key => {
                 const rules = selectionRules[key];
-                const semesterCourses = grouped[key] || [];
+                const semesterCourses = grouped[key] || []; // 선택과목만 포함
 
                 rules.forEach(rule => {
                     let count = 0;
@@ -971,7 +1022,7 @@
                         allValid = false;
                         const [g, s] = key.split('-');
                         const creditText = rule.credits === 'all' ? '모든' : `${rule.credits}학점`;
-                        messages.push(`${g}학년 ${s}학기: ${creditText} 과목을 ${rule.count}개 선택해야 합니다. (현재 ${count}개)`);
+                        messages.push(`${g}학년 ${s}학기: ${creditText} 선택과목을 ${rule.count}개 선택해야 합니다. (현재 ${count}개)`);
                     }
                 });
             });
@@ -1129,10 +1180,59 @@
             document.getElementById('theme-menu').classList.add('hidden');
         }
 
+        // Course Toggle Functions
+        let showRequired = true;
+        let showOptional = true;
+
+        function applyCourseToggle() {
+            const allCourseSpans = selectedCoursesEl.querySelectorAll('[data-required]');
+            allCourseSpans.forEach(span => {
+                const isRequired = span.getAttribute('data-required') === 'true';
+                if (isRequired && !showRequired) {
+                    span.style.display = 'none';
+                } else if (!isRequired && !showOptional) {
+                    span.style.display = 'none';
+                } else {
+                    span.style.display = '';
+                }
+            });
+            
+            // Update button states
+            const requiredBtn = document.getElementById('toggle-required-btn');
+            const optionalBtn = document.getElementById('toggle-optional-btn');
+            if (requiredBtn) {
+                requiredBtn.className = showRequired 
+                    ? 'px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors'
+                    : 'px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors';
+            }
+            if (optionalBtn) {
+                optionalBtn.className = showOptional 
+                    ? 'px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors'
+                    : 'px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors';
+            }
+        }
+
         // Initialize Theme
         document.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('theme') || 'light';
             applyTheme(savedTheme);
+            
+            // Setup toggle buttons
+            const requiredBtn = document.getElementById('toggle-required-btn');
+            const optionalBtn = document.getElementById('toggle-optional-btn');
+            if (requiredBtn) {
+                requiredBtn.addEventListener('click', () => {
+                    showRequired = !showRequired;
+                    applyCourseToggle();
+                });
+            }
+            if (optionalBtn) {
+                optionalBtn.addEventListener('click', () => {
+                    showOptional = !showOptional;
+                    applyCourseToggle();
+                });
+            }
+            
             init();
         });
     </script>
