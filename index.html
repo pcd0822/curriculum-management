@@ -180,26 +180,7 @@
 
         <!-- Right Column: Validation & AI Helper -->
         <div class="lg:col-span-1 space-y-6">
-            <!-- Validation Status -->
-            <div class="theme-card p-6 rounded-lg shadow-md sticky top-6">
-                <h2 class="text-lg font-semibold mb-4 theme-text">검증 현황</h2>
-                <div id="validation-messages" class="space-y-2 mb-6 max-h-[200px] overflow-y-auto custom-scrollbar">
-                    <div class="text-sm text-gray-500">과목을 선택하면 검증 결과가 표시됩니다.</div>
-                </div>
-
-                <h3 class="font-bold mb-2 theme-text">선택한 과목 목록</h3>
-                <div id="selected-courses-list"
-                    class="space-y-2 text-sm max-h-[300px] overflow-y-auto custom-scrollbar mb-6">
-                    <div class="text-gray-400 italic">선택된 과목이 없습니다.</div>
-                </div>
-
-                <button id="submit-btn" disabled
-                    class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">
-                    수강신청 완료 및 제출
-                </button>
-            </div>
-
-            <!-- AI Helper -->
+            <!-- AI Helper (Swapped: Now Top) -->
             <div
                 class="theme-card p-6 rounded-lg shadow-md bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 border-purple-100 dark:border-gray-700">
                 <div class="flex justify-between items-center mb-4">
@@ -222,6 +203,25 @@
                 <button onclick="getAiRecommendation()"
                     class="w-full mt-4 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition-colors">
                     AI 추천 받기
+                </button>
+            </div>
+
+            <!-- Validation Status (Swapped: Now Bottom & Sticky) -->
+            <div class="theme-card p-6 rounded-lg shadow-md sticky top-6">
+                <h2 class="text-lg font-semibold mb-4 theme-text">검증 현황</h2>
+                <div id="validation-messages" class="space-y-2 mb-6 max-h-[200px] overflow-y-auto custom-scrollbar">
+                    <div class="text-sm text-gray-500">과목을 선택하면 검증 결과가 표시됩니다.</div>
+                </div>
+
+                <h3 class="font-bold mb-2 theme-text">선택한 과목 목록</h3>
+                <div id="selected-courses-list"
+                    class="space-y-2 text-sm max-h-[400px] overflow-y-auto custom-scrollbar mb-6">
+                    <div class="text-gray-400 italic">선택된 과목이 없습니다.</div>
+                </div>
+
+                <button id="submit-btn" disabled
+                    class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">
+                    수강신청 완료 및 제출
                 </button>
             </div>
         </div>
@@ -381,7 +381,7 @@
                                     onchange="validateSelections()">
                                 <div>
                                     <div class="font-bold theme-text">${c.subjectName}</div>
-                                    <div class="text-xs theme-text-muted">${c.classification} | ${c.credits}학점</div>
+                                    <div class="text-xs theme-text-muted">${c.category} | ${c.credits}학점</div>
                                     ${c.description ? `<div class="text-xs text-gray-400 mt-1">${c.description}</div>` : ''}
                                 </div>
                             </label>
@@ -427,7 +427,13 @@
             });
             totalCreditsEl.textContent = totalCredits;
             let errorMessages = [];
-            if (totalCredits < 174) errorMessages.push(`총 이수 학점(174)이 부족합니다. ${174 - totalCredits}학점 더 선택해주세요.`);
+
+            // 1. Total Credits Check
+            if (totalCredits < 174) {
+                errorMessages.push(`총 이수 학점(174)이 부족합니다. <span class="font-bold text-red-600">${174 - totalCredits}학점</span> 더 선택해주세요.`);
+            }
+
+            // 2. Basic Subjects Check (>50%)
             if (totalCredits > 0 && basicCredits > (totalCredits * 0.5)) {
                 const optionalBasicCourses = selectedSchoolCourses.filter(c => !c.required && c.category === '기초교과').map(c => c.name);
                 const jointBasicCourses = jointCourses.filter(c => (jointSubCategoryToCategoryMap[c.subCategory] || '기타') === '기초교과').map(c => c.name);
@@ -438,7 +444,13 @@
                     errorMessages.push(`기초교과 학점이 50%를 초과했지만 조정할 선택과목이 없습니다.`);
                 }
             }
-            if (artCredits < 10) errorMessages.push('예술교과 이수 학점(10)이 부족합니다. 예술교과를 추가신청해주세요.');
+
+            // 3. Art Subjects Check (>=10)
+            if (artCredits < 10) {
+                errorMessages.push(`예술교과 이수 학점(10)이 부족합니다. <span class="font-bold text-red-600">${10 - artCredits}학점</span> 더 선택해주세요.`);
+            }
+
+            // 4. Elective/Foreign/Info Check (>=16)
             const requiredElectiveGroupCredits = 16;
             if (electiveGroupCredits < requiredElectiveGroupCredits) {
                 const neededCredits = requiredElectiveGroupCredits - electiveGroupCredits;
@@ -448,8 +460,10 @@
                 if (availableCourses.length > 0) {
                     suggestionList = `<div class="mt-2 space-y-1 text-left">${availableCourses.map((name, index) => `<div class="flex items-center"><span class="flex items-center justify-center h-5 w-5 rounded-full bg-[#f33358] text-white text-xs font-bold mr-2">${index + 1}</span><span>${name}</span></div>`).join('')}</div>`;
                 }
-                errorMessages.push(`교양/제2외국어/정보 필수이수학점 중 ${neededCredits}학점이 부족합니다. 다음 과목 중 추가 선택하세요.${suggestionList}`);
+                errorMessages.push(`교양/제2외국어/정보 필수이수학점 중 <span class="font-bold text-red-600">${neededCredits}학점</span>이 부족합니다. 다음 과목 중 추가 선택하세요.${suggestionList}`);
             }
+
+            // 5. Prerequisites Check
             const selectedCourseSlugs = new Set(selectedSchoolCourses.map(c => c.slug));
             getSelected().filter(c => !c.required).forEach(course => {
                 if (course.prerequisites && course.prerequisites.length > 0) {
@@ -465,6 +479,7 @@
                     }
                 }
             });
+
             if (errorMessages.length > 0) showHelperMsg(errorMessages.join('<br><br>'), 'error');
             else showHelperMsg('훌륭해요! 모든 규칙을 잘 지키고 있어요. 이대로 제출해도 좋습니다.', 'success');
         }
@@ -517,25 +532,69 @@
         }
 
         function renderSelectedList(courses) {
-            // Group by Grade-Semester
-            const grouped = {};
+            // 1. Group by Category
+            const categoryGroups = {
+                '기초교과': [],
+                '탐구교과': [], // Social & Science
+                '체육/예술': [],
+                '교양/기타': []
+            };
+
+            // 2. Group by Grade-Semester
+            const semesterGroups = {};
+
             courses.forEach(c => {
-                const key = c.category ? `공동-${c.category}` : `${c.grade}-${c.semester}`;
-                if (!grouped[key]) grouped[key] = [];
-                grouped[key].push(c);
+                // Category Grouping
+                let cat = c.category;
+                if (c.subCategory && jointSubCategoryToCategoryMap[c.subCategory]) {
+                    cat = jointSubCategoryToCategoryMap[c.subCategory];
+                }
+
+                if (cat === '기초교과') categoryGroups['기초교과'].push(c);
+                else if (cat === '탐구교과') categoryGroups['탐구교과'].push(c);
+                else if (cat === '체육교과' || cat === '예술교과') categoryGroups['체육/예술'].push(c);
+                else categoryGroups['교양/기타'].push(c);
+
+                // Semester Grouping
+                const key = c.category && c.id.startsWith('joint') ? `공동-${c.category}` : `${c.grade}-${c.semester}`;
+                if (!semesterGroups[key]) semesterGroups[key] = [];
+                semesterGroups[key].push(c);
             });
 
             let html = '';
-            Object.keys(grouped).sort().forEach(k => {
+
+            // Render Category View
+            html += `<h4 class="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2 mt-4 border-b pb-1">교과별 선택 현황</h4>`;
+            Object.keys(categoryGroups).forEach(cat => {
+                if (categoryGroups[cat].length === 0) return;
+                html += `
+                    <div class="mb-2">
+                        <div class="text-xs font-bold text-gray-500 mb-1">${cat}</div>
+                        <div class="flex flex-wrap gap-1">
+                            ${categoryGroups[cat].map(c => `<span class="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-300">${c.subjectName}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Render Semester View
+            html += `<h4 class="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2 mt-6 border-b pb-1">학년-학기별 선택 현황</h4>`;
+            Object.keys(semesterGroups).sort().forEach(k => {
                 const [g, s] = k.replace('공동-', '').split('-');
                 const isJoint = k.startsWith('공동');
                 const title = isJoint ? `공동교육과정 (${g}-${s})` : `${g}학년 ${s}학기`;
 
+                // Calculate credits for this semester
+                const semCredits = semesterGroups[k].reduce((sum, c) => sum + c.credits, 0);
+
                 html += `
                     <div class="border-b pb-2 last:border-0 theme-border">
-                        <h4 class="font-bold text-xs text-gray-500 mb-1">${title}</h4>
+                        <div class="flex justify-between items-center mb-1">
+                            <h4 class="font-bold text-xs text-gray-500">${title}</h4>
+                            <span class="text-xs font-bold text-blue-600">(${semCredits}학점)</span>
+                        </div>
                         <div class="flex flex-wrap gap-1">
-                            ${grouped[k].map(c => {
+                            ${semesterGroups[k].map(c => {
                     // Use lighter/brighter colors for dark mode visibility
                     const colors = [
                         'text-pink-500 dark:text-pink-400',
@@ -560,7 +619,7 @@
 
             // Update Final Modal Content
             let finalHtml = '';
-            Object.keys(grouped).sort().forEach(k => {
+            Object.keys(semesterGroups).sort().forEach(k => {
                 const [g, s] = k.replace('공동-', '').split('-');
                 const isJoint = k.startsWith('공동');
                 const title = isJoint ? `공동교육과정 (${g}-${s})` : `${g}학년 ${s}학기`;
@@ -569,12 +628,49 @@
                     <div class="border p-3 rounded bg-white mb-2 text-gray-800">
                         <h4 class="font-bold text-purple-600 mb-2">${title}</h4>
                         <ul class="text-sm space-y-1">
-                            ${grouped[k].map(c => `<li>${c.subjectName} (${c.credits})</li>`).join('')}
+                            ${semesterGroups[k].map(c => `<li>${c.subjectName} (${c.credits})</li>`).join('')}
                         </ul>
                     </div>
                 `;
             });
             finalSelectionEl.innerHTML = finalHtml;
+        }
+
+        function validateSelectionRules(selected) {
+            const messages = [];
+            let allValid = true;
+
+            // Group selected by Grade-Semester
+            const grouped = {};
+            selected.forEach(c => {
+                const key = `${c.grade}-${c.semester}`;
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(c);
+            });
+
+            // Check each rule
+            Object.keys(selectionRules).forEach(key => {
+                const rules = selectionRules[key];
+                const semesterCourses = grouped[key] || [];
+
+                rules.forEach(rule => {
+                    let count = 0;
+                    if (rule.credits === 'all') {
+                        count = semesterCourses.length;
+                    } else {
+                        count = semesterCourses.filter(c => c.credits == rule.credits).length;
+                    }
+
+                    if (count !== parseInt(rule.count)) {
+                        allValid = false;
+                        const [g, s] = key.split('-');
+                        const creditText = rule.credits === 'all' ? '모든' : `${rule.credits}학점`;
+                        messages.push(`${g}학년 ${s}학기: ${creditText} 과목을 ${rule.count}개 선택해야 합니다. (현재 ${count}개)`);
+                    }
+                });
+            });
+
+            return { valid: allValid, messages };
         }
 
         // Joint Courses
