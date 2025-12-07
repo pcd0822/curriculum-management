@@ -408,22 +408,55 @@
 
             const selectedCourses = getSelected(); // Includes required courses
 
+            // Separate required (school designated) and optional courses
+            const requiredCourses = selectedCourses.filter(c => c.required);
+            const optionalCourses = selectedCourses.filter(c => !c.required);
+
             let totalCredits = 0;
+            let requiredCredits = 0; // 학교지정과목 학점
             let basicCredits = 0;
+            let requiredBasicCredits = 0; // 학교지정 기초교과 학점
             let artCredits = 0;
+            let requiredArtCredits = 0; // 학교지정 예술교과 학점
             let electiveGroupCredits = 0; // 교양/제2외국어/정보
+            let requiredElectiveGroupCredits = 0; // 학교지정 교양/제2외국어/정보 학점
 
             const countedCourseSlugs = new Set();
 
-            // 1. Calculate Credits from School Courses (Required + Selected)
-            selectedCourses.forEach(course => {
-                // Handle duplicates (if any logic needed, though required courses shouldn't duplicate)
+            // 1. Calculate Credits from Required Courses (School Designated)
+            requiredCourses.forEach(course => {
                 let shouldCount = !duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug);
 
                 if (shouldCount) {
                     if (duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
 
-                    // Fix: Ensure integer parsing
+                    const credits = parseInt(course.credits || 0);
+                    requiredCredits += credits;
+                    totalCredits += credits;
+
+                    // Category Sums for required courses
+                    if (course.category === '기초교과') {
+                        basicCredits += credits;
+                        requiredBasicCredits += credits;
+                    }
+                    if (course.category === '예술교과') {
+                        artCredits += credits;
+                        requiredArtCredits += credits;
+                    }
+                    if (['교양교과', '제2외국어', '정보'].includes(course.category)) {
+                        electiveGroupCredits += credits;
+                        requiredElectiveGroupCredits += credits;
+                    }
+                }
+            });
+
+            // 2. Calculate Credits from Optional Courses (Student Selected)
+            optionalCourses.forEach(course => {
+                let shouldCount = !duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug);
+
+                if (shouldCount) {
+                    if (duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
+
                     const credits = parseInt(course.credits || 0);
                     totalCredits += credits;
 
@@ -434,7 +467,7 @@
                 }
             });
 
-            // 2. Calculate Credits from Joint Courses
+            // 3. Calculate Credits from Joint Courses
             jointCourses.forEach(course => {
                 totalCredits += course.credits;
                 const mappedCategory = jointSubCategoryToCategoryMap[course.subCategory] || '기타';
@@ -446,7 +479,7 @@
 
             totalCreditsEl.textContent = totalCredits;
 
-            // 3. Validation Messages
+            // 4. Validation Messages
             let errorMessages = [];
             const validationListEl = document.getElementById('validation-messages');
             validationListEl.innerHTML = ''; // Clear previous messages
@@ -459,17 +492,18 @@
             };
 
             // Rule 1: Total Credits (174)
+            // 총 이수학점 = 학교지정과목 학점 + 학생선택과목 학점
             if (totalCredits < 174) {
-                addMsg(`총 이수 학점(174)이 부족합니다. <span class="font-bold">${174 - totalCredits}학점</span> 더 선택해주세요.`);
+                addMsg(`총 이수 학점(174)이 부족합니다. <span class="font-bold">${174 - totalCredits}학점</span> 더 선택해주세요. (학교지정: ${requiredCredits}학점, 학생선택: ${totalCredits - requiredCredits}학점)`);
             } else {
-                addMsg(`총 이수 학점(174)을 충족했습니다.`, 'success');
+                addMsg(`총 이수 학점(174)을 충족했습니다. (학교지정: ${requiredCredits}학점, 학생선택: ${totalCredits - requiredCredits}학점)`, 'success');
             }
 
             // Rule 2: Basic Subjects (<= 50%)
             if (totalCredits > 0 && basicCredits > (totalCredits * 0.5)) {
                 // ... (Logic for identifying removable basic courses) ...
-                const optionalBasicCourses = selectedCourses.filter(c => !c.required && c.category === '기초교과').map(c => c.name);
-                const jointBasicCourses = jointCourses.filter(c => (jointSubCategoryToCategoryMap[c.subCategory] || '기타') === '기초교과').map(c => c.name);
+                const optionalBasicCourses = selectedCourses.filter(c => !c.required && c.category === '기초교과').map(c => c.subjectName || c.name);
+                const jointBasicCourses = jointCourses.filter(c => (jointSubCategoryToCategoryMap[c.subCategory] || '기타') === '기초교과').map(c => c.subjectName || c.name);
                 const allOptionalBasicCourses = [...new Set([...optionalBasicCourses, ...jointBasicCourses])];
 
                 if (allOptionalBasicCourses.length > 0) {
@@ -480,27 +514,31 @@
             }
 
             // Rule 3: Art Subjects (>= 10)
-            if (artCredits < 10) {
-                addMsg(`예술교과 이수 학점(10)이 부족합니다. <span class="font-bold">${10 - artCredits}학점</span> 더 선택해주세요.`);
+            // 예술교과 필수이수학점에서 이미 선택된 과목(학교지정)의 학점을 차감
+            const requiredArtCreditsTotal = 10;
+            if (artCredits < requiredArtCreditsTotal) {
+                const neededCredits = requiredArtCreditsTotal - artCredits;
+                addMsg(`예술교과 이수 학점(10)이 부족합니다. <span class="font-bold">${neededCredits}학점</span> 더 선택해주세요. (학교지정: ${requiredArtCredits}학점 포함)`);
             } else {
-                addMsg(`예술교과 이수 학점(10)을 충족했습니다.`, 'success');
+                addMsg(`예술교과 이수 학점(10)을 충족했습니다. (학교지정: ${requiredArtCredits}학점 포함)`, 'success');
             }
 
             // Rule 4: Elective/Foreign/Info (>= 16)
-            const requiredElectiveGroupCredits = 16;
-            if (electiveGroupCredits < requiredElectiveGroupCredits) {
-                const neededCredits = requiredElectiveGroupCredits - electiveGroupCredits;
+            // 교양/제2외국어/정보 필수이수학점에서 이미 선택된 과목(학교지정)의 학점을 차감
+            const requiredElectiveGroupCreditsTotal = 16;
+            if (electiveGroupCredits < requiredElectiveGroupCreditsTotal) {
+                const neededCredits = requiredElectiveGroupCreditsTotal - electiveGroupCredits;
                 // Suggest courses
                 const selectedIds = new Set(selectedCourses.map(c => c.id));
-                const availableCourses = [...new Set(PROCESSED_COURSES.filter(c => !c.required && !selectedIds.has(c.id) && (['교양교과', '제2외국어', '정보'].includes(c.category) || ['교양', '제2외국어', '정보'].includes(c.subCategory))).map(c => c.name))];
+                const availableCourses = [...new Set(PROCESSED_COURSES.filter(c => !c.required && !selectedIds.has(c.id) && (['교양교과', '제2외국어', '정보'].includes(c.category) || ['교양', '제2외국어', '정보'].includes(c.subCategory))).map(c => c.subjectName || c.name))];
 
                 let suggestionList = '';
                 if (availableCourses.length > 0) {
                     suggestionList = `<div class="mt-2 space-y-1 text-left text-xs text-gray-600">추천: ${availableCourses.slice(0, 5).join(', ')}...</div>`;
                 }
-                addMsg(`교양/제2외국어/정보 필수이수학점 중 <span class="font-bold">${neededCredits}학점</span>이 부족합니다.${suggestionList}`);
+                addMsg(`교양/제2외국어/정보 필수이수학점 중 <span class="font-bold">${neededCredits}학점</span>이 부족합니다. (학교지정: ${requiredElectiveGroupCredits}학점 포함)${suggestionList}`);
             } else {
-                addMsg(`교양/제2외국어/정보 필수이수학점(16)을 충족했습니다.`, 'success');
+                addMsg(`교양/제2외국어/정보 필수이수학점(16)을 충족했습니다. (학교지정: ${requiredElectiveGroupCredits}학점 포함)`, 'success');
             }
 
             // Rule 5: Prerequisites
@@ -570,7 +608,7 @@
             // 1. Check Multi-Semester Constraint
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 const course = PROCESSED_COURSES.find(c => c.id == cb.value);
-                if (!course || course.required || cb.disabled) return;
+                if (!course || course.required) return;
 
                 if (multiSemesterGroups[course.subjectName]) {
                     const group = multiSemesterGroups[course.subjectName];
@@ -578,8 +616,13 @@
                     const otherSelected = group.some(c => c.id !== course.id && selectedIds.has(c.id));
 
                     if (otherSelected && !cb.checked) {
+                        // Disable if another course in the group is selected
                         cb.disabled = true;
                         cb.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
+                    } else if (!otherSelected) {
+                        // Re-enable if no other course in group is selected (handles unchecking)
+                        cb.disabled = false;
+                        cb.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
                     }
                 }
             });
@@ -636,12 +679,13 @@
         }
 
         function renderSelectedList(courses) {
-            // 1. Group by Category
+            // 1. Group by Category (기초/사회 및 과학/예술/체육/교양,제2외국어,정보)
             const categoryGroups = {
                 '기초교과': [],
-                '탐구교과': [], // Social & Science
-                '체육/예술': [],
-                '교양/기타': []
+                '사회 및 과학': [], // 탐구교과
+                '예술교과': [],
+                '체육교과': [],
+                '교양,제2외국어,정보': []
             };
 
             // 2. Group by Grade-Semester
@@ -654,10 +698,17 @@
                     cat = jointSubCategoryToCategoryMap[c.subCategory];
                 }
 
-                if (cat === '기초교과') categoryGroups['기초교과'].push(c);
-                else if (cat === '탐구교과') categoryGroups['탐구교과'].push(c);
-                else if (cat === '체육교과' || cat === '예술교과') categoryGroups['체육/예술'].push(c);
-                else categoryGroups['교양/기타'].push(c);
+                if (cat === '기초교과') {
+                    categoryGroups['기초교과'].push(c);
+                } else if (cat === '탐구교과') {
+                    categoryGroups['사회 및 과학'].push(c);
+                } else if (cat === '예술교과') {
+                    categoryGroups['예술교과'].push(c);
+                } else if (cat === '체육교과') {
+                    categoryGroups['체육교과'].push(c);
+                } else if (['교양교과', '제2외국어', '정보'].includes(cat)) {
+                    categoryGroups['교양,제2외국어,정보'].push(c);
+                }
 
                 // Semester Grouping
                 const key = c.category && c.id.startsWith('joint') ? `공동-${c.category}` : `${c.grade}-${c.semester}`;
@@ -668,21 +719,25 @@
             let html = '';
 
             // Render Category View
-            html += `<h4 class="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2 mt-4 border-b pb-1">교과별 선택 현황</h4>`;
+            html += `<h4 class="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2 mt-4 border-b pb-1">교과별 선택한 과목 목록</h4>`;
             Object.keys(categoryGroups).forEach(cat => {
                 if (categoryGroups[cat].length === 0) return;
+                const categoryCredits = categoryGroups[cat].reduce((sum, c) => sum + parseInt(c.credits || 0), 0);
                 html += `
                     <div class="mb-2">
-                        <div class="text-xs font-bold text-gray-500 mb-1">${cat}</div>
+                        <div class="text-xs font-bold text-gray-500 mb-1">${cat} (${categoryCredits}학점)</div>
                         <div class="flex flex-wrap gap-1">
-                            ${categoryGroups[cat].map(c => `<span class="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-300">${c.subjectName}</span>`).join('')}
+                            ${categoryGroups[cat].map(c => {
+                                const isRequired = c.required ? 'border-red-300 bg-red-50 dark:bg-red-900/20' : '';
+                                return `<span class="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-300 border ${isRequired}">${c.subjectName || c.name}${c.required ? ' (학교지정)' : ''}</span>`;
+                            }).join('')}
                         </div>
                     </div>
                 `;
             });
 
             // Render Semester View
-            html += `<h4 class="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2 mt-6 border-b pb-1">학년-학기별 선택 현황</h4>`;
+            html += `<h4 class="font-bold text-sm text-gray-700 dark:text-gray-300 mb-2 mt-6 border-b pb-1">학년-학기별 선택 과목 목록</h4>`;
             Object.keys(semesterGroups).sort().forEach(k => {
                 const [g, s] = k.replace('공동-', '').split('-');
                 const isJoint = k.startsWith('공동');
