@@ -504,14 +504,14 @@
             const selectEl = document.getElementById('multi-course-select');
             selectEl.innerHTML = '<option value="">과목 선택...</option>' +
                 sortedSubjects.map(name => {
-                    const ids = nameToIds[name] ? `(ID: ${[...nameToIds[name]].join(', ')})` : '';
-                    return `<option value="${name}">${name} ${ids}</option>`;
+                    const ids = nameToIds[name] ? [...nameToIds[name]].join(', ') : name;
+                    return `<option value="${name}">${ids}</option>`;
                 }).join('');
 
             sortedSubjects.forEach(name => {
                 const autoSemesters = nameMap[name] ? [...nameMap[name]] : [];
                 const manualSemesters = multiRules[name] || [];
-                const ids = nameToIds[name] ? `(ID: ${[...nameToIds[name]].join(', ')})` : '';
+                const ids = nameToIds[name] ? [...nameToIds[name]].join(', ') : name;
 
                 // If no duplicates and no manual rule, skip
                 if (autoSemesters.length < 2 && manualSemesters.length === 0) return;
@@ -526,8 +526,7 @@
                 div.innerHTML = `
                     <div class="flex justify-between items-start mb-2">
                         <div>
-                            <span class="font-bold theme-text">${name}</span>
-                            <div class="text-xs text-gray-500 break-all">${ids}</div>
+                            <span class="font-bold theme-text">${ids}</span>
                         </div>
                         <button onclick="deleteMultiRule('${name}')" class="text-xs text-red-500 hover:text-red-700">초기화</button>
                     </div>
