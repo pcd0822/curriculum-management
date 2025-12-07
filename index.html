@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>고교학점제 수강신청 도우미</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -398,7 +401,17 @@
         function getSelected() {
             // Include both checked (user selected) and disabled+checked (required) courses
             const selectedIds = Array.from(courseListEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-            return PROCESSED_COURSES.filter(course => selectedIds.includes(course.id));
+            const selected = PROCESSED_COURSES.filter(course => selectedIds.includes(course.id));
+            
+            // Ensure required property is set based on checkbox state
+            selected.forEach(course => {
+                const checkbox = courseListEl.querySelector(`input[type="checkbox"][value="${course.id}"]`);
+                if (checkbox && checkbox.disabled && checkbox.checked) {
+                    course.required = true;
+                }
+            });
+            
+            return selected;
         }
 
         function validateSelections() {
@@ -692,6 +705,17 @@
             const semesterGroups = {};
 
             courses.forEach(c => {
+                // Ensure required property is set for display
+                if (c.required === undefined) {
+                    // Check if this is a required course by looking at the checkbox
+                    const checkbox = courseListEl?.querySelector(`input[type="checkbox"][value="${c.id}"]`);
+                    if (checkbox && checkbox.disabled && checkbox.checked) {
+                        c.required = true;
+                    } else {
+                        c.required = false;
+                    }
+                }
+                
                 // Category Grouping
                 let cat = c.category;
                 if (c.subCategory && jointSubCategoryToCategoryMap[c.subCategory]) {
@@ -744,7 +768,7 @@
                 const title = isJoint ? `공동교육과정 (${g}-${s})` : `${g}학년 ${s}학기`;
 
                 // Calculate credits for this semester
-                const semCredits = semesterGroups[k].reduce((sum, c) => sum + c.credits, 0);
+                const semCredits = semesterGroups[k].reduce((sum, c) => sum + parseInt(c.credits || 0), 0);
 
                 html += `
                     <div class="border-b pb-2 last:border-0 theme-border">
