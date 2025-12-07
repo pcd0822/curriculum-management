@@ -351,18 +351,43 @@
                     }
                     credits = parseInt(credits) || 0;
                     
+                    // Normalize required field - handle TRUE/FALSE in various formats
+                    let required = false;
+                    if (c.required !== undefined && c.required !== null) {
+                        const reqValue = String(c.required).toUpperCase().trim();
+                        required = reqValue === 'TRUE' || reqValue === '1' || reqValue === 'YES' || c.required === true || c.required === 1;
+                    }
+                    
                     return {
                         ...c,
                         credits: credits,
-                        // Ensure required is boolean
-                        required: c.required === true || c.required === 'TRUE' || c.required === 'true' || c.required === 1
+                        required: required
                     };
                 });
                 
                 // Debug: Log first course to check data structure
                 if (PROCESSED_COURSES.length > 0) {
                     console.log('Sample course data:', PROCESSED_COURSES[0]);
+                    console.log('Sample course required value (raw):', courses.find(c => c.subjectName === PROCESSED_COURSES[0].subjectName)?.required);
+                    console.log('Sample course required value (processed):', PROCESSED_COURSES[0].required);
                     console.log('Total courses loaded:', PROCESSED_COURSES.length);
+                    const requiredCount = PROCESSED_COURSES.filter(c => c.required).length;
+                    console.log('Required courses count:', requiredCount);
+                    if (requiredCount > 0) {
+                        const firstRequired = PROCESSED_COURSES.find(c => c.required);
+                        console.log('First required course:', firstRequired);
+                        console.log('First required course credits:', firstRequired?.credits);
+                    } else {
+                        console.warn('No required courses found! Checking raw data...');
+                        const rawRequired = courses.filter(c => {
+                            const req = c.required;
+                            return req === true || req === 'TRUE' || req === 'true' || req === 1 || String(req).toUpperCase() === 'TRUE';
+                        });
+                        console.log('Raw required courses count:', rawRequired.length);
+                        if (rawRequired.length > 0) {
+                            console.log('First raw required course:', rawRequired[0]);
+                        }
+                    }
                 }
                 
                 renderCourses();
@@ -431,23 +456,29 @@
 
         function getSelected() {
             // Include both checked (user selected) and disabled+checked (required) courses
-            const selectedIds = Array.from(courseListEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-            const selected = PROCESSED_COURSES.filter(course => selectedIds.includes(course.id));
+            const checkedIds = Array.from(courseListEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
             
-            // Ensure required property is set based on checkbox state and original data
+            // Also include all required courses from PROCESSED_COURSES
+            const requiredCourseIds = PROCESSED_COURSES.filter(c => c.required).map(c => c.id);
+            
+            // Combine both sets
+            const allSelectedIds = [...new Set([...checkedIds, ...requiredCourseIds])];
+            
+            const selected = PROCESSED_COURSES.filter(course => allSelectedIds.includes(course.id));
+            
+            // Ensure required property is set correctly
             selected.forEach(course => {
-                // First check original data
-                if (course.required === undefined) {
+                // Check original data first
+                const originalCourse = PROCESSED_COURSES.find(c => c.id === course.id);
+                if (originalCourse && originalCourse.required !== undefined) {
+                    course.required = originalCourse.required;
+                } else {
                     // Then check checkbox state
                     const checkbox = courseListEl.querySelector(`input[type="checkbox"][value="${course.id}"]`);
                     if (checkbox) {
                         course.required = checkbox.disabled && checkbox.checked;
                     } else {
-                        // If checkbox not found, check original data from PROCESSED_COURSES
-                        const originalCourse = PROCESSED_COURSES.find(c => c.id === course.id);
-                        if (originalCourse) {
-                            course.required = originalCourse.required || false;
-                        }
+                        course.required = false;
                     }
                 }
             });
