@@ -340,7 +340,31 @@
                 const courses = await DB.fetchConfig();
                 if (!courses) throw new Error('과목 데이터를 불러올 수 없습니다.');
 
-                PROCESSED_COURSES = courses.filter(c => c.subjectName);
+                // Process courses and ensure credits is a number
+                PROCESSED_COURSES = courses.filter(c => c.subjectName).map(c => {
+                    // Normalize credits field - handle different possible field names
+                    let credits = c.credits || c.Credits || c.credit || c.학점 || 0;
+                    // Convert to number if it's a string
+                    if (typeof credits === 'string') {
+                        // Remove any non-numeric characters except decimal point
+                        credits = parseFloat(credits.replace(/[^\d.]/g, '')) || 0;
+                    }
+                    credits = parseInt(credits) || 0;
+                    
+                    return {
+                        ...c,
+                        credits: credits,
+                        // Ensure required is boolean
+                        required: c.required === true || c.required === 'TRUE' || c.required === 'true' || c.required === 1
+                    };
+                });
+                
+                // Debug: Log first course to check data structure
+                if (PROCESSED_COURSES.length > 0) {
+                    console.log('Sample course data:', PROCESSED_COURSES[0]);
+                    console.log('Total courses loaded:', PROCESSED_COURSES.length);
+                }
+                
                 renderCourses();
 
             } catch (e) {
@@ -357,6 +381,11 @@
             // Group by Grade-Semester
             const grouped = {};
             PROCESSED_COURSES.forEach(c => {
+                // Ensure required property is set
+                if (c.required === undefined) {
+                    c.required = c.required === true || c.required === 'TRUE' || c.required === 'true' || c.required === 1;
+                }
+                
                 const key = `${c.grade}-${c.semester}`;
                 if (!grouped[key]) grouped[key] = [];
                 grouped[key].push(c);
@@ -394,8 +423,10 @@
                 courseListEl.appendChild(section);
             });
 
-            // Initial Validation
-            validateSelections();
+            // Initial Validation - wait a bit for DOM to be ready
+            setTimeout(() => {
+                validateSelections();
+            }, 100);
         }
 
         function getSelected() {
@@ -403,11 +434,21 @@
             const selectedIds = Array.from(courseListEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
             const selected = PROCESSED_COURSES.filter(course => selectedIds.includes(course.id));
             
-            // Ensure required property is set based on checkbox state
+            // Ensure required property is set based on checkbox state and original data
             selected.forEach(course => {
-                const checkbox = courseListEl.querySelector(`input[type="checkbox"][value="${course.id}"]`);
-                if (checkbox && checkbox.disabled && checkbox.checked) {
-                    course.required = true;
+                // First check original data
+                if (course.required === undefined) {
+                    // Then check checkbox state
+                    const checkbox = courseListEl.querySelector(`input[type="checkbox"][value="${course.id}"]`);
+                    if (checkbox) {
+                        course.required = checkbox.disabled && checkbox.checked;
+                    } else {
+                        // If checkbox not found, check original data from PROCESSED_COURSES
+                        const originalCourse = PROCESSED_COURSES.find(c => c.id === course.id);
+                        if (originalCourse) {
+                            course.required = originalCourse.required || false;
+                        }
+                    }
                 }
             });
             
@@ -421,9 +462,17 @@
 
             const selectedCourses = getSelected(); // Includes required courses
 
+            // Debug: Log selected courses
+            console.log('Selected courses:', selectedCourses);
+            console.log('Selected courses count:', selectedCourses.length);
+
             // Separate required (school designated) and optional courses
             const requiredCourses = selectedCourses.filter(c => c.required);
             const optionalCourses = selectedCourses.filter(c => !c.required);
+            
+            // Debug: Log required and optional courses
+            console.log('Required courses:', requiredCourses);
+            console.log('Optional courses:', optionalCourses);
 
             let totalCredits = 0;
             let requiredCredits = 0; // 학교지정과목 학점
@@ -443,7 +492,18 @@
                 if (shouldCount) {
                     if (duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
 
-                    const credits = parseInt(course.credits || 0);
+                    // Ensure credits is a number
+                    let credits = course.credits;
+                    if (typeof credits === 'string') {
+                        credits = parseFloat(credits.replace(/[^\d.]/g, '')) || 0;
+                    }
+                    credits = parseInt(credits) || 0;
+                    
+                    // Debug: Log credit calculation
+                    if (credits === 0) {
+                        console.warn('Course with 0 credits:', course.subjectName, 'credits field:', course.credits);
+                    }
+                    
                     requiredCredits += credits;
                     totalCredits += credits;
 
@@ -470,7 +530,18 @@
                 if (shouldCount) {
                     if (duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
 
-                    const credits = parseInt(course.credits || 0);
+                    // Ensure credits is a number
+                    let credits = course.credits;
+                    if (typeof credits === 'string') {
+                        credits = parseFloat(credits.replace(/[^\d.]/g, '')) || 0;
+                    }
+                    credits = parseInt(credits) || 0;
+                    
+                    // Debug: Log credit calculation
+                    if (credits === 0) {
+                        console.warn('Course with 0 credits:', course.subjectName, 'credits field:', course.credits);
+                    }
+                    
                     totalCredits += credits;
 
                     // Category Sums
@@ -490,6 +561,11 @@
                 if (mappedCategory === '교양교과') electiveGroupCredits += course.credits;
             });
 
+            // Debug: Log total credits calculation
+            console.log('Total credits calculated:', totalCredits);
+            console.log('Required credits:', requiredCredits);
+            console.log('Optional credits:', totalCredits - requiredCredits);
+            
             totalCreditsEl.textContent = totalCredits;
 
             // 4. Validation Messages
