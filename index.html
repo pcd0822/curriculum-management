@@ -919,18 +919,24 @@
 
                 if (multiSemesterGroups[course.subjectName]) {
                     const group = multiSemesterGroups[course.subjectName];
-                    // Is any OTHER course in this group selected?
-                    const otherSelected = group.some(c => c.id !== course.id && selectedIds.has(c.id));
+                    // Is any OTHER course in this group actually selected (checked)?
+                    // 선택 규칙으로 비활성화된 과목은 제외하고, 실제로 체크된 과목만 확인
+                    const otherSelected = group.some(c => {
+                        if (c.id === course.id) return false;
+                        // 실제로 체크박스가 체크되어 있고, 선택 규칙으로 비활성화되지 않은 경우만
+                        const otherCb = document.querySelector(`input[type="checkbox"][value="${c.id}"]`);
+                        return otherCb && otherCb.checked && !disabledBySelectionRule.has(c.id);
+                    });
 
                     if (otherSelected && !cb.checked) {
-                        // Disable if another course in the group is selected
+                        // Disable if another course in the group is actually selected
                         // 단, 선택 규칙으로 이미 비활성화된 경우는 유지
                         if (!disabledBySelectionRule.has(course.id)) {
                             cb.disabled = true;
                             cb.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
                         }
                     } else if (!otherSelected && !disabledBySelectionRule.has(course.id)) {
-                        // Re-enable if no other course in group is selected (handles unchecking)
+                        // Re-enable if no other course in group is actually selected (handles unchecking)
                         // 단, 선택 규칙으로 비활성화된 경우는 제외
                         cb.disabled = false;
                         cb.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -950,6 +956,32 @@
         }
 
         function renderSelectedList(courses) {
+            // Filter out duplicate multi-semester courses - only keep the first selected one
+            const processedCourseNames = new Set();
+            const filteredCourses = [];
+            
+            // Identify multi-semester courses
+            const coursesByName = {};
+            PROCESSED_COURSES.forEach(c => {
+                if (!coursesByName[c.subjectName]) coursesByName[c.subjectName] = [];
+                coursesByName[c.subjectName].push(c);
+            });
+            
+            courses.forEach(c => {
+                // Check if this is a multi-semester course
+                const isMultiSemester = (multiSemesterRules[c.subjectName] && multiSemesterRules[c.subjectName].length > 0) ||
+                    (coursesByName[c.subjectName] && coursesByName[c.subjectName].length > 1);
+                
+                if (isMultiSemester) {
+                    // If already processed this course name, skip
+                    if (processedCourseNames.has(c.subjectName)) {
+                        return;
+                    }
+                    processedCourseNames.add(c.subjectName);
+                }
+                filteredCourses.push(c);
+            });
+            
             // 1. Group by Category (기초/사회 및 과학/예술/체육/교양,제2외국어,정보)
             const categoryGroups = {
                 '기초교과': [],
@@ -962,7 +994,10 @@
             // 2. Group by Grade-Semester
             const semesterGroups = {};
 
-            courses.forEach(c => {
+            // Track which multi-semester courses have been added to semester groups
+            const addedToSemesterGroups = new Set();
+            
+            filteredCourses.forEach(c => {
                 // Ensure required property is set for display
                 if (c.required === undefined) {
                     // Check if this is a required course by looking at the checkbox
@@ -973,6 +1008,10 @@
                         c.required = false;
                     }
                 }
+                
+                // Check if this is a multi-semester course
+                const isMultiSemester = (multiSemesterRules[c.subjectName] && multiSemesterRules[c.subjectName].length > 0) ||
+                    (coursesByName[c.subjectName] && coursesByName[c.subjectName].length > 1);
                 
                 // Category Grouping
                 let cat = c.category;
@@ -992,11 +1031,27 @@
                     categoryGroups['교양,제2외국어,정보'].push(c);
                 }
 
-                // Semester Grouping
+                // Semester Grouping - 복수편제과목은 선택된 학기에만 표시
                 const isJointCourse = c.id && typeof c.id === 'string' && c.id.startsWith('joint');
-                const key = c.category && isJointCourse ? `공동-${c.category}` : `${c.grade || '?'}-${c.semester || '?'}`;
-                if (!semesterGroups[key]) semesterGroups[key] = [];
-                semesterGroups[key].push(c);
+                if (isJointCourse) {
+                    const key = `공동-${c.category}`;
+                    if (!semesterGroups[key]) semesterGroups[key] = [];
+                    semesterGroups[key].push(c);
+                } else {
+                    // 복수편제과목인 경우, 이미 다른 학기에 추가되었는지 확인
+                    if (isMultiSemester && addedToSemesterGroups.has(c.subjectName)) {
+                        // 이미 추가되었으면 건너뛰기
+                        return;
+                    }
+                    
+                    const key = `${c.grade || '?'}-${c.semester || '?'}`;
+                    if (!semesterGroups[key]) semesterGroups[key] = [];
+                    semesterGroups[key].push(c);
+                    
+                    if (isMultiSemester) {
+                        addedToSemesterGroups.add(c.subjectName);
+                    }
+                }
             });
 
             let html = '';
