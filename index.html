@@ -1300,16 +1300,20 @@
                 Timestamp: new Date().toISOString()
             };
 
+            console.log('Submitting data:', data);
+
             try {
                 confirmBtn.disabled = true;
                 confirmBtn.textContent = '제출 중...';
 
-                await DB.submitResponse(data);
+                const response = await DB.submitResponse(data);
+                console.log('Submission response:', response);
 
                 alert('제출되었습니다!');
                 submitModalEl.classList.add('hidden');
                 // Reset or Redirect?
             } catch (e) {
+                console.error('Submission failed:', e);
                 alert('제출 실패: ' + e.message);
             } finally {
                 confirmBtn.disabled = false;
