@@ -418,8 +418,8 @@
                     <h3 class="font-bold mb-2 theme-text">${g}학년 ${s}학기 (${groupCourses.length}과목)</h3>
                     <div class="flex flex-wrap gap-2">
                         ${groupCourses.map(c => `
-                            <span class="text-xs px-2 py-1 rounded border ${c.required ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white text-gray-700 border-gray-200'}">
-                                ${c.subjectName} (${c.credits})
+                            <span class="text-xs px-2 py-1 rounded border ${c.required ? 'bg-red-100 text-red-700 border-red-200' : 'bg-white text-gray-700 border-gray-200'}" title="${c.subjectName}">
+                                ${c.id || c.subjectName} (${c.credits})
                             </span>
                         `).join('')}
                     </div>
