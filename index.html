@@ -341,7 +341,7 @@
                 if (!courses) throw new Error('과목 데이터를 불러올 수 없습니다.');
 
                 // Process courses and ensure credits is a number
-                PROCESSED_COURSES = courses.filter(c => c.subjectName).map(c => {
+                PROCESSED_COURSES = courses.filter(c => c.subjectName).map((c, index) => {
                     // Normalize credits field - handle different possible field names
                     let credits = c.credits || c.Credits || c.credit || c.학점 || 0;
                     // Convert to number if it's a string
@@ -358,8 +358,23 @@
                         required = reqValue === 'TRUE' || reqValue === '1' || reqValue === 'YES' || c.required === true || c.required === 1;
                     }
                     
+                    // Ensure id field exists - use existing id, slug, or generate one
+                    let id = c.id || c.Id || c.ID;
+                    if (!id) {
+                        // Generate id from slug, subjectName, or index
+                        if (c.slug) {
+                            id = c.slug;
+                        } else if (c.subjectName) {
+                            // Create a simple id from subjectName, grade, and semester
+                            id = `${c.subjectName}-${c.grade || ''}-${c.semester || ''}-${index}`.replace(/\s+/g, '-').toLowerCase();
+                        } else {
+                            id = `course-${index}`;
+                        }
+                    }
+                    
                     return {
                         ...c,
+                        id: id,
                         credits: credits,
                         required: required
                     };
@@ -842,7 +857,8 @@
                 }
 
                 // Semester Grouping
-                const key = c.category && c.id.startsWith('joint') ? `공동-${c.category}` : `${c.grade}-${c.semester}`;
+                const isJointCourse = c.id && typeof c.id === 'string' && c.id.startsWith('joint');
+                const key = c.category && isJointCourse ? `공동-${c.category}` : `${c.grade || '?'}-${c.semester || '?'}`;
                 if (!semesterGroups[key]) semesterGroups[key] = [];
                 semesterGroups[key].push(c);
             });
