@@ -126,7 +126,7 @@
                             placeholder="희망 진로 (예: 컴퓨터공학자, 간호사) - AI 추천에 활용됩니다"
                             style="background-color: var(--input-bg);">
                         <button onclick="getAiRecommendation()"
-                            class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 whitespace-nowrap transition-colors hidden">
+                            class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 whitespace-nowrap transition-colors">
                             추천 받기
                         </button>
                     </div>
@@ -423,12 +423,14 @@
                 if (shouldCount) {
                     if (duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
 
-                    totalCredits += course.credits;
+                    // Fix: Ensure integer parsing
+                    const credits = parseInt(course.credits || 0);
+                    totalCredits += credits;
 
                     // Category Sums
-                    if (course.category === '기초교과') basicCredits += course.credits;
-                    if (course.category === '예술교과') artCredits += course.credits;
-                    if (['교양교과', '제2외국어', '정보'].includes(course.category)) electiveGroupCredits += course.credits;
+                    if (course.category === '기초교과') basicCredits += credits;
+                    if (course.category === '예술교과') artCredits += credits;
+                    if (['교양교과', '제2외국어', '정보'].includes(course.category)) electiveGroupCredits += credits;
                 }
             });
 
@@ -517,6 +519,12 @@
                     }
                 }
             });
+
+            // Rule 6: Selection Rules (Grade-Semester)
+            const ruleValidation = validateSelectionRules(selectedCourses);
+            if (!ruleValidation.valid) {
+                ruleValidation.messages.forEach(msg => addMsg(msg));
+            }
         }
 
         function applyLimits() {
@@ -557,8 +565,13 @@
                     cb.disabled = false;
                     cb.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
                 }
+            });
 
-                // Check Multi-Semester Constraint
+            // 1. Check Multi-Semester Constraint
+            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                const course = PROCESSED_COURSES.find(c => c.id == cb.value);
+                if (!course || course.required || cb.disabled) return;
+
                 if (multiSemesterGroups[course.subjectName]) {
                     const group = multiSemesterGroups[course.subjectName];
                     // Is any OTHER course in this group selected?
@@ -569,6 +582,47 @@
                         cb.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
                     }
                 }
+            });
+
+            // 2. Check Selection Rules (Auto-Disable)
+            // Group selected courses by Grade-Semester
+            const selectedByGroup = {};
+            selected.forEach(c => {
+                const key = `${c.grade}-${c.semester}`;
+                if (!selectedByGroup[key]) selectedByGroup[key] = [];
+                selectedByGroup[key].push(c);
+            });
+
+            Object.keys(selectionRules).forEach(key => {
+                const rules = selectionRules[key];
+                const currentSelected = selectedByGroup[key] || [];
+
+                rules.forEach(rule => {
+                    let count = 0;
+                    if (rule.credits === 'all') {
+                        count = currentSelected.length;
+                    } else {
+                        count = currentSelected.filter(c => c.credits == rule.credits).length;
+                    }
+
+                    if (count >= parseInt(rule.count)) {
+                        // Disable all UNCHECKED courses in this group (matching credit criteria if specific)
+                        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                            if (cb.checked || cb.disabled) return;
+
+                            const course = PROCESSED_COURSES.find(c => c.id == cb.value);
+                            if (!course) return;
+
+                            if (`${course.grade}-${course.semester}` === key) {
+                                // If rule is specific to credits, only disable those
+                                if (rule.credits === 'all' || course.credits == rule.credits) {
+                                    cb.disabled = true;
+                                    cb.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
+                                }
+                            }
+                        });
+                    }
+                });
             });
         }
 
