@@ -464,7 +464,7 @@
                                     ${c.required ? 'checked disabled' : ''}
                                     onchange="validateSelections()">
                                 <div>
-                                    <div class="font-bold theme-text">${c.subjectName}</div>
+                                    <div class="font-bold theme-text">${c.id || c.subjectName}</div>
                                     <div class="text-xs theme-text-muted">${c.category} | ${c.credits}학점</div>
                                     ${c.description ? `<div class="text-xs text-gray-400 mt-1">${c.description}</div>` : ''}
                                 </div>
