@@ -703,7 +703,7 @@
                 const neededCredits = requiredElectiveGroupCreditsTotal - electiveGroupCredits;
                 // Suggest courses
                 const selectedIds = new Set(selectedCourses.map(c => c.id));
-                const availableCourses = [...new Set(PROCESSED_COURSES.filter(c => !c.required && !selectedIds.has(c.id) && (['교양교과', '제2외국어', '정보'].includes(c.category) || ['교양', '제2외국어', '정보'].includes(c.subCategory))).map(c => c.subjectName || c.name))];
+                const availableCourses = [...new Set(PROCESSED_COURSES.filter(c => !c.required && !selectedIds.has(c.id) && (['교양교과', '제2외국어', '정보'].includes(c.category) || ['교양', '제2외국어', '정보'].includes(c.subCategory))).map(c => c.id || c.subjectName || c.name))];
 
                 let suggestionList = '';
                 if (availableCourses.length > 0) {
@@ -1098,7 +1098,7 @@
                     ];
                     const hash = (c.subjectName || c.name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
                     const colorClass = colors[hash % colors.length];
-                    return `<span class="text-xs font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.subjectName || c.name}</span>`;
+                    return `<span class="text-xs font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.id || c.subjectName || c.name}</span>`;
                 }).join('')}
                         </div>
                     </div>
@@ -1134,9 +1134,9 @@
                         'text-orange-500 dark:text-orange-400',
                         'text-rose-500 dark:text-rose-400'
                     ];
-                    const hash = (c.subjectName || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    const hash = (c.id || c.subjectName || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
                     const colorClass = colors[hash % colors.length];
-                    return `<span class="text-sm font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.subjectName}</span>`;
+                    return `<span class="text-sm font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.id || c.subjectName}</span>`;
                 }).join('')}
                         </div>
                     </div>
@@ -1170,7 +1170,7 @@
                                     <div class="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">학교지정 과목 (${requiredCount}개)</div>
                                     <div class="flex flex-wrap gap-1">
                                         ${semesterGroups[k].filter(c => c.required).map(c =>
-                    `<span class="text-xs px-2 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">${c.subjectName || c.name} (${c.credits}학점)</span>`
+                    `<span class="text-xs px-2 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">${c.id || c.subjectName || c.name} (${c.credits}학점)</span>`
                 ).join('')}
                                     </div>
                                 </div>
@@ -1180,7 +1180,7 @@
                                     <div class="text-xs font-semibold text-green-600 dark:text-green-400 mb-1">학생선택 과목 (${optionalCount}개)</div>
                                     <div class="flex flex-wrap gap-1">
                                         ${semesterGroups[k].filter(c => !c.required).map(c =>
-                    `<span class="text-xs px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">${c.subjectName || c.name} (${c.credits}학점)</span>`
+                    `<span class="text-xs px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">${c.id || c.subjectName || c.name} (${c.credits}학점)</span>`
                 ).join('')}
                                     </div>
                                 </div>
