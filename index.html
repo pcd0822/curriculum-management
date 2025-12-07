@@ -219,10 +219,12 @@
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="font-bold theme-text">선택한 과목 목록</h3>
                     <div class="flex gap-2 text-xs">
-                        <button id="toggle-required-btn" class="px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">
+                        <button id="toggle-required-btn"
+                            class="px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">
                             학교지정
                         </button>
-                        <button id="toggle-optional-btn" class="px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+                        <button id="toggle-optional-btn"
+                            class="px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
                             학생선택
                         </button>
                     </div>
@@ -360,20 +362,20 @@
                         credits = parseFloat(credits.replace(/[^\d.]/g, '')) || 0;
                     }
                     credits = parseInt(credits) || 0;
-                    
+
                     // Normalize required field - handle TRUE/FALSE in various formats
                     let required = false;
                     if (c.required !== undefined && c.required !== null) {
                         const reqValue = String(c.required).toUpperCase().trim();
                         required = reqValue === 'TRUE' || reqValue === '1' || reqValue === 'YES' || c.required === true || c.required === 1;
                     }
-                    
+
                     // Ensure id field exists - use existing id, slug, or generate one
                     let id = c.id || c.Id || c.ID;
                     if (!id) {
                         // Generate id from slug, subjectName, or index
                         if (c.slug) {
-                            id = c.slug;
+                            id = `${c.slug}-${c.grade || ''}-${c.semester || ''}-${index}`;
                         } else if (c.subjectName) {
                             // Create a simple id from subjectName, grade, and semester
                             id = `${c.subjectName}-${c.grade || ''}-${c.semester || ''}-${index}`.replace(/\s+/g, '-').toLowerCase();
@@ -381,7 +383,7 @@
                             id = `course-${index}`;
                         }
                     }
-                    
+
                     return {
                         ...c,
                         id: id,
@@ -389,7 +391,7 @@
                         required: required
                     };
                 });
-                
+
                 // Debug: Log first course to check data structure
                 if (PROCESSED_COURSES.length > 0) {
                     console.log('Sample course data:', PROCESSED_COURSES[0]);
@@ -414,7 +416,7 @@
                         }
                     }
                 }
-                
+
                 renderCourses();
 
             } catch (e) {
@@ -435,7 +437,7 @@
                 if (c.required === undefined) {
                     c.required = c.required === true || c.required === 'TRUE' || c.required === 'true' || c.required === 1;
                 }
-                
+
                 const key = `${c.grade}-${c.semester}`;
                 if (!grouped[key]) grouped[key] = [];
                 grouped[key].push(c);
@@ -482,15 +484,15 @@
         function getSelected() {
             // Include both checked (user selected) and disabled+checked (required) courses
             const checkedIds = Array.from(courseListEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-            
+
             // Also include all required courses from PROCESSED_COURSES
             const requiredCourseIds = PROCESSED_COURSES.filter(c => c.required).map(c => c.id);
-            
+
             // Combine both sets
             const allSelectedIds = [...new Set([...checkedIds, ...requiredCourseIds])];
-            
+
             const selected = PROCESSED_COURSES.filter(course => allSelectedIds.includes(course.id));
-            
+
             // Ensure required property is set correctly
             selected.forEach(course => {
                 // Check original data first
@@ -507,7 +509,7 @@
                     }
                 }
             });
-            
+
             return selected;
         }
 
@@ -525,7 +527,7 @@
             // Separate required (school designated) and optional courses
             const requiredCourses = selectedCourses.filter(c => c.required);
             const optionalCourses = selectedCourses.filter(c => !c.required);
-            
+
             // Debug: Log required and optional courses
             console.log('Required courses:', requiredCourses);
             console.log('Optional courses:', optionalCourses);
@@ -554,11 +556,11 @@
                 // 복수편제과목 중복 계산 방지
                 const isMultiSemester = (multiSemesterRules[course.subjectName] && multiSemesterRules[course.subjectName].length > 0) ||
                     (coursesByName[course.subjectName] && coursesByName[course.subjectName].length > 1);
-                
+
                 if (isMultiSemester && countedMultiSemesterNames.has(course.subjectName)) {
                     return; // 이미 계산된 복수편제과목은 건너뛰기
                 }
-                
+
                 let shouldCount = !duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug);
 
                 if (shouldCount) {
@@ -571,12 +573,12 @@
                         credits = parseFloat(credits.replace(/[^\d.]/g, '')) || 0;
                     }
                     credits = parseInt(credits) || 0;
-                    
+
                     // Debug: Log credit calculation
                     if (credits === 0) {
                         console.warn('Course with 0 credits:', course.subjectName, 'credits field:', course.credits);
                     }
-                    
+
                     requiredCredits += credits;
                     totalCredits += credits;
 
@@ -601,11 +603,11 @@
                 // 복수편제과목 중복 계산 방지
                 const isMultiSemester = (multiSemesterRules[course.subjectName] && multiSemesterRules[course.subjectName].length > 0) ||
                     (coursesByName[course.subjectName] && coursesByName[course.subjectName].length > 1);
-                
+
                 if (isMultiSemester && countedMultiSemesterNames.has(course.subjectName)) {
                     return; // 이미 계산된 복수편제과목은 건너뛰기
                 }
-                
+
                 let shouldCount = !duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug);
 
                 if (shouldCount) {
@@ -618,12 +620,12 @@
                         credits = parseFloat(credits.replace(/[^\d.]/g, '')) || 0;
                     }
                     credits = parseInt(credits) || 0;
-                    
+
                     // Debug: Log credit calculation
                     if (credits === 0) {
                         console.warn('Course with 0 credits:', course.subjectName, 'credits field:', course.credits);
                     }
-                    
+
                     totalCredits += credits;
 
                     // Category Sums
@@ -647,7 +649,7 @@
             console.log('Total credits calculated:', totalCredits);
             console.log('Required credits:', requiredCredits);
             console.log('Optional credits:', totalCredits - requiredCredits);
-            
+
             totalCreditsEl.textContent = totalCredits;
 
             // 4. Validation Messages
@@ -723,7 +725,7 @@
                     } else if (typeof course.prerequisites === 'string') {
                         prereqList = course.prerequisites.split(',').map(s => s.trim()).filter(s => s);
                     }
-                    
+
                     if (prereqList.length > 0) {
                         const missingPrereqs = new Set();
                         prereqList.forEach(prereqSlug => {
@@ -749,26 +751,26 @@
             if (!ruleValidation.valid) {
                 ruleValidation.messages.forEach(msg => addMsg(msg));
             }
-            
+
             // Update Submit Button State
             updateSubmitButtonState();
         }
-        
+
         function updateSubmitButtonState() {
             const validationListEl = document.getElementById('validation-messages');
             const messages = validationListEl.querySelectorAll('div');
             let hasErrors = false;
-            
+
             messages.forEach(msg => {
                 if (msg.classList.contains('bg-red-50') || msg.classList.contains('text-red-700')) {
                     hasErrors = true;
                 }
             });
-            
+
             // Check if all required validations pass
             const selectedCourses = getSelected();
             const totalCredits = parseInt(totalCreditsEl.textContent) || 0;
-            
+
             // Calculate credits for validation
             let artCredits = 0;
             let electiveGroupCredits = 0;
@@ -779,7 +781,7 @@
                 if (!coursesByName[c.subjectName]) coursesByName[c.subjectName] = [];
                 coursesByName[c.subjectName].push(c);
             });
-            
+
             selectedCourses.forEach(course => {
                 const isMultiSemester = (multiSemesterRules[course.subjectName] && multiSemesterRules[course.subjectName].length > 0) ||
                     (coursesByName[course.subjectName] && coursesByName[course.subjectName].length > 1);
@@ -787,18 +789,18 @@
                     return;
                 }
                 if (isMultiSemester) countedMultiSemesterNames.add(course.subjectName);
-                
+
                 const credits = parseInt(course.credits || 0);
                 if (course.category === '예술교과') artCredits += credits;
                 if (['교양교과', '제2외국어', '정보'].includes(course.category)) electiveGroupCredits += credits;
                 if (course.category === '기초교과') basicCredits += credits;
             });
-            
+
             const artCreditsValid = artCredits >= 10;
             const electiveCreditsValid = electiveGroupCredits >= 16;
             const totalCreditsValid = totalCredits >= 174;
             const basicCreditsValid = totalCredits === 0 || basicCredits <= (totalCredits * 0.5);
-            
+
             // Check prerequisites
             const selectedCourseSlugs = new Set(selectedCourses.map(c => c.slug || '').filter(s => s));
             let prerequisitesValid = true;
@@ -817,14 +819,14 @@
                     });
                 }
             });
-            
+
             // Check selection rules
             const ruleValidation = validateSelectionRules(selectedCourses);
-            
+
             // Enable button if all validations pass
-            const allValid = !hasErrors && totalCreditsValid && artCreditsValid && electiveCreditsValid && 
-                           basicCreditsValid && prerequisitesValid && ruleValidation.valid;
-            
+            const allValid = !hasErrors && totalCreditsValid && artCreditsValid && electiveCreditsValid &&
+                basicCreditsValid && prerequisitesValid && ruleValidation.valid;
+
             submitBtn.disabled = !allValid;
         }
 
@@ -859,7 +861,7 @@
             // Apply Disable Logic
             // Track which courses are disabled by selection rules (학기별로 추적)
             const disabledBySelectionRule = new Map(); // key: courseId, value: semester key
-            
+
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 const course = PROCESSED_COURSES.find(c => c.id == cb.value);
                 if (!course) return;
@@ -926,7 +928,7 @@
                 if (multiSemesterGroups[course.subjectName]) {
                     const group = multiSemesterGroups[course.subjectName];
                     const currentSemesterKey = `${course.grade}-${course.semester}`;
-                    
+
                     // Is any OTHER course in this group actually selected (checked)?
                     // 실제로 체크박스가 체크되어 있는지 확인 (선택 규칙과 무관)
                     const otherSelected = group.some(c => {
@@ -941,7 +943,7 @@
                         // 단, 선택 규칙으로 이미 비활성화된 경우는 복수편제 비활성화를 추가하지 않음
                         const isDisabledByRule = disabledBySelectionRule.has(course.id);
                         const ruleSemester = disabledBySelectionRule.get(course.id);
-                        
+
                         // 선택 규칙으로 비활성화되었지만, 다른 학기에서 비활성화된 경우는 복수편제 로직 적용
                         if (!isDisabledByRule || ruleSemester !== currentSemesterKey) {
                             cb.disabled = true;
@@ -952,7 +954,7 @@
                         // 단, 선택 규칙으로 비활성화된 경우는 제외 (같은 학기에서만)
                         const isDisabledByRule = disabledBySelectionRule.has(course.id);
                         const ruleSemester = disabledBySelectionRule.get(course.id);
-                        
+
                         // 선택 규칙으로 비활성화되지 않았거나, 다른 학기에서 비활성화된 경우는 활성화
                         if (!isDisabledByRule || ruleSemester !== currentSemesterKey) {
                             cb.disabled = false;
@@ -977,19 +979,19 @@
             // Filter out duplicate multi-semester courses - only keep the first selected one
             const processedCourseNames = new Set();
             const filteredCourses = [];
-            
+
             // Identify multi-semester courses
             const coursesByName = {};
             PROCESSED_COURSES.forEach(c => {
                 if (!coursesByName[c.subjectName]) coursesByName[c.subjectName] = [];
                 coursesByName[c.subjectName].push(c);
             });
-            
+
             courses.forEach(c => {
                 // Check if this is a multi-semester course
                 const isMultiSemester = (multiSemesterRules[c.subjectName] && multiSemesterRules[c.subjectName].length > 0) ||
                     (coursesByName[c.subjectName] && coursesByName[c.subjectName].length > 1);
-                
+
                 if (isMultiSemester) {
                     // If already processed this course name, skip
                     if (processedCourseNames.has(c.subjectName)) {
@@ -999,7 +1001,7 @@
                 }
                 filteredCourses.push(c);
             });
-            
+
             // 1. Group by Category (기초/사회 및 과학/예술/체육/교양,제2외국어,정보)
             const categoryGroups = {
                 '기초교과': [],
@@ -1014,7 +1016,7 @@
 
             // Track which multi-semester courses have been added to semester groups
             const addedToSemesterGroups = new Set();
-            
+
             filteredCourses.forEach(c => {
                 // Ensure required property is set for display
                 if (c.required === undefined) {
@@ -1026,11 +1028,11 @@
                         c.required = false;
                     }
                 }
-                
+
                 // Check if this is a multi-semester course
                 const isMultiSemester = (multiSemesterRules[c.subjectName] && multiSemesterRules[c.subjectName].length > 0) ||
                     (coursesByName[c.subjectName] && coursesByName[c.subjectName].length > 1);
-                
+
                 // Category Grouping
                 let cat = c.category;
                 if (c.subCategory && jointSubCategoryToCategoryMap[c.subCategory]) {
@@ -1061,11 +1063,11 @@
                         // 이미 추가되었으면 건너뛰기
                         return;
                     }
-                    
+
                     const key = `${c.grade || '?'}-${c.semester || '?'}`;
                     if (!semesterGroups[key]) semesterGroups[key] = [];
                     semesterGroups[key].push(c);
-                    
+
                     if (isMultiSemester) {
                         addedToSemesterGroups.add(c.subjectName);
                     }
@@ -1084,20 +1086,20 @@
                         <div class="text-xs font-bold text-gray-500 mb-1">${cat} (${categoryCredits}학점)</div>
                         <div class="flex flex-wrap gap-1">
                             ${categoryGroups[cat].map(c => {
-                                const colors = [
-                                    'text-pink-500 dark:text-pink-400',
-                                    'text-purple-500 dark:text-purple-400',
-                                    'text-indigo-500 dark:text-indigo-400',
-                                    'text-blue-500 dark:text-blue-400',
-                                    'text-teal-500 dark:text-teal-400',
-                                    'text-emerald-500 dark:text-emerald-400',
-                                    'text-orange-500 dark:text-orange-400',
-                                    'text-rose-500 dark:text-rose-400'
-                                ];
-                                const hash = (c.subjectName || c.name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                                const colorClass = colors[hash % colors.length];
-                                return `<span class="text-xs font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.subjectName || c.name}</span>`;
-                            }).join('')}
+                    const colors = [
+                        'text-pink-500 dark:text-pink-400',
+                        'text-purple-500 dark:text-purple-400',
+                        'text-indigo-500 dark:text-indigo-400',
+                        'text-blue-500 dark:text-blue-400',
+                        'text-teal-500 dark:text-teal-400',
+                        'text-emerald-500 dark:text-emerald-400',
+                        'text-orange-500 dark:text-orange-400',
+                        'text-rose-500 dark:text-rose-400'
+                    ];
+                    const hash = (c.subjectName || c.name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    const colorClass = colors[hash % colors.length];
+                    return `<span class="text-xs font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.subjectName || c.name}</span>`;
+                }).join('')}
                         </div>
                     </div>
                 `;
@@ -1142,7 +1144,7 @@
             });
 
             selectedCoursesEl.innerHTML = html;
-            
+
             // Apply toggle filter
             applyCourseToggle();
 
@@ -1167,9 +1169,9 @@
                                 <div class="mb-2">
                                     <div class="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">학교지정 과목 (${requiredCount}개)</div>
                                     <div class="flex flex-wrap gap-1">
-                                        ${semesterGroups[k].filter(c => c.required).map(c => 
-                                            `<span class="text-xs px-2 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">${c.subjectName || c.name} (${c.credits}학점)</span>`
-                                        ).join('')}
+                                        ${semesterGroups[k].filter(c => c.required).map(c =>
+                    `<span class="text-xs px-2 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">${c.subjectName || c.name} (${c.credits}학점)</span>`
+                ).join('')}
                                     </div>
                                 </div>
                             ` : ''}
@@ -1177,9 +1179,9 @@
                                 <div>
                                     <div class="text-xs font-semibold text-green-600 dark:text-green-400 mb-1">학생선택 과목 (${optionalCount}개)</div>
                                     <div class="flex flex-wrap gap-1">
-                                        ${semesterGroups[k].filter(c => !c.required).map(c => 
-                                            `<span class="text-xs px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">${c.subjectName || c.name} (${c.credits}학점)</span>`
-                                        ).join('')}
+                                        ${semesterGroups[k].filter(c => !c.required).map(c =>
+                    `<span class="text-xs px-2 py-1 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">${c.subjectName || c.name} (${c.credits}학점)</span>`
+                ).join('')}
                                     </div>
                                 </div>
                             ` : ''}
@@ -1322,7 +1324,7 @@
                 alert('저장할 내용이 없습니다.');
                 return;
             }
-            
+
             html2canvas(cardsContainer, {
                 backgroundColor: '#ffffff',
                 scale: 2,
@@ -1413,17 +1415,17 @@
                     span.style.display = '';
                 }
             });
-            
+
             // Update button states
             const requiredBtn = document.getElementById('toggle-required-btn');
             const optionalBtn = document.getElementById('toggle-optional-btn');
             if (requiredBtn) {
-                requiredBtn.className = showRequired 
+                requiredBtn.className = showRequired
                     ? 'px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors'
                     : 'px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors';
             }
             if (optionalBtn) {
-                optionalBtn.className = showOptional 
+                optionalBtn.className = showOptional
                     ? 'px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors'
                     : 'px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors';
             }
@@ -1433,7 +1435,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('theme') || 'light';
             applyTheme(savedTheme);
-            
+
             // Setup toggle buttons
             const requiredBtn = document.getElementById('toggle-required-btn');
             const optionalBtn = document.getElementById('toggle-optional-btn');
@@ -1449,7 +1451,7 @@
                     applyCourseToggle();
                 });
             }
-            
+
             init();
         });
     </script>
