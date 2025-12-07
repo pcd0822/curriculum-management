@@ -872,11 +872,15 @@
             });
 
             // 1. Check Selection Rules (Auto-Disable) - 먼저 실행하여 선택 규칙으로 비활성화된 과목 추적
+            // 선택 규칙은 학기별로 독립적으로 적용되므로, 각 학기에서 실제로 체크된 과목만 카운트
             const selectedByGroup = {};
-            selected.filter(c => !c.required).forEach(c => {
-                const key = `${c.grade}-${c.semester}`;
+            // 실제로 체크박스가 체크된 과목만 카운트 (getSelected가 아닌 체크박스 상태 직접 확인)
+            document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+                const course = PROCESSED_COURSES.find(c => c.id == cb.value);
+                if (!course || course.required) return;
+                const key = `${course.grade}-${course.semester}`;
                 if (!selectedByGroup[key]) selectedByGroup[key] = [];
-                selectedByGroup[key].push(c);
+                selectedByGroup[key].push(course);
             });
 
             Object.keys(selectionRules).forEach(key => {
@@ -893,12 +897,14 @@
 
                     if (count >= parseInt(rule.count)) {
                         // Disable all UNCHECKED courses in this group (matching credit criteria if specific)
+                        // 단, 같은 학기(key)에 속한 과목만 비활성화
                         document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                             if (cb.checked || cb.disabled) return;
 
                             const course = PROCESSED_COURSES.find(c => c.id == cb.value);
                             if (!course || course.required) return;
 
+                            // 같은 학기에 속한 과목만 비활성화
                             if (`${course.grade}-${course.semester}` === key) {
                                 // If rule is specific to credits, only disable those
                                 if (rule.credits === 'all' || course.credits == rule.credits) {
@@ -923,23 +929,26 @@
                     // 선택 규칙으로 비활성화된 과목은 제외하고, 실제로 체크된 과목만 확인
                     const otherSelected = group.some(c => {
                         if (c.id === course.id) return false;
-                        // 실제로 체크박스가 체크되어 있고, 선택 규칙으로 비활성화되지 않은 경우만
+                        // 실제로 체크박스가 체크되어 있는지 확인 (선택 규칙과 무관)
                         const otherCb = document.querySelector(`input[type="checkbox"][value="${c.id}"]`);
-                        return otherCb && otherCb.checked && !disabledBySelectionRule.has(c.id);
+                        return otherCb && otherCb.checked;
                     });
 
                     if (otherSelected && !cb.checked) {
                         // Disable if another course in the group is actually selected
-                        // 단, 선택 규칙으로 이미 비활성화된 경우는 유지
+                        // 선택 규칙으로 비활성화된 경우에도 복수편제 로직은 적용
+                        // 단, 선택 규칙으로 이미 비활성화된 경우는 복수편제 비활성화를 추가하지 않음
                         if (!disabledBySelectionRule.has(course.id)) {
                             cb.disabled = true;
                             cb.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
                         }
-                    } else if (!otherSelected && !disabledBySelectionRule.has(course.id)) {
+                    } else if (!otherSelected) {
                         // Re-enable if no other course in group is actually selected (handles unchecking)
                         // 단, 선택 규칙으로 비활성화된 경우는 제외
-                        cb.disabled = false;
-                        cb.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
+                        if (!disabledBySelectionRule.has(course.id)) {
+                            cb.disabled = false;
+                            cb.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
+                        }
                     }
                 }
             });
@@ -1178,17 +1187,21 @@
             let allValid = true;
 
             // Group selected by Grade-Semester (선택과목만 카운트, 학교지정과목 제외)
+            // 실제로 체크박스가 체크된 과목만 카운트하여 학기별로 독립적으로 검증
             const grouped = {};
-            selected.filter(c => !c.required).forEach(c => {
-                const key = `${c.grade}-${c.semester}`;
+            // 체크박스 상태를 직접 확인하여 학기별로 독립적으로 카운트
+            document.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+                const course = PROCESSED_COURSES.find(c => c.id == cb.value);
+                if (!course || course.required) return;
+                const key = `${course.grade}-${course.semester}`;
                 if (!grouped[key]) grouped[key] = [];
-                grouped[key].push(c);
+                grouped[key].push(course);
             });
 
             // Check each rule
             Object.keys(selectionRules).forEach(key => {
                 const rules = selectionRules[key];
-                const semesterCourses = grouped[key] || []; // 선택과목만 포함
+                const semesterCourses = grouped[key] || []; // 해당 학기에서 실제로 체크된 선택과목만 포함
 
                 rules.forEach(rule => {
                     let count = 0;
