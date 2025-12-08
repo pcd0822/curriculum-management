@@ -1197,15 +1197,31 @@
 
         let dashboardCharts = {};
 
+        // Helper: Calculate Rank Counts
+        function calculateRankCounts(total) {
+            return {
+                grade1: Math.round(total * 0.10),
+                grade2: Math.round(total * 0.34) - Math.round(total * 0.10),
+                grade3: Math.round(total * 0.66) - Math.round(total * 0.34),
+                grade4: Math.round(total * 0.90) - Math.round(total * 0.66),
+                grade5: total - Math.round(total * 0.90)
+            };
+        }
+
+        // --- Class Stats Dashboard Logic ---
+        window.currentDashboardTab = 'charts'; // charts, class-subjects, validation, grade-subjects
+
         window.renderClassStatsDashboard = () => {
             const grade = document.getElementById('dashboard-select-grade').value;
             const cls = document.getElementById('dashboard-select-class').value;
             const container = document.getElementById('dashboard-content');
             const msgEl = document.getElementById('dashboard-message');
 
-            const students = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
+            // Data Preparation
+            const classStudents = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
+            const gradeStudents = allStudentData.filter(s => s.Grade == grade);
 
-            if (students.length === 0) {
+            if (classStudents.length === 0 && window.currentDashboardTab !== 'grade-subjects') {
                 container.classList.add('hidden');
                 msgEl.textContent = `${grade}학년 ${cls}반 데이터가 없습니다.`;
                 msgEl.classList.remove('hidden');
@@ -1215,10 +1231,287 @@
             container.classList.remove('hidden');
             msgEl.classList.add('hidden');
 
-            // Logic from 학급통계.html
-            renderInquiryChart(students);
-            renderLanguageChart(students);
+            // Render Tab Buttons
+            renderDashboardTabs();
+
+            // Render Content based on Tab
+            const contentArea = document.getElementById('dashboard-tab-content');
+            contentArea.innerHTML = ''; // Clear
+
+            if (window.currentDashboardTab === 'charts') {
+                contentArea.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="h-64 relative border rounded p-4 theme-border bg-white dark:bg-gray-800">
+                            <h4 class="text-center font-bold mb-4 theme-text">탐구 과목 선택 비율 (사회 vs 과학)</h4>
+                            <canvas id="inquiryRatioChart"></canvas>
+                        </div>
+                        <div class="h-64 relative border rounded p-4 theme-border bg-white dark:bg-gray-800">
+                            <h4 class="text-center font-bold mb-4 theme-text">제2외국어 및 교양 선택 현황</h4>
+                            <canvas id="languageChart"></canvas>
+                        </div>
+                    </div>
+                `;
+                setTimeout(() => {
+                    renderInquiryChart(classStudents);
+                    renderLanguageChart(classStudents);
+                }, 100);
+
+            } else if (window.currentDashboardTab === 'class-subjects') {
+                renderClassSubjectStats(contentArea, classStudents, grade);
+
+            } else if (window.currentDashboardTab === 'validation') {
+                renderValidationStats(contentArea, classStudents, grade, cls);
+
+            } else if (window.currentDashboardTab === 'grade-subjects') {
+                renderGradeSubjectStats(contentArea, gradeStudents, grade);
+            }
         };
+
+        function renderDashboardTabs() {
+            const tabsContainer = document.getElementById('dashboard-tabs');
+            const tabs = [
+                { id: 'charts', label: '📊 차트' },
+                { id: 'class-subjects', label: '🏫 학급 과목별 통계' },
+                { id: 'validation', label: '✅ 검증 현황' },
+                { id: 'grade-subjects', label: '🎓 학년 전체 통계' }
+            ];
+
+            tabsContainer.innerHTML = tabs.map(t => `
+                <button onclick="switchDashboardTab('${t.id}')" 
+                    class="px-4 py-2 text-sm font-bold border-b-2 transition-colors ${window.currentDashboardTab === t.id ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+                    ${t.label}
+                </button>
+            `).join('');
+        }
+
+        window.switchDashboardTab = (tabId) => {
+            window.currentDashboardTab = tabId;
+            renderClassStatsDashboard();
+        };
+
+        // Tab 2: Class Subject Stats
+        function renderClassSubjectStats(container, students, currentGrade) {
+            container.innerHTML = `
+                <div class="mb-4 flex gap-2 items-center">
+                    <span class="font-bold theme-text">필터:</span>
+                    <select id="stats-filter-semester" onchange="renderClassStatsDashboard()" class="border p-1 rounded text-sm">
+                        <option value="all">전체 학기</option>
+                        <option value="1">1학기</option>
+                        <option value="2">2학기</option>
+                    </select>
+                     <span class="text-xs text-gray-400 ml-2">* 해당 학급 학생들의 선택 과목 인원입니다.</span>
+                </div>
+                <div id="class-subject-table-container" class="overflow-x-auto"></div>
+            `;
+
+            const semesterFilter = document.getElementById('stats-filter-semester').value;
+            const counts = {};
+
+            students.forEach(s => {
+                if (s.SelectedCourses) {
+                    s.SelectedCourses.split(', ').map(x => x.trim()).forEach(cName => {
+                        // Filter by Semester Logic (Requires Course Metadata)
+                        const meta = allCourseData.find(c => c.subjectName === cName);
+                        if (semesterFilter !== 'all') {
+                            if (!meta || String(meta.semester) !== semesterFilter) return;
+                        }
+                        // Also could filter by Grade if course has specific grade, but usually we just show all selected.
+                        // But request says "Grade-Semester". Let's assume user wants courses for THIS grade? 
+                        // Or courses OPEN to this grade? Usually simpler to just count what they picked.
+
+                        counts[cName] = (counts[cName] || 0) + 1;
+                    });
+                }
+            });
+
+            // Sort by count desc
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+            let html = `
+                <table class="w-full text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 dark:bg-gray-700 theme-text">
+                            <th class="border p-2 theme-border text-left">과목명</th>
+                            <th class="border p-2 theme-border text-center w-24">선택 인원</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            if (sorted.length === 0) {
+                html += `<tr><td colspan="2" class="p-4 text-center text-gray-500">데이터가 없습니다.</td></tr>`;
+            } else {
+                sorted.forEach(([name, count]) => {
+                    html += `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text">
+                            <td class="border p-2 theme-border font-medium">${name}</td>
+                            <td class="border p-2 theme-border text-center font-bold text-blue-600">${count}명</td>
+                        </tr>
+                    `;
+                });
+            }
+            html += `</tbody></table>`;
+            document.getElementById('class-subject-table-container').innerHTML = html;
+
+            // Restore filter selection
+            document.getElementById('stats-filter-semester').value = semesterFilter;
+            // Re-attach event listener since innerHTML wiped it (actually onclick in HTML handles it, but verify scope)
+        }
+
+        // Tab 3: Validation Stats
+        function renderValidationStats(container, students, grade, cls) {
+            // Merge Registry
+            let baseList = [];
+            const hasRegistry = registryData && registryData.length > 0;
+
+            if (hasRegistry) {
+                baseList = registryData.filter(r => {
+                    const sNum = String(r['학번'] || r.studentId || '');
+                    if (sNum.length === 5) {
+                        return sNum.startsWith(grade) && parseInt(sNum.substring(1, 3)) == cls;
+                    }
+                    return false;
+                }).map(r => ({
+                    number: parseInt(String(r['학번']).substring(3, 5)),
+                    name: r['이름'] || r.name,
+                    studentId: r['학번'],
+                    fromRegistry: true
+                }));
+            }
+
+            if (baseList.length === 0 && students.length > 0) {
+                baseList = students.map(s => ({
+                    number: parseInt(s.Number),
+                    name: s.Name,
+                    studentId: `${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}`,
+                    fromRegistry: false
+                }));
+            }
+            baseList.sort((a, b) => a.number - b.number);
+
+            const merged = baseList.map(item => {
+                const res = students.find(s => parseInt(s.Number) == item.number);
+                return { ...item, response: res };
+            });
+
+            let html = `
+                <div class="mb-2 text-sm text-gray-500 text-right">총 ${merged.length}명 (제출: ${merged.filter(m => m.response).length}명)</div>
+                <div class="overflow-y-auto max-h-[400px]">
+                <table class="w-full text-sm border-collapse">
+                    <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700 z-10 shadow-sm">
+                        <tr class="theme-text">
+                            <th class="border p-2 theme-border w-16 text-center">번호</th>
+                            <th class="border p-2 theme-border w-24 text-center">이름</th>
+                            <th class="border p-2 theme-border text-center">검증 현황</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            merged.forEach(m => {
+                let statusHtml = '<span class="text-gray-400">-</span>';
+                if (!m.response) {
+                    statusHtml = '<span class="px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs">미제출</span>';
+                } else {
+                    const vRes = m.response.ValidationResult || '';
+                    if (!vRes) {
+                        statusHtml = '<span class="text-gray-500">특이사항 없음</span>';
+                    } else if (vRes.includes('부족') || vRes.includes('초과') || vRes.includes('필요') || vRes.includes('확인')) {
+                        statusHtml = `<span class="text-red-600 font-bold whitespace-pre-wrap text-xs">${vRes}</span>`;
+                    } else {
+                        statusHtml = `<span class="text-blue-600 font-bold">PASS (통과)</span>`;
+                    }
+                }
+
+                html += `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text">
+                        <td class="border p-2 theme-border text-center">${m.number}</td>
+                        <td class="border p-2 theme-border text-center font-medium">${m.name}</td>
+                        <td class="border p-2 theme-border">${statusHtml}</td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        // Tab 4: Grade Subject Stats (Rank Estimation)
+        function renderGradeSubjectStats(container, students, currentGrade) {
+            container.innerHTML = `
+                <div class="mb-4 flex gap-2 items-center flex-wrap">
+                    <span class="font-bold theme-text">필터:</span>
+                    <select id="grade-stats-semester" onchange="renderClassStatsDashboard()" class="border p-1 rounded text-sm">
+                        <option value="all">전체 학기</option>
+                        <option value="1">1학기</option>
+                        <option value="2">2학기</option>
+                    </select>
+                    <div class="ml-auto text-xs text-red-500 font-bold bg-red-50 px-2 py-1 rounded">
+                        ⚠️ [주의] 석차등급 인원은 학년 전체 인원이 아닌, '해당 과목 선택 인원' 기준 단순 비율 계산입니다.<br>
+                        실제 성적 산출 시 동점자 처리 등에 따라 달라질 수 있습니다. (1등급:4%가 아닌 10% 등 사용자가 요청한 커스텀 비율 적용됨)
+                    </div>
+                </div>
+                <div id="grade-subject-table-container" class="overflow-x-auto"></div>
+            `;
+            const semesterFilter = document.getElementById('grade-stats-semester').value; // Potentially null if re-render? No, element exists now.
+
+            // Count
+            const counts = {};
+            students.forEach(s => {
+                if (s.SelectedCourses) {
+                    s.SelectedCourses.split(', ').map(x => x.trim()).forEach(cName => {
+                        const meta = allCourseData.find(c => c.subjectName === cName);
+                        if (semesterFilter !== 'all') {
+                            if (!meta || String(meta.semester) !== semesterFilter) return;
+                        }
+                        counts[cName] = (counts[cName] || 0) + 1;
+                    });
+                }
+            });
+
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+            let html = `
+                <table class="w-full text-xs border-collapse">
+                    <thead class="sticky top-0 bg-gray-100 dark:bg-gray-700 z-10">
+                        <tr class="theme-text">
+                            <th class="border p-2 theme-border text-left min-w-[150px]">과목명</th>
+                            <th class="border p-2 theme-border text-center w-16 bg-blue-50 text-blue-900 font-bold">총원</th>
+                            <th class="border p-2 theme-border text-center w-16" title="상위 10%">1등급<br><span class="text-[10px] text-gray-500">~10%</span></th>
+                            <th class="border p-2 theme-border text-center w-16" title="상위 34%">2등급<br><span class="text-[10px] text-gray-500">~34%</span></th>
+                            <th class="border p-2 theme-border text-center w-16" title="상위 66%">3등급<br><span class="text-[10px] text-gray-500">~66%</span></th>
+                            <th class="border p-2 theme-border text-center w-16" title="상위 90%">4등급<br><span class="text-[10px] text-gray-500">~90%</span></th>
+                            <th class="border p-2 theme-border text-center w-16">5등급<br><span class="text-[10px] text-gray-500">나머지</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            if (sorted.length === 0) {
+                html += `<tr><td colspan="7" class="p-8 text-center text-gray-500">데이터가 없습니다.</td></tr>`;
+            } else {
+                sorted.forEach(([name, count]) => {
+                    const ranks = calculateRankCounts(count);
+                    html += `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text text-center">
+                            <td class="border p-2 theme-border text-left font-medium truncate">${name}</td>
+                            <td class="border p-2 theme-border font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/20">${count}</td>
+                            <td class="border p-2 theme-border">${ranks.grade1}</td>
+                            <td class="border p-2 theme-border">${ranks.grade2}</td>
+                            <td class="border p-2 theme-border">${ranks.grade3}</td>
+                            <td class="border p-2 theme-border">${ranks.grade4}</td>
+                            <td class="border p-2 theme-border text-gray-400">${ranks.grade5}</td>
+                        </tr>
+                    `;
+                });
+            }
+            html += '</tbody></table>';
+
+            document.getElementById('grade-subject-table-container').innerHTML = html;
+            // Restore value
+            if (document.getElementById('grade-stats-semester'))
+                document.getElementById('grade-stats-semester').value = semesterFilter;
+        }
+
 
         function renderInquiryChart(students) {
             const ctx = document.getElementById('inquiryRatioChart');
@@ -1299,8 +1592,48 @@
                 options: { responsive: true, maintainAspectRatio: false }
             });
         }
-
     </script>
+
+    <!-- Modal: Class Stats Dashboard (New) -->
+    <div id="class-stats-dashboard-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div
+            class="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl relative">
+            <button onclick="document.getElementById('class-stats-dashboard-modal').classList.add('hidden')"
+                class="absolute top-4 right-4 text-gray-500 text-2xl hover:text-gray-700">&times;</button>
+
+            <h2 class="text-2xl font-bold mb-4 theme-text">📊 학급/학년 통계 대시보드</h2>
+
+            <!-- Scope Selection -->
+            <div class="flex gap-4 mb-4 items-center bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                <select id="dashboard-select-grade" class="border p-2 rounded w-24">
+                    <option value="1">1학년</option>
+                    <option value="2">2학년</option>
+                    <option value="3">3학년</option>
+                </select>
+                <select id="dashboard-select-class" class="border p-2 rounded w-24">
+                    <!-- Dynamic -->
+                </select>
+                <button onclick="renderClassStatsDashboard()"
+                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">조회</button>
+            </div>
+
+            <div id="dashboard-message" class="text-center text-gray-500 py-10 hidden"></div>
+
+            <div id="dashboard-content" class="flex-1 flex flex-col overflow-hidden hidden">
+                <!-- Tabs -->
+                <div id="dashboard-tabs" class="flex gap-2 border-b theme-border mb-4 overflow-x-auto">
+                    <!-- Injected via JS -->
+                </div>
+
+                <!-- Content Area -->
+                <div id="dashboard-tab-content" class="flex-1 overflow-y-auto custom-scrollbar p-1">
+                    <!-- Injected via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Floating Theme Selector -->
     <div class="fixed bottom-6 left-6 z-50 group">
         <div id="theme-menu"
