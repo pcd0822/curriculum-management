@@ -115,10 +115,52 @@ const DB = {
     /**
      * Fetches all student responses.
      */
+    /**
+     * Saves student registry to the server.
+     * @param {Array} registry - List of student entries.
+     */
+    saveRegistry: async (registry) => {
+        if (!DB.apiUrl) throw new Error("API URL not configured");
+        const response = await fetch(DB.apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'saveRegistry',
+                data: registry
+            })
+        });
+
+        if (!response.ok) throw new Error("Failed to save registry");
+
+        const text = await response.text();
+        try {
+            const json = JSON.parse(text);
+            if (json.status === 'error') throw new Error(json.message);
+            return json;
+        } catch (e) {
+            // If response is not JSON, it might be a simple success or error
+            console.warn("Server response was not JSON:", text);
+            return { status: 'unknown', raw: text };
+        }
+    },
+
+    /**
+     * Fetches all responses (for admin dashboard).
+     */
     fetchResponses: async () => {
         if (!DB.apiUrl) throw new Error("API URL not configured");
         const response = await fetch(`${DB.apiUrl}?action=getResponses`);
         if (!response.ok) throw new Error("Failed to fetch responses");
+        return await response.json();
+    },
+
+    /**
+     * Fetches student registry.
+     */
+    fetchRegistry: async () => {
+        if (!DB.apiUrl) throw new Error("API URL not configured");
+        const response = await fetch(`${DB.apiUrl}?action=getRegistry`);
+        if (!response.ok) throw new Error("Failed to fetch registry");
         return await response.json();
     }
 };
