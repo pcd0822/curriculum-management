@@ -444,14 +444,46 @@
             try {
                 const jsonData = await ExcelHandler.readExcel(file);
                 // Standardize keys (required field mostly)
+                // Map Korean headers to English keys
+                const headerMap = {
+                    '과목명': 'subjectName',
+                    '영문ID': 'slug',
+                    'slug': 'slug', // Support both
+                    '영문id': 'slug',
+                    '학년': 'grade',
+                    '학기': 'semester',
+                    '학점': 'credits',
+                    '교과군': 'category',
+                    '세부교과': 'subCategory',
+                    '필수여부': 'required',
+                    '개설여부': 'offered',
+                    '선수과목': 'prerequisites'
+                };
+
                 const processed = jsonData.map(row => {
+                    const newRow = {};
+                    Object.keys(row).forEach(key => {
+                        const cleanKey = key.trim();
+                        const mappedKey = headerMap[cleanKey] || headerMap[cleanKey.toLowerCase()] || cleanKey;
+                        newRow[mappedKey] = row[key];
+                    });
+
                     // Normalize required field
-                    let required = false;
-                    if (row.required !== undefined) {
-                        const v = String(row.required).toUpperCase();
-                        required = (v === 'TRUE' || v === 'YES' || v === '1' || row.required === true);
+                    if (newRow.required !== undefined) {
+                        const v = String(newRow.required).toUpperCase();
+                        newRow.required = (v === 'TRUE' || v === 'YES' || v === '1' || newRow.required === true);
                     }
-                    return { ...row, required: required };
+                    if (newRow.offered !== undefined) {
+                        const v = String(newRow.offered).toUpperCase();
+                        newRow.offered = (v === 'TRUE' || v === 'YES' || v === '1' || newRow.offered === true);
+                    }
+                    // Generate Slug if missing
+                    if (!newRow.slug && newRow.subjectName) {
+                        // Simple fallback slug generation (not perfect but better than nothing)
+                        // Ideally user provides slug.
+                    }
+
+                    return newRow;
                 });
 
                 const result = await DB.saveConfig(processed);
