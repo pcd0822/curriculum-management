@@ -367,14 +367,17 @@
     <div id="class-stats-dashboard-modal"
         class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
         <div
-            class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl flex flex-col">
-            <div class="flex justify-between items-center mb-4 border-b pb-2 theme-border">
+            class="bg-white dark:bg-gray-800 rounded-lg max-w-6xl w-full h-[90vh] shadow-2xl flex flex-col overflow-hidden">
+
+            <!-- Header (Fixed) -->
+            <div class="flex justify-between items-center p-6 border-b theme-border flex-none">
                 <h2 class="text-xl font-bold theme-text">📈 학급 통계 대시보드</h2>
                 <button onclick="document.getElementById('class-stats-dashboard-modal').classList.add('hidden')"
                     class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
             </div>
 
-            <div class="flex gap-4 mb-6">
+            <!-- Controls (Fixed) -->
+            <div class="flex gap-4 px-6 py-4 flex-none bg-gray-50 dark:bg-gray-900 border-b theme-border">
                 <select id="dashboard-select-grade" class="p-2 border rounded">
                     <option value="1">1학년</option>
                     <option value="2">2학년</option>
@@ -387,18 +390,23 @@
                     class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700">통계 조회</button>
             </div>
 
-            <div id="dashboard-message" class="text-center text-gray-500 py-10 hidden">
-                학년과 반을 선택하여 통계를 조회하세요.
+            <!-- Message (Centered) -->
+            <div id="dashboard-message" class="text-center text-gray-500 py-20 flex-1 flex items-center justify-center">
+                <p>학년과 반을 선택하고 [통계 조회] 버튼을 눌러주세요.</p>
             </div>
 
+            <!-- Dashboard Content Container (Flex Column) -->
             <div id="dashboard-content" class="flex-1 flex flex-col overflow-hidden hidden">
-                <!-- Tabs -->
-                <div id="dashboard-tabs" class="flex gap-2 border-b theme-border mb-4 overflow-x-auto">
-                    <!-- Injected via JS -->
+                <!-- Tabs (Sticky) -->
+                <div class="flex-none px-6 pt-4 border-b theme-border bg-white dark:bg-gray-800">
+                    <div id="dashboard-tabs" class="flex gap-4">
+                        <!-- Injected via JS -->
+                    </div>
                 </div>
 
-                <!-- Content Area -->
-                <div id="dashboard-tab-content" class="flex-1 overflow-y-auto custom-scrollbar p-1">
+                <!-- Tab Content (Scrollable) -->
+                <div id="dashboard-tab-content"
+                    class="flex-1 overflow-y-auto custom-scrollbar p-6 bg-gray-50 dark:bg-gray-900">
                     <!-- Injected via JS -->
                 </div>
             </div>
@@ -1174,6 +1182,12 @@
 
             if (targetNum !== 'all') {
                 filtered = filtered.filter(s => parseInt(s.Number) == targetNum);
+
+                // Detailed Report Mode
+                if (filtered.length > 0) {
+                    renderDetailedStudentReport(filtered[0]);
+                    return;
+                }
             }
 
             // Sort by number
@@ -1198,7 +1212,7 @@
                         ${filtered.length > 0 ? filtered.map(s => {
                 const courseCount = s.SelectedCourses ? s.SelectedCourses.split(',').length : 0;
                 return `
-                                <tr>
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer" onclick="document.getElementById('modal-select-number').value='${parseInt(s.Number)}'; renderIndividualStatsTable();">
                                     <td class="border p-1 text-center font-bold">${s.Number}</td>
                                     <td class="border p-1 text-center">${s.Name}</td>
                                     <td class="border p-1 text-center text-gray-600 truncate max-w-[100px]">${s.Major}</td>
@@ -1213,6 +1227,71 @@
              `;
             modalContent.innerHTML = html;
         };
+
+        function renderDetailedStudentReport(s) {
+            const vRes = s.ValidationResult || '특이사항 없음';
+            const vColor = (vRes.includes('부족') || vRes.includes('초과') || vRes.includes('필요')) ? 'text-red-600 bg-red-50 border-red-200' : 'text-blue-600 bg-blue-50 border-blue-200';
+
+            const courses = s.SelectedCourses ? s.SelectedCourses.split(',').map(c => c.trim()) : [];
+            const courseTags = courses.map(c =>
+                `<span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium border border-indigo-200 shadow-sm transition-transform hover:scale-105">${c}</span>`
+            ).join('');
+
+            const html = `
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                    <!-- Header -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 theme-border gap-4">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold">${s.Grade}학년 ${s.Class}반 ${s.Number}번</span>
+                                <h3 class="text-2xl font-bold theme-text">${s.Name}</h3>
+                            </div>
+                            <p class="text-gray-500 mt-1 flex items-center gap-2">
+                                <span class="font-bold text-gray-400">진로 희망:</span> 
+                                <span class="font-medium text-blue-600 text-lg">${s.Major || '-'}</span>
+                            </p>
+                        </div>
+                        <div class="flex gap-4 text-center bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                            <div class="px-2">
+                                <div class="text-xs text-gray-500">총 신청 과목</div>
+                                <div class="text-2xl font-bold theme-text">${courses.length}</div>
+                            </div>
+                            <div class="w-px bg-gray-300"></div>
+                            <div class="px-2">
+                                <div class="text-xs text-gray-500">총 신청 학점</div>
+                                <div class="text-2xl font-bold theme-text">${s.TotalCredits}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Left: Validation Result -->
+                        <div class="theme-card rounded border overflow-hidden">
+                            <h4 class="font-bold p-3 bg-gray-100 dark:bg-gray-700 theme-text border-b">✅ 수강신청 검증 결과</h4>
+                            <div class="p-4 min-h-[200px] whitespace-pre-wrap text-sm leading-relaxed border rounded m-4 ${vColor}">
+                                ${vRes}
+                            </div>
+                        </div>
+
+                        <!-- Right: Selected Courses List -->
+                        <div class="theme-card rounded border overflow-hidden">
+                            <h4 class="font-bold p-3 bg-gray-100 dark:bg-gray-700 theme-text border-b">📚 신청 과목 목록 (${courses.length})</h4>
+                            <div class="p-4 flex flex-wrap gap-2 content-start min-h-[200px]">
+                                ${courseTags.length > 0 ? courseTags : '<span class="text-gray-400">신청 과목이 없습니다.</span>'}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 text-center">
+                         <button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();" 
+                            class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">
+                            목록으로 돌아가기
+                         </button>
+                    </div>
+                </div>
+            `;
+            modalContent.innerHTML = html;
+        }
 
         window.downloadClassImage = () => {
             if (!modalContent.querySelector('table')) return alert('먼저 조회를 해주세요.');
@@ -1386,15 +1465,18 @@
 
             students.forEach(s => {
                 if (s.SelectedCourses) {
-                    s.SelectedCourses.split(', ').map(x => x.trim()).forEach(cName => {
+                    const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
+                    uniqueCourses.forEach(cName => {
                         // Filter by Semester Logic (Requires Course Metadata)
                         const meta = allCourseData.find(c => c.subjectName === cName);
+
+                        // Exclude Required (School Designated)
+                        if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) return;
+
                         if (semesterFilter !== 'all') {
                             if (!meta || String(meta.semester) !== semesterFilter) return;
                         }
                         // Also could filter by Grade if course has specific grade, but usually we just show all selected.
-                        // But request says "Grade-Semester". Let's assume user wants courses for THIS grade? 
-                        // Or courses OPEN to this grade? Usually simpler to just count what they picked.
 
                         counts[cName] = (counts[cName] || 0) + 1;
                     });
@@ -1532,11 +1614,17 @@
             const semesterFilter = document.getElementById('grade-stats-semester').value; // Potentially null if re-render? No, element exists now.
 
             // Count
+            // Count
             const counts = {};
             students.forEach(s => {
                 if (s.SelectedCourses) {
-                    s.SelectedCourses.split(', ').map(x => x.trim()).forEach(cName => {
+                    const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
+                    uniqueCourses.forEach(cName => {
                         const meta = allCourseData.find(c => c.subjectName === cName);
+
+                        // Exclude Required
+                        if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) return;
+
                         if (semesterFilter !== 'all') {
                             if (!meta || String(meta.semester) !== semesterFilter) return;
                         }
@@ -1607,8 +1695,12 @@
 
             students.forEach(s => {
                 if (s.SelectedCourses) {
-                    const courses = s.SelectedCourses.split(', ').map(x => x.trim());
-                    courses.forEach(cName => {
+                    const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
+                    uniqueCourses.forEach(cName => {
+                        const meta = allCourseData.find(c => c.subjectName === cName);
+                        // Exclude Required
+                        if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) return;
+
                         const cat = courseMap[cName];
                         if (cat && cat.includes('사회')) social++;
                         if (cat && cat.includes('과학')) science++;
@@ -1642,7 +1734,12 @@
 
             students.forEach(s => {
                 if (s.SelectedCourses) {
-                    s.SelectedCourses.split(', ').map(x => x.trim()).forEach(cName => {
+                    const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
+                    uniqueCourses.forEach(cName => {
+                        const meta = allCourseData.find(c => c.subjectName === cName);
+                        // Exclude Required
+                        if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) return;
+
                         // Simple check if course name contains language
                         if (targetLangs.some(l => cName.includes(l)) || cName.endsWith('어') || cName === '한문') {
                             counts[cName] = (counts[cName] || 0) + 1;
