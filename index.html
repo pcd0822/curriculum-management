@@ -1092,7 +1092,7 @@
                     ];
                     const hash = (c.subjectName || c.name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
                     const colorClass = colors[hash % colors.length];
-                    return `<span class="text-xs font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.id || c.subjectName || c.name}</span>`;
+                    return `<span class="text-xs font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.subjectName || c.name || c.id}</span>`;
                 }).join('')}
                         </div>
                     </div>
@@ -1128,9 +1128,9 @@
                         'text-orange-500 dark:text-orange-400',
                         'text-rose-500 dark:text-rose-400'
                     ];
-                    const hash = (c.id || c.subjectName || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    const hash = (c.subjectName || c.name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
                     const colorClass = colors[hash % colors.length];
-                    return `<span class="text-sm font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.id || c.subjectName}</span>`;
+                    return `<span class="text-xs font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default">${c.subjectName || c.name || c.id}</span>`;
                 }).join('')}
                         </div>
                     </div>
