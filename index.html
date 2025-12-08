@@ -1284,6 +1284,14 @@
             // Use ID instead of SubjectName for submission as requested
             const courseIds = selected.map(c => c.id || c.subjectName).join(', ');
 
+            // Collect Validation Result (Summary)
+            const validationMessages = Array.from(document.querySelectorAll('#validation-messages div'))
+                .map(div => div.textContent.trim())
+                .filter(text => text.length > 0)
+                .join('\n');
+
+            const aiContent = document.getElementById('ai-recommendation-result') ? document.getElementById('ai-recommendation-result').innerText : '';
+
             const studentInfo = parseStudentId();
             if (!studentInfo) return alert('학번 5자리를 정확히 입력해주세요.');
             if (!studentNameEl.value.trim()) return alert('이름을 입력해주세요.');
@@ -1295,11 +1303,11 @@
                 Name: studentNameEl.value,
                 Major: majorInput.value,
                 SelectedCourses: courseIds,
+                JointCourses: jointCourses.map(c => c.subjectName).join(', '),
                 TotalCredits: totalCreditsEl.textContent,
-                Timestamp: new Date().toISOString()
+                ValidationResult: validationMessages,
+                AiRecommendation: aiContent
             };
-
-            console.log('Submitting data:', data);
 
             try {
                 confirmBtn.disabled = true;
