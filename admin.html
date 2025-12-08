@@ -1,91 +1,79 @@
 <!DOCTYPE html>
 <html lang="ko">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>관리자 대시보드 - 교육과정 설계</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- SheetJS for Excel -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- QRCode.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <!-- html2canvas -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Custom Modules -->
-    <script src="js/db.js"></script>
-    <script src="js/excel-handler.js"></script>
-    <script src="js/qrcode-generator.js"></script>
-    <script src="js/theme.js"></script>
+<!-- Custom Modules -->
+<script src="js/db.js"></script>
+<script src="js/excel-handler.js"></script>
+<script src="js/qrcode-generator.js"></script>
+<script src="js/theme.js"></script>
 
-    <style>
-        body {
-            font-family: 'Noto Sans KR', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            transition: background-color 0.3s, color 0.3s;
-        }
+<style>
+    body {
+        font-family: 'Noto Sans KR', sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        transition: background-color 0.3s, color 0.3s;
+    }
 
-        .tab-btn.active {
-            border-bottom: 2px solid var(--primary-color);
-            color: var(--primary-color);
-            font-weight: bold;
-        }
+    .tab-btn.active {
+        border-bottom: 2px solid var(--primary-color);
+        color: var(--primary-color);
+        font-weight: bold;
+    }
 
-        /* Custom styles for theme compatibility */
-        .theme-card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-        }
+    /* Custom styles for theme compatibility */
+    .theme-card {
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+    }
 
-        .theme-text {
-            color: var(--text-color);
-        }
+    .theme-text {
+        color: var(--text-color);
+    }
 
-        .theme-text-muted {
-            color: var(--text-muted);
-        }
+    .theme-text-muted {
+        color: var(--text-muted);
+    }
 
-        .theme-border {
-            border-color: var(--border-color);
-        }
+    .theme-border {
+        border-color: var(--border-color);
+    }
 
-        input,
-        select {
-            background-color: var(--input-bg);
-            border-color: var(--border-color);
-            color: var(--text-color);
-        }
+    input,
+    select {
+        background-color: var(--input-bg);
+        border-color: var(--border-color);
+        color: var(--text-color);
+    }
 
-        input:focus,
-        select:focus {
-            border-color: var(--primary-color);
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2);
-        }
+    input:focus,
+    select:focus {
+        border-color: var(--primary-color);
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2);
+    }
 
-        /* Custom scrollbar */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
+    /* Custom scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+    }
 
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
-        }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
 
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background-color: rgba(156, 163, 175, 0.5);
-            border-radius: 3px;
-        }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: rgba(156, 163, 175, 0.5);
+        border-radius: 3px;
+    }
 
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background-color: rgba(156, 163, 175, 0.8);
-        }
-    </style>
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(156, 163, 175, 0.8);
+    }
+</style>
 </head>
 
 <body class="min-h-screen p-8">
@@ -931,7 +919,11 @@
         }
 
         // 4. Dashboard
-        // let allStudentData is defined globally
+        // Global Data
+        // Global Data - Ensure these are initialized only once if they exist globally, but if 416 has it, we just use it.
+        // If allStudentData is declared at 416, we don't redeclare here.
+        // let allStudentData = []; // Removed to avoid conflict
+        let registryData = [];
 
         async function loadStudentData() {
             if (!DB.isConfigured()) return;
@@ -943,26 +935,36 @@
                 try { allCourseData = await DB.fetchConfig() || []; } catch (e) { }
             }
 
+            // Parallel Fetch
             try {
-                const response = await DB.fetchResponses();
-                // Handle different response formats
+                const [response, registry] = await Promise.all([
+                    DB.fetchResponses(),
+                    DB.fetchRegistry()
+                ]);
+
+                // Handle Responses
                 if (Array.isArray(response)) {
                     allStudentData = response;
-                } else if (response && Array.isArray(response.data)) {
+                } else if (response && response.data) {
                     allStudentData = response.data;
-                } else if (response && response.status === 'error') {
-                    throw new Error(response.message || 'Server reported an error');
                 } else {
-                    console.warn('Unexpected data format:', response);
-                    allStudentData = []; // Default to empty array
+                    allStudentData = [];
                 }
 
+                // Handle Registry
+                if (Array.isArray(registry)) {
+                    registryData = registry;
+                } else {
+                    registryData = [];
+                }
+
+                updateDashboardCounts();
                 document.getElementById('total-submissions-count').textContent = `${allStudentData.length}명 제출됨`;
                 renderStudentTable();
                 updateClassFilter();
             } catch (e) {
-                console.error('Failed to load student data:', e);
-                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-red-500">오류: ${e.message}</td></tr>`;
+                console.error("Failed to load data:", e);
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-red-500">데이터 로드 실패: ${e.message}</td></tr>`;
             }
         }
 
@@ -1192,89 +1194,6 @@
         // I already mapped the button to openIndividualStats() which opens the modal.
         // The 'Look up' button inside calls openIndividualStats() (modified from queryClassStats).
 
-        // We need to implement openIndividualStats to do what queryClassStats did
-        window.queryClassStats = () => { // Keep for backward compatibility if needed, but redefine logic
-            renderIndividualStatsTable();
-        };
-
-        // Implementation of renderIndividualStatsTable (Logic from queryClassStats)
-        window.openIndividualStats = () => {
-            // Just open modal
-            document.getElementById('class-lookup-modal').classList.remove('hidden');
-        }
-
-        // This function is called by the 'Search' button in the modal
-        // I replaced onclick="queryClassStats()" with onclick="openIndividualStats()" in the modal HTML, 
-        // BUT openIndividualStats just opens the modal. I should have a specific function for the SEARCH action.
-        // Let's revert the modal button to call `renderIndividualStatsTable` and the main button to `openIndividualStats`.
-
-        window.renderIndividualStatsTable = () => {
-            const grade = document.getElementById('modal-select-grade').value;
-            const cls = document.getElementById('modal-select-class').value;
-            const modalContent = document.getElementById('class-stats-content');
-
-            if (allStudentData.length === 0) {
-                modalContent.innerHTML = '<div class="text-center text-red-500 py-10">데이터가 없습니다. 먼저 엑셀을 업로드해주세요.</div>';
-                return;
-            }
-
-            const students = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
-            students.sort((a, b) => a.Number - b.Number);
-
-            if (students.length === 0) {
-                modalContent.innerHTML = `<div class="text-center text-gray-500 py-10">${grade}학년 ${cls}반 데이터가 없습니다.</div>`;
-                return;
-            }
-
-            // Generate Table
-            const html = `
-            <div class="mb-4 text-center font-bold text-lg border-b pb-2 theme-text">${grade}학년 ${cls}반 개인별 과목선택 현황 (${students.length}명)</div>
-            <table class="w-full text-xs border-collapse">
-                <thead>
-                    <tr class="bg-gray-100 dark:bg-gray-700 theme-text">
-                        <th class="border p-2">번호</th>
-                        <th class="border p-2">이름</th>
-                        <th class="border p-2">진로희망</th>
-                        <th class="border p-2">선택 과목 목록</th>
-                        <th class="border p-2">신청 학점</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${students.map(s => {
-                const coursesStrings = s.SelectedCourses ? s.SelectedCourses.split(', ').map(c => c.trim()) : [];
-                // Filter out required courses if needed, or show all? usually show all selected
-
-                return `
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text">
-                            <td class="border p-2 text-center">${s.Number}</td>
-                            <td class="border p-2 text-center font-bold">${s.Name}</td>
-                            <td class="border p-2 text-center text-gray-500">${s.Major || '-'}</td>
-                            <td class="border p-2">
-                                <div class="flex flex-wrap gap-1">
-                                    ${coursesStrings.map(c => `<span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-[10px]">${c}</span>`).join('')}
-                                </div>
-                            </td>
-                            <td class="border p-2 text-center font-bold">${s.TotalCredits}</td>
-                        </tr>
-                        `;
-            }).join('')}
-                </tbody>
-            </table>
-         `;
-            modalContent.innerHTML = html;
-        };
-
-        // Override the button in modal to call renderIndividualStatsTable
-        // I need to use a specific replacement or ensure global scope
-        window.openIndividualStats = () => { // Main button
-            document.getElementById('class-lookup-modal').classList.remove('hidden');
-        }
-
-        // 2. Class Stats Dashboard
-        window.openClassStatsDashboard = () => {
-            document.getElementById('class-stats-dashboard-modal').classList.remove('hidden');
-            populateClassOptions(); // Ensure options are ready
-        };
 
         let dashboardCharts = {};
 
