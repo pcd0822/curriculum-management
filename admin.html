@@ -4,7 +4,10 @@
 <!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com"></script>
 <!-- Chart.js -->
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- QRCode.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <!-- Custom Modules -->
 <script src="js/db.js"></script>
@@ -921,6 +924,13 @@
         }
 
         // 4. Dashboard
+        function updateDashboardCounts() {
+            // Count total submissions
+            const count = allStudentData ? allStudentData.length : 0;
+            const countEl = document.getElementById('total-submissions-count');
+            if (countEl) countEl.textContent = `${count}명 제출됨`;
+        }
+
         // Global Data
         // Global Data - Ensure these are initialized only once if they exist globally, but if 416 has it, we just use it.
         // If allStudentData is declared at 416, we don't redeclare here.
