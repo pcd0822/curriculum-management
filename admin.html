@@ -13,6 +13,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Custom Modules -->
     <script src="js/db.js"></script>
@@ -302,8 +304,10 @@
                 </div>
                 <!-- Visual Stats Buttons -->
                 <div class="flex gap-2">
-                    <button onclick="toggleCourseStats()"
-                        class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">과목별 통계</button>
+                    <button onclick="openIndividualStats()"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">📊 개인별 통계</button>
+                    <button onclick="openClassStatsDashboard()"
+                        class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700">📈 학급 통계</button>
                     <button id="download-matrix-btn"
                         class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">엑셀
                         다운로드 (학생선택)</button>
@@ -348,16 +352,61 @@
                     <option value="3">3학년</option>
                 </select>
                 <select id="modal-select-class" class="p-2 border rounded">
-                    ${[...Array(15).keys()].map(i => `<option value="${i + 1}">${i + 1}반</option>`).join('')}
+                    <!-- Options populated by JS -->
                 </select>
-                <button onclick="queryClassStats()"
+                <button onclick="renderIndividualStatsTable()"
                     class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">조회</button>
                 <button onclick="downloadClassImage()"
                     class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ml-auto">이미지 저장</button>
             </div>
 
-            <div id="class-stats-content" class="bg-white p-4 rounded border min-h-[300px]">
+            <div id="class-stats-content" class="bg-white p-4 rounded border min-h-[300px] overflow-auto">
                 <div class="text-center text-gray-500 py-10">학년과 반을 선택하고 조회를 눌러주세요.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Class Statistics Dashboard Modal (New) -->
+    <div id="class-stats-dashboard-modal"
+        class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div
+            class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-2 theme-border">
+                <h2 class="text-xl font-bold theme-text">📈 학급 통계 대시보드</h2>
+                <button onclick="document.getElementById('class-stats-dashboard-modal').classList.add('hidden')"
+                    class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+
+            <div class="flex gap-4 mb-6">
+                <select id="dashboard-select-grade" class="p-2 border rounded">
+                    <option value="1">1학년</option>
+                    <option value="2">2학년</option>
+                    <option value="3">3학년</option>
+                </select>
+                <select id="dashboard-select-class" class="p-2 border rounded">
+                    <!-- JS populated -->
+                </select>
+                <button onclick="renderClassStatsDashboard()"
+                    class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700">통계 조회</button>
+            </div>
+
+            <div id="dashboard-content" class="grid grid-cols-1 md:grid-cols-2 gap-6 p-2">
+                <!-- Charts will vary based on grade -->
+                <div class="theme-card p-4 rounded border shadow-sm">
+                    <h3 class="font-bold mb-4 text-center">탐구 과목 선택 비율</h3>
+                    <div class="h-64 relative">
+                        <canvas id="inquiryRatioChart"></canvas>
+                    </div>
+                </div>
+                <div class="theme-card p-4 rounded border shadow-sm">
+                    <h3 class="font-bold mb-4 text-center">제2외국어 선택 비율</h3>
+                    <div class="h-64 relative">
+                        <canvas id="languageChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div id="dashboard-message" class="text-center text-gray-500 py-10">
+                학년과 반을 선택하여 통계를 조회하세요.
             </div>
         </div>
     </div>
@@ -1102,8 +1151,236 @@
             });
         };
 
-        // Initialize
-        loadConfig();
+        // --- New Statistics & Bug Fixes ---
+
+        // Fix for Class Dropdown Bug and options population
+        function populateClassOptions() {
+            // Find existing max class or default to 15
+            const maxClass = 15;
+            const optionsHtml = [...Array(maxClass).keys()].map(i => `<option value="${i + 1}">${i + 1}반</option>`).join('');
+
+            const filterEl = document.getElementById('filter-class');
+            const modalEl = document.getElementById('modal-select-class');
+            const dashboardEl = document.getElementById('dashboard-select-class');
+
+            if (filterEl) {
+                const existing = filterEl.innerHTML;
+                // Keep "All Classes" option if present
+                if (!existing.includes('1반')) filterEl.innerHTML += optionsHtml;
+                // Actually filter-class is handled by updateClassFilter usually, but initial population is good
+            }
+            if (modalEl) modalEl.innerHTML = optionsHtml;
+            if (dashboardEl) dashboardEl.innerHTML = optionsHtml;
+        }
+
+        // Call on load
+        document.addEventListener('DOMContentLoaded', () => {
+            populateClassOptions();
+        });
+
+        // 1. Individual Stats (Renaming queryClassStats logic)
+        window.openIndividualStats = () => {
+            document.getElementById('class-lookup-modal').classList.remove('hidden');
+        };
+
+        window.closeClassStats = () => { // Renamed or kept for compatibility
+            document.getElementById('class-lookup-modal').classList.add('hidden');
+        }
+
+        // Reuse existing queryClassStats but renamed internally or alias it? 
+        // The user wants "Individual Stats" button to trigger the view.
+        // I already mapped the button to openIndividualStats() which opens the modal.
+        // The 'Look up' button inside calls openIndividualStats() (modified from queryClassStats).
+
+        // We need to implement openIndividualStats to do what queryClassStats did
+        window.queryClassStats = () => { // Keep for backward compatibility if needed, but redefine logic
+            renderIndividualStatsTable();
+        };
+
+        // Implementation of renderIndividualStatsTable (Logic from queryClassStats)
+        window.openIndividualStats = () => {
+            // Just open modal
+            document.getElementById('class-lookup-modal').classList.remove('hidden');
+        }
+
+        // This function is called by the 'Search' button in the modal
+        // I replaced onclick="queryClassStats()" with onclick="openIndividualStats()" in the modal HTML, 
+        // BUT openIndividualStats just opens the modal. I should have a specific function for the SEARCH action.
+        // Let's revert the modal button to call `renderIndividualStatsTable` and the main button to `openIndividualStats`.
+
+        window.renderIndividualStatsTable = () => {
+            const grade = document.getElementById('modal-select-grade').value;
+            const cls = document.getElementById('modal-select-class').value;
+            const modalContent = document.getElementById('class-stats-content');
+
+            if (allStudentData.length === 0) {
+                modalContent.innerHTML = '<div class="text-center text-red-500 py-10">데이터가 없습니다. 먼저 엑셀을 업로드해주세요.</div>';
+                return;
+            }
+
+            const students = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
+            students.sort((a, b) => a.Number - b.Number);
+
+            if (students.length === 0) {
+                modalContent.innerHTML = `<div class="text-center text-gray-500 py-10">${grade}학년 ${cls}반 데이터가 없습니다.</div>`;
+                return;
+            }
+
+            // Generate Table
+            const html = `
+            <div class="mb-4 text-center font-bold text-lg border-b pb-2 theme-text">${grade}학년 ${cls}반 개인별 과목선택 현황 (${students.length}명)</div>
+            <table class="w-full text-xs border-collapse">
+                <thead>
+                    <tr class="bg-gray-100 dark:bg-gray-700 theme-text">
+                        <th class="border p-2">번호</th>
+                        <th class="border p-2">이름</th>
+                        <th class="border p-2">진로희망</th>
+                        <th class="border p-2">선택 과목 목록</th>
+                        <th class="border p-2">신청 학점</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${students.map(s => {
+                const coursesStrings = s.SelectedCourses ? s.SelectedCourses.split(', ').map(c => c.trim()) : [];
+                // Filter out required courses if needed, or show all? usually show all selected
+
+                return `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text">
+                            <td class="border p-2 text-center">${s.Number}</td>
+                            <td class="border p-2 text-center font-bold">${s.Name}</td>
+                            <td class="border p-2 text-center text-gray-500">${s.Major || '-'}</td>
+                            <td class="border p-2">
+                                <div class="flex flex-wrap gap-1">
+                                    ${coursesStrings.map(c => `<span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-[10px]">${c}</span>`).join('')}
+                                </div>
+                            </td>
+                            <td class="border p-2 text-center font-bold">${s.TotalCredits}</td>
+                        </tr>
+                        `;
+            }).join('')}
+                </tbody>
+            </table>
+         `;
+            modalContent.innerHTML = html;
+        };
+
+        // Override the button in modal to call renderIndividualStatsTable
+        // I need to use a specific replacement or ensure global scope
+        window.openIndividualStats = () => { // Main button
+            document.getElementById('class-lookup-modal').classList.remove('hidden');
+        }
+
+        // 2. Class Stats Dashboard
+        window.openClassStatsDashboard = () => {
+            document.getElementById('class-stats-dashboard-modal').classList.remove('hidden');
+            populateClassOptions(); // Ensure options are ready
+        };
+
+        let dashboardCharts = {};
+
+        window.renderClassStatsDashboard = () => {
+            const grade = document.getElementById('dashboard-select-grade').value;
+            const cls = document.getElementById('dashboard-select-class').value;
+            const container = document.getElementById('dashboard-content');
+            const msgEl = document.getElementById('dashboard-message');
+
+            const students = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
+
+            if (students.length === 0) {
+                container.classList.add('hidden');
+                msgEl.textContent = `${grade}학년 ${cls}반 데이터가 없습니다.`;
+                msgEl.classList.remove('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            msgEl.classList.add('hidden');
+
+            // Logic from 학급통계.html
+            renderInquiryChart(students);
+            renderLanguageChart(students);
+        };
+
+        function renderInquiryChart(students) {
+            const ctx = document.getElementById('inquiryRatioChart');
+            if (!ctx) return;
+
+            // Count Social vs Science
+            let social = 0;
+            let science = 0;
+
+            // Need to match course names to categories. 
+            // Using allCourseData global to lookup category by subjectName
+            const courseMap = {};
+            allCourseData.forEach(c => {
+                courseMap[c.subjectName] = c.subCategory || c.category;
+            });
+
+            students.forEach(s => {
+                if (s.SelectedCourses) {
+                    const courses = s.SelectedCourses.split(', ').map(x => x.trim());
+                    courses.forEach(cName => {
+                        const cat = courseMap[cName];
+                        if (cat && cat.includes('사회')) social++;
+                        if (cat && cat.includes('과학')) science++;
+                    });
+                }
+            });
+
+            if (dashboardCharts.inquiry) dashboardCharts.inquiry.destroy();
+
+            dashboardCharts.inquiry = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['사회탐구', '과학탐구'],
+                    datasets: [{
+                        data: [social, science],
+                        backgroundColor: ['rgba(251, 146, 60, 0.6)', 'rgba(59, 130, 246, 0.6)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderLanguageChart(students) {
+            const ctx = document.getElementById('languageChart');
+            if (!ctx) return;
+
+            const counts = {};
+            const targetLangs = ['일본어', '중국어', '한문', '스페인어', '프랑스어', '독일어'];
+            // Dynamic detection?
+
+            students.forEach(s => {
+                if (s.SelectedCourses) {
+                    s.SelectedCourses.split(', ').map(x => x.trim()).forEach(cName => {
+                        // Simple check if course name contains language
+                        if (targetLangs.some(l => cName.includes(l)) || cName.endsWith('어') || cName === '한문') {
+                            counts[cName] = (counts[cName] || 0) + 1;
+                        }
+                    });
+                }
+            });
+
+            const labels = Object.keys(counts);
+            const data = Object.values(counts);
+
+            if (dashboardCharts.language) dashboardCharts.language.destroy();
+
+            dashboardCharts.language = new Chart(ctx, {
+                type: 'bar', // or doughnut
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '선택 인원',
+                        data: data,
+                        backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
     </script>
     <!-- Floating Theme Selector -->
     <div class="fixed bottom-6 left-6 z-50 group">
