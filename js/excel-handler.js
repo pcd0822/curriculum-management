@@ -48,19 +48,19 @@ const ExcelHandler = {
     downloadTemplate: () => {
         const templateData = [
             {
-                subjectName: "예시: 문학",
-                slug: "munhag",
-                grade: 2,
-                semester: 1,
-                credits: 4,
-                category: "기초교과",
-                subCategory: "국어",
-                required: false, // TRUE or FALSE
-                offered: true,   // TRUE or FALSE
-                prerequisites: "" // 콤마로 구분된 slug (예: korean1, korean2)
+                "과목명": "예시: 문학",
+                "영문ID": "munhag",
+                "학년": 2,
+                "학기": 1,
+                "학점": 4,
+                "교과군": "기초교과",
+                "세부교과": "국어",
+                "필수여부": "FALSE", // TRUE or FALSE
+                "개설여부": "TRUE",   // TRUE or FALSE
+                "선수과목": "" // 콤마로 구분된 영문ID (예: korean1, korean2)
             }
         ];
-        ExcelHandler.downloadExcel(templateData, 'course_template.xlsx', 'Courses');
+        ExcelHandler.downloadExcel(templateData, 'course_template_korean.xlsx', 'Courses');
     }
 };
 
