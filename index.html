@@ -112,9 +112,10 @@
                             placeholder="학번 5자리 (예: 20513)" maxlength="5"
                             oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length > 5) this.value = this.value.slice(0,5);">
                         <p class="text-xs text-gray-400 mt-1 pl-1">학번을 입력하면 학년, 반, 번호가 자동 인식됩니다.</p>
+                        <p id="student-id-error" class="hidden text-xs text-red-500 mt-1 pl-1">학번은 반드시 5자리여야 합니다.</p>
                     </div>
-                    <input type="text" id="student-name" class="p-2 border rounded md:col-span-2" placeholder="이름"
-                        autocomplete="off" style="background-color: var(--input-bg);">
+                    <input type="text" id="student-name" class="p-2 border rounded md:col-span-2 h-[42px]"
+                        placeholder="이름" autocomplete="off" style="background-color: var(--input-bg);">
                     <div class="md:col-span-5 flex gap-2">
                         <input type="text" id="student-major" class="flex-1 p-2 border rounded"
                             placeholder="희망 진로 (예: 컴퓨터공학자, 간호사) - AI 추천에 활용됩니다"
@@ -263,6 +264,7 @@
         let jointCourses = [];
         let selectionRules = {};
         let multiSemesterRules = {};
+        let registryData = [];
         const duplicateCourseSlugs = [];
         const jointSubCategoryToCategoryMap = {
             '국어': '기초교과', '수학': '기초교과', '영어': '기초교과', '한국사': '기초교과',
@@ -326,6 +328,37 @@
             }
 
             initJointCourses();
+
+            // Student ID Input Logic
+            studentIdEl.addEventListener('input', (e) => {
+                let val = e.target.value.replace(/[^0-9]/g, '');
+                if (val.length > 5) val = val.slice(0, 5);
+                e.target.value = val;
+
+                const errorEl = document.getElementById('student-id-error');
+                if (val.length > 0 && val.length < 5) {
+                    errorEl.classList.remove('hidden');
+                } else {
+                    errorEl.classList.add('hidden');
+                }
+
+                if (val.length === 5) {
+                    // Auto-fill name from registry
+                    const found = registryData.find(r => String(r.학번) === val);
+                    if (found && found.이름) {
+                        studentNameEl.value = found.이름;
+                        studentNameEl.readOnly = true;
+                        studentNameEl.classList.add('bg-gray-100');
+                    } else {
+                        studentNameEl.readOnly = false;
+                        studentNameEl.classList.remove('bg-gray-100');
+                    }
+                } else {
+                    studentNameEl.value = '';
+                    studentNameEl.readOnly = false;
+                    studentNameEl.classList.remove('bg-gray-100');
+                }
+            });
         }
 
         async function loadData() {
@@ -347,36 +380,37 @@
                     }
                 }
 
+                // Fetch Registry
+                try {
+                    registryData = await DB.fetchRegistry();
+                } catch (err) {
+                    console.warn('Failed to fetch registry:', err);
+                }
+
                 // Fetch Courses
                 const courses = await DB.fetchConfig();
                 if (!courses) throw new Error('과목 데이터를 불러올 수 없습니다.');
 
-                // Process courses and ensure credits is a number
+                // Process courses
                 PROCESSED_COURSES = courses.filter(c => c.subjectName).map((c, index) => {
-                    // Normalize credits field - handle different possible field names
                     let credits = c.credits || c.Credits || c.credit || c.학점 || 0;
-                    // Convert to number if it's a string
                     if (typeof credits === 'string') {
-                        // Remove any non-numeric characters except decimal point
                         credits = parseFloat(credits.replace(/[^\d.]/g, '')) || 0;
                     }
                     credits = parseInt(credits) || 0;
 
-                    // Normalize required field - handle TRUE/FALSE in various formats
                     let required = false;
                     if (c.required !== undefined && c.required !== null) {
                         const reqValue = String(c.required).toUpperCase().trim();
                         required = reqValue === 'TRUE' || reqValue === '1' || reqValue === 'YES' || c.required === true || c.required === 1;
                     }
 
-                    // Ensure id field exists - use existing id, slug, or generate one
+                    // Ensure id field exists
                     let id = c.id || c.Id || c.ID;
                     if (!id) {
-                        // Generate id from slug, subjectName, or index
                         if (c.slug) {
                             id = `${c.slug}-${c.grade || ''}-${c.semester || ''}-${index}`;
                         } else if (c.subjectName) {
-                            // Create a simple id from subjectName, grade, and semester
                             id = `${c.subjectName}-${c.grade || ''}-${c.semester || ''}-${index}`.replace(/\s+/g, '-').toLowerCase();
                         } else {
                             id = `course-${index}`;
@@ -391,31 +425,6 @@
                     };
                 });
 
-                // Debug: Log first course to check data structure
-                if (PROCESSED_COURSES.length > 0) {
-                    console.log('Sample course data:', PROCESSED_COURSES[0]);
-                    console.log('Sample course required value (raw):', courses.find(c => c.subjectName === PROCESSED_COURSES[0].subjectName)?.required);
-                    console.log('Sample course required value (processed):', PROCESSED_COURSES[0].required);
-                    console.log('Total courses loaded:', PROCESSED_COURSES.length);
-                    const requiredCount = PROCESSED_COURSES.filter(c => c.required).length;
-                    console.log('Required courses count:', requiredCount);
-                    if (requiredCount > 0) {
-                        const firstRequired = PROCESSED_COURSES.find(c => c.required);
-                        console.log('First required course:', firstRequired);
-                        console.log('First required course credits:', firstRequired?.credits);
-                    } else {
-                        console.warn('No required courses found! Checking raw data...');
-                        const rawRequired = courses.filter(c => {
-                            const req = c.required;
-                            return req === true || req === 'TRUE' || req === 'true' || req === 1 || String(req).toUpperCase() === 'TRUE';
-                        });
-                        console.log('Raw required courses count:', rawRequired.length);
-                        if (rawRequired.length > 0) {
-                            console.log('First raw required course:', rawRequired[0]);
-                        }
-                    }
-                }
-
                 renderCourses();
 
             } catch (e) {
@@ -429,20 +438,16 @@
         function renderCourses() {
             courseListEl.innerHTML = '';
 
-            // Group by Grade-Semester
             const grouped = {};
             PROCESSED_COURSES.forEach(c => {
-                // Ensure required property is set
                 if (c.required === undefined) {
                     c.required = c.required === true || c.required === 'TRUE' || c.required === 'true' || c.required === 1;
                 }
-
                 const key = `${c.grade}-${c.semester}`;
                 if (!grouped[key]) grouped[key] = [];
                 grouped[key].push(c);
             });
 
-            // Sort keys
             const keys = Object.keys(grouped).sort();
 
             keys.forEach(key => {
@@ -463,7 +468,7 @@
                                     ${c.required ? 'checked disabled' : ''}
                                     onchange="validateSelections()">
                                 <div>
-                                    <div class="font-bold theme-text">${c.id || c.subjectName}</div>
+                                    <div class="font-bold theme-text">${c.subjectName}</div>
                                     <div class="text-xs theme-text-muted">${c.category} | ${c.credits}학점</div>
                                     ${c.description ? `<div class="text-xs text-gray-400 mt-1">${c.description}</div>` : ''}
                                 </div>
@@ -474,32 +479,22 @@
                 courseListEl.appendChild(section);
             });
 
-            // Initial Validation - wait a bit for DOM to be ready
             setTimeout(() => {
                 validateSelections();
             }, 100);
         }
 
         function getSelected() {
-            // Include both checked (user selected) and disabled+checked (required) courses
             const checkedIds = Array.from(courseListEl.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-
-            // Also include all required courses from PROCESSED_COURSES
             const requiredCourseIds = PROCESSED_COURSES.filter(c => c.required).map(c => c.id);
-
-            // Combine both sets
             const allSelectedIds = [...new Set([...checkedIds, ...requiredCourseIds])];
-
             const selected = PROCESSED_COURSES.filter(course => allSelectedIds.includes(course.id));
 
-            // Ensure required property is set correctly
             selected.forEach(course => {
-                // Check original data first
                 const originalCourse = PROCESSED_COURSES.find(c => c.id === course.id);
                 if (originalCourse && originalCourse.required !== undefined) {
                     course.required = originalCourse.required;
                 } else {
-                    // Then check checkbox state
                     const checkbox = courseListEl.querySelector(`input[type="checkbox"][value="${course.id}"]`);
                     if (checkbox) {
                         course.required = checkbox.disabled && checkbox.checked;
