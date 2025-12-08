@@ -61,6 +61,23 @@ const ExcelHandler = {
             }
         ];
         ExcelHandler.downloadExcel(templateData, 'course_template_korean.xlsx', 'Courses');
+    },
+
+    /**
+     * Generates a template Excel file for student registry.
+     */
+    downloadRegistryTemplate: () => {
+        const templateData = [
+            {
+                "학번": "20513",
+                "이름": "홍길동"
+            },
+            {
+                "학번": "20514",
+                "이름": "이순신"
+            }
+        ];
+        ExcelHandler.downloadExcel(templateData, 'student_registry_template.xlsx', 'Registry');
     }
 };
 
