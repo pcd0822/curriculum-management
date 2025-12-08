@@ -339,12 +339,16 @@
             </div>
 
             <div class="flex gap-4 mb-4">
-                <select id="modal-select-grade" class="p-2 border rounded">
+                <select id="modal-select-grade" class="p-2 border rounded" onchange="populateStudentNumberOptions()">
                     <option value="1">1학년</option>
                     <option value="2">2학년</option>
                     <option value="3">3학년</option>
                 </select>
-                <select id="modal-select-class" class="p-2 border rounded">
+                <select id="modal-select-class" class="p-2 border rounded" onchange="populateStudentNumberOptions()">
+                    <!-- Options populated by JS -->
+                </select>
+                <select id="modal-select-number" class="p-2 border rounded w-24">
+                    <option value="all">전체</option>
                     <!-- Options populated by JS -->
                 </select>
                 <button onclick="renderIndividualStatsTable()"
@@ -1118,11 +1122,70 @@
             if (e.target === modal) closeClassStats();
         });
 
-        window.queryClassStats = () => {
+        // Populate Student Number Options
+        function populateStudentNumberOptions() {
             const grade = document.getElementById('modal-select-grade').value;
             const cls = document.getElementById('modal-select-class').value;
+            const numSelect = document.getElementById('modal-select-number');
+
+            // Clear existing
+            numSelect.innerHTML = '<option value="all">전체</option>';
+
+            // Use Registry data if available, or fall back to responses
+            let studentsInClass = [];
+            if (registryData && registryData.length > 0) {
+                studentsInClass = registryData.filter(r => {
+                    const sNum = String(r['학번'] || r.studentId || '');
+                    return sNum.startsWith(grade) && parseInt(sNum.substring(1, 3)) == cls;
+                }).map(r => ({
+                    number: parseInt(String(r['학번']).substring(3, 5)),
+                    name: r['이름'] || r.name
+                }));
+            } else {
+                studentsInClass = allStudentData.filter(s => s.Grade == grade && s.Class == cls).map(s => ({
+                    number: parseInt(s.Number),
+                    name: s.Name
+                }));
+            }
+
+            // Remove duplicates and sort
+            const unique = [];
+            const seen = new Set();
+            studentsInClass.forEach(s => {
+                if (!seen.has(s.number)) {
+                    seen.add(s.number);
+                    unique.push(s);
+                }
+            });
+            unique.sort((a, b) => a.number - b.number);
+
+            unique.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.number;
+                opt.textContent = `${s.number}번 ${s.name}`;
+                numSelect.appendChild(opt);
+            });
+        }
+
+        // Updated Render Function (was queryClassStats)
+        window.renderIndividualStatsTable = () => {
+            const grade = document.getElementById('modal-select-grade').value;
+            const cls = document.getElementById('modal-select-class').value;
+            const targetNum = document.getElementById('modal-select-number').value;
+
+            let filtered = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
+
+            if (targetNum !== 'all') {
+                filtered = filtered.filter(s => parseInt(s.Number) == targetNum);
+            }
+
+            // Sort by number
+            filtered.sort((a, b) => parseInt(a.Number) - parseInt(b.Number));
+
             const html = `
-                <div class="mb-2 text-center font-bold text-lg border-b pb-2">${grade}학년 ${cls}반 과목 선택 현황 (${students.length}명)</div>
+                <div class="mb-2 text-center font-bold text-lg border-b pb-2">
+                    ${grade}학년 ${cls}반 ${targetNum !== 'all' ? targetNum + '번' : ''} 과목 선택 현황 (${filtered.length}명)
+                </div>
                 <table class="w-full text-xs border-collapse">
                     <thead>
                         <tr class="bg-gray-100 dark:bg-gray-700">
@@ -1135,7 +1198,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        ${students.map(s => {
+                        ${filtered.length > 0 ? filtered.map(s => {
                 const courseCount = s.SelectedCourses ? s.SelectedCourses.split(',').length : 0;
                 return `
                                 <tr>
@@ -1147,7 +1210,7 @@
                                     <td class="border p-1 text-center text-green-600">완료</td>
                                 </tr>
                              `;
-            }).join('')}
+            }).join('') : '<tr><td colspan="6" class="p-4 text-center">데이터가 없습니다.</td></tr>'}
                     </tbody>
                 </table>
              `;
@@ -1195,6 +1258,7 @@
         // 1. Individual Stats (Renaming queryClassStats logic)
         window.openIndividualStats = () => {
             document.getElementById('class-lookup-modal').classList.remove('hidden');
+            populateStudentNumberOptions(); // Initialize
         };
 
         window.closeClassStats = () => { // Renamed or kept for compatibility
@@ -1222,6 +1286,10 @@
 
         // --- Class Stats Dashboard Logic ---
         window.currentDashboardTab = 'charts'; // charts, class-subjects, validation, grade-subjects
+
+        window.openClassStatsDashboard = () => {
+            document.getElementById('class-stats-dashboard-modal').classList.remove('hidden');
+        };
 
         window.renderClassStatsDashboard = () => {
             const grade = document.getElementById('dashboard-select-grade').value;
@@ -1679,10 +1747,12 @@
             document.getElementById('theme-menu').classList.toggle('hidden');
         }
 
-        // Initialize Theme
+        // Initialize Theme & Class Options & Config
         document.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('theme') || 'light';
             applyTheme(savedTheme);
+            populateClassOptions();
+            loadConfig(); // Load API URL
         });
     </script>
 </body>
