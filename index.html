@@ -697,7 +697,7 @@
                 const neededCredits = requiredElectiveGroupCreditsTotal - electiveGroupCredits;
                 // Suggest courses
                 const selectedIds = new Set(selectedCourses.map(c => c.id));
-                const availableCourses = [...new Set(PROCESSED_COURSES.filter(c => !c.required && !selectedIds.has(c.id) && (['교양교과', '제2외국어', '정보'].includes(c.category) || ['교양', '제2외국어', '정보'].includes(c.subCategory))).map(c => c.id || c.subjectName || c.name))];
+                const availableCourses = [...new Set(PROCESSED_COURSES.filter(c => !c.required && !selectedIds.has(c.id) && (['교양교과', '제2외국어', '정보'].includes(c.category) || ['교양', '제2외국어', '정보'].includes(c.subCategory))).map(c => c.subjectName || c.name || c.id))];
 
                 let suggestionList = '';
                 if (availableCourses.length > 0) {
