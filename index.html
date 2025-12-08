@@ -107,20 +107,11 @@
             <div class="theme-card p-6 rounded-lg shadow-md">
                 <h2 class="text-lg font-semibold mb-4 theme-text">학생 정보 입력</h2>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <select id="student-grade" class="p-2 border rounded">
-                        <option value="1">1학년</option>
-                        <option value="2">2학년</option>
-                        <option value="3">3학년</option>
-                    </select>
-                    <div class="flex items-center">
-                        <input type="number" id="student-class" class="w-full p-2 border rounded text-center"
-                            placeholder="반" min="1" max="15">
-                        <span class="ml-1 theme-text">반</span>
-                    </div>
-                    <div class="flex items-center">
-                        <input type="number" id="student-number" class="w-full p-2 border rounded text-center"
-                            placeholder="번호" min="1" max="40">
-                        <span class="ml-1 theme-text">번</span>
+                    <div class="md:col-span-3">
+                        <input type="text" id="student-id" class="w-full p-2 border rounded"
+                            placeholder="학번 5자리 (예: 20513)" maxlength="5"
+                            oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length > 5) this.value = this.value.slice(0,5);">
+                        <p class="text-xs text-gray-400 mt-1 pl-1">학번을 입력하면 학년, 반, 번호가 자동 인식됩니다.</p>
                     </div>
                     <input type="text" id="student-name" class="p-2 border rounded md:col-span-2" placeholder="이름"
                         autocomplete="off" style="background-color: var(--input-bg);">
@@ -288,10 +279,18 @@
         const helperMsgEl = document.getElementById('helper-msg');
         const aiLoader = document.getElementById('ai-loader');
 
-        const gradeEl = document.getElementById('student-grade');
-        const classNumEl = document.getElementById('student-class');
-        const studentNumEl = document.getElementById('student-number');
+        const studentIdEl = document.getElementById('student-id');
         const studentNameEl = document.getElementById('student-name');
+
+        function parseStudentId() {
+            const val = studentIdEl.value.trim();
+            if (val.length !== 5) return null;
+            return {
+                grade: parseInt(val[0]),
+                classNum: parseInt(val.substring(1, 3)),
+                number: parseInt(val.substring(3, 5))
+            };
+        }
         const majorInput = document.getElementById('student-major');
 
         const jointNameEl = document.getElementById('joint-course-name');
@@ -1290,10 +1289,14 @@
             // Use ID instead of SubjectName for submission as requested
             const courseIds = selected.map(c => c.id || c.subjectName).join(', ');
 
+            const studentInfo = parseStudentId();
+            if (!studentInfo) return alert('학번 5자리를 정확히 입력해주세요.');
+            if (!studentNameEl.value.trim()) return alert('이름을 입력해주세요.');
+
             const data = {
-                Grade: gradeEl.value,
-                Class: classNumEl.value,
-                Number: studentNumEl.value,
+                Grade: studentInfo.grade,
+                Class: studentInfo.classNum,
+                Number: studentInfo.number,
                 Name: studentNameEl.value,
                 Major: majorInput.value,
                 SelectedCourses: courseIds,
@@ -1337,7 +1340,10 @@
                 useCORS: true
             }).then(canvas => {
                 const link = document.createElement('a');
-                const studentInfo = `${gradeEl.value || ''}학년 ${classNumEl.value || ''}반 ${studentNumEl.value || ''}번 ${studentNameEl.value || ''}`;
+                const studentInfoObj = parseStudentId();
+                const studentInfo = studentInfoObj
+                    ? `${studentInfoObj.grade}학년 ${studentInfoObj.classNum}반 ${studentInfoObj.number}번 ${studentNameEl.value || ''}`
+                    : '학번미상';
                 link.download = `수강신청_내역_${studentInfo.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.png`;
                 link.href = canvas.toDataURL('image/png');
                 link.click();
