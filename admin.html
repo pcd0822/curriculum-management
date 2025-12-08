@@ -11,6 +11,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- QRCode.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <!-- Custom Modules -->
     <script src="js/db.js"></script>
@@ -131,6 +133,7 @@
         <!-- 2. Course Data Management -->
         <div id="tab-courses" class="tab-content hidden">
             <div class="grid md:grid-cols-2 gap-6">
+                <!-- Course Upload -->
                 <div class="theme-card p-6 rounded-lg shadow-md">
                     <h2 class="text-xl font-semibold mb-4 theme-text">과목 엑셀 업로드</h2>
                     <p class="text-sm mb-4 theme-text-muted">'편제표' 시트가 포함된 엑셀 파일을 업로드하세요. 기존 데이터는 덮어씌워집니다.</p>
@@ -141,18 +144,40 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                             </svg>
-                            템플릿 양식 다운로드
+                            과목 템플릿 양식 다운로드
                         </button>
                         <input type="file" id="course-excel-file" accept=".xlsx, .xls"
                             class="block w-full text-sm theme-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                         <button id="upload-course-btn"
-                            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">데이터 업로드 및
+                            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">과목 데이터 업로드 및
                             저장</button>
                     </div>
                     <div id="upload-status" class="mt-4 text-sm"></div>
                 </div>
 
+                <!-- Student Registry Upload -->
                 <div class="theme-card p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 theme-text">학적 정보 업로드</h2>
+                    <p class="text-sm mb-4 theme-text-muted">학번(5자리)과 이름이 포함된 엑셀 파일을 업로드하세요.<br>(기존 데이터에 추가/갱신됩니다)</p>
+                    <div class="space-y-4">
+                        <button onclick="ExcelHandler.downloadRegistryTemplate()"
+                            class="text-blue-600 hover:underline text-sm flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            학적 템플릿 양식 다운로드
+                        </button>
+                        <input type="file" id="registry-excel-file" accept=".xlsx, .xls"
+                            class="block w-full text-sm theme-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                        <button id="upload-registry-btn"
+                            class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 w-full">학적 데이터 업로드 및
+                            저장</button>
+                    </div>
+                    <div id="registry-upload-status" class="mt-4 text-sm"></div>
+                </div>
+
+                <div class="theme-card p-6 rounded-lg shadow-md md:col-span-2">
                     <h2 class="text-xl font-semibold mb-4 theme-text">현재 등록된 과목</h2>
                     <div id="current-course-count" class="text-3xl font-bold mb-2 theme-text">-</div>
                     <p class="text-sm theme-text-muted">개의 과목이 등록되어 있습니다.</p>
@@ -226,6 +251,40 @@
 
         <!-- 4. Student Dashboard -->
         <div id="tab-dashboard" class="tab-content hidden">
+            <!-- Stats Overview -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <button onclick="openClassStats()"
+                    class="p-4 rounded-lg shadow-md bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg">학급별 신청 현황 조회</h3>
+                        <p class="text-sm opacity-90">반별 명렬표 및 신청 상태 확인</p>
+                    </div>
+                    <span class="text-2xl">📋</span>
+                </button>
+                <div class="theme-card p-4 rounded-lg shadow-md border theme-border flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold theme-text">전체 제출 현황</h3>
+                        <p class="text-sm theme-text-muted" id="total-submissions-count">0명 제출됨</p>
+                    </div>
+                    <button onclick="loadStudentData()" class="text-blue-600 hover:underline text-sm">새로고침</button>
+                </div>
+            </div>
+
+            <!-- Visual Stats Section -->
+            <div id="course-stats-container" class="mb-6 hidden">
+                <div class="theme-card p-4 rounded-lg shadow-md border theme-border">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold theme-text text-lg">과목별 수강신청 현황</h3>
+                        <button onclick="document.getElementById('course-stats-container').classList.add('hidden')"
+                            class="text-gray-500 hover:text-gray-700">접기</button>
+                    </div>
+                    <div id="course-stats-grid"
+                        class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar">
+                        <!-- Stats will be rendered here -->
+                    </div>
+                </div>
+            </div>
+
             <div class="flex justify-between items-center mb-4">
                 <div class="flex gap-2">
                     <select id="filter-grade" class="p-2 border rounded">
@@ -241,8 +300,14 @@
                     <button id="refresh-data-btn" class="px-3 py-2 rounded hover:bg-gray-300"
                         style="background-color: var(--hover-bg)">🔄</button>
                 </div>
-                <button id="download-matrix-btn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">엑셀
-                    다운로드 (0/1 매트릭스)</button>
+                <!-- Visual Stats Buttons -->
+                <div class="flex gap-2">
+                    <button onclick="toggleCourseStats()"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">과목별 통계</button>
+                    <button id="download-matrix-btn"
+                        class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">엑셀
+                        다운로드 (학생선택)</button>
+                </div>
             </div>
             <div class="overflow-x-auto rounded-lg shadow-md theme-card">
                 <table class="w-full text-sm text-left">
@@ -266,7 +331,42 @@
         </div>
     </div>
 
+    <!-- Class Lookup Modal -->
+    <div id="class-lookup-modal"
+        class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div
+            class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-2 theme-border">
+                <h2 class="text-xl font-bold theme-text">학급별 신청 현황</h2>
+                <button onclick="closeClassStats()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+
+            <div class="flex gap-4 mb-4">
+                <select id="modal-select-grade" class="p-2 border rounded">
+                    <option value="1">1학년</option>
+                    <option value="2">2학년</option>
+                    <option value="3">3학년</option>
+                </select>
+                <select id="modal-select-class" class="p-2 border rounded">
+                    ${[...Array(15).keys()].map(i => `<option value="${i + 1}">${i + 1}반</option>`).join('')}
+                </select>
+                <button onclick="queryClassStats()"
+                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">조회</button>
+                <button onclick="downloadClassImage()"
+                    class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ml-auto">이미지 저장</button>
+            </div>
+
+            <div id="class-stats-content" class="bg-white p-4 rounded border min-h-[300px]">
+                <div class="text-center text-gray-500 py-10">학년과 반을 선택하고 조회를 눌러주세요.</div>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Global Variables
+        let allStudentData = [];
+        let allCourseData = []; // Store course config globaly for Excel sorting
+
         // Tab Switching
         function switchTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -318,11 +418,12 @@
             }
         });
 
-        // 2. Course Data
+        // 2. Course Data & Registry
         async function loadCourseCount() {
             if (!DB.isConfigured()) return;
             try {
                 const courses = await DB.fetchConfig();
+                allCourseData = courses || []; // Save globally
                 document.getElementById('current-course-count').textContent = courses ? courses.length : 0;
             } catch (e) {
                 console.error('Failed to load course count', e);
@@ -342,7 +443,18 @@
 
             try {
                 const jsonData = await ExcelHandler.readExcel(file);
-                const result = await DB.saveConfig(jsonData);
+                // Standardize keys (required field mostly)
+                const processed = jsonData.map(row => {
+                    // Normalize required field
+                    let required = false;
+                    if (row.required !== undefined) {
+                        const v = String(row.required).toUpperCase();
+                        required = (v === 'TRUE' || v === 'YES' || v === '1' || row.required === true);
+                    }
+                    return { ...row, required: required };
+                });
+
+                const result = await DB.saveConfig(processed);
                 if (result.status === 'success') {
                     statusEl.textContent = '업로드 성공!';
                     statusEl.className = 'mt-4 text-sm text-green-600';
@@ -355,6 +467,43 @@
                 statusEl.className = 'mt-4 text-sm text-red-600';
             }
         });
+
+        // Registry Upload
+        document.getElementById('upload-registry-btn').addEventListener('click', async () => {
+            const fileInput = document.getElementById('registry-excel-file');
+            const file = fileInput.files[0];
+            if (!file) return alert('파일을 선택해주세요.');
+
+            const statusEl = document.getElementById('registry-upload-status');
+            statusEl.textContent = '업로드 중...';
+            statusEl.className = 'mt-4 text-sm text-blue-600';
+
+            try {
+                const jsonData = await ExcelHandler.readExcel(file);
+                // Check if data has ID and Name
+                if (jsonData.length === 0 || !jsonData[0].hasOwnProperty('학번') || !jsonData[0].hasOwnProperty('이름')) {
+                    throw new Error('올바른 엑셀 서식이 아닙니다. "학번"과 "이름" 열이 필요합니다.');
+                }
+
+                // Send to server
+                if (DB.saveRegistry) {
+                    const result = await DB.saveRegistry(jsonData);
+                    if (result.status === 'success') {
+                        statusEl.textContent = '학적 정보 업로드 성공!';
+                        statusEl.className = 'mt-4 text-sm text-green-600';
+                    } else {
+                        throw new Error(result.message || 'Upload failed');
+                    }
+                } else {
+                    throw new Error('DB.saveRegistry 기능이 아직 구현되지 않았습니다. server.gs를 업데이트해주세요.');
+                }
+
+            } catch (e) {
+                statusEl.textContent = '업로드 실패: ' + e.message;
+                statusEl.className = 'mt-4 text-sm text-red-600';
+            }
+        });
+
 
         // 2.5 Selection Rules (Advanced)
         let currentRules = {
@@ -380,6 +529,7 @@
                     DB.fetchConfig(),
                     DB.fetchSettings().catch(() => ({}))
                 ]);
+                allCourseData = courses || []; // Update global cache
             } catch (e) {
                 console.error('Data load failed', e);
                 return;
@@ -494,7 +644,7 @@
             });
 
             // 2. Merge with Manual Settings
-            let multiRules = settings.multiSemesterRules || {}; // { "SubjectName": ["1-1", "1-2"] }
+            let multiRules = settings.multiSemesterRules || {};
 
             // Combine automatic and manual
             const allSubjects = new Set([...Object.keys(nameMap), ...Object.keys(multiRules)]);
@@ -584,7 +734,6 @@
         async function saveMultiRules() {
             try {
                 await DB.saveSettings({ multiSemesterRules: currentMultiRules });
-                // Reload to refresh UI
                 loadRulesAndClassification();
             } catch (e) {
                 console.error('Failed to save multi rules', e);
@@ -671,7 +820,6 @@
             container.classList.remove('hidden');
             errorMsg.classList.add('hidden');
 
-            // Generate Link
             const baseUrl = window.location.href.replace('admin.html', 'index.html');
             const encodedKey = btoa(savedUrl);
             const fullLink = `${baseUrl}?key=${encodedKey}`;
@@ -685,12 +833,17 @@
         }
 
         // 4. Dashboard
-        let allStudentData = [];
+        // let allStudentData is defined globally
 
         async function loadStudentData() {
             if (!DB.isConfigured()) return;
             const tbody = document.getElementById('student-table-body');
             tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터 로딩 중...</td></tr>';
+
+            // Also ensure course data is loaded for headers
+            if (allCourseData.length === 0) {
+                try { allCourseData = await DB.fetchConfig() || []; } catch (e) { }
+            }
 
             try {
                 const response = await DB.fetchResponses();
@@ -706,6 +859,7 @@
                     allStudentData = []; // Default to empty array
                 }
 
+                document.getElementById('total-submissions-count').textContent = `${allStudentData.length}명 제출됨`;
                 renderStudentTable();
                 updateClassFilter();
             } catch (e) {
@@ -719,35 +873,37 @@
             const gradeFilter = document.getElementById('filter-grade').value;
             const classFilter = document.getElementById('filter-class').value;
 
-            // Ensure allStudentData is an array
-            if (!Array.isArray(allStudentData)) {
-                console.error('allStudentData is not an array:', allStudentData);
-                allStudentData = [];
-            }
+            if (!Array.isArray(allStudentData)) allStudentData = [];
 
             let filtered = allStudentData;
-            if (gradeFilter) filtered = filtered.filter(d => d.Grade == gradeFilter);
-            if (classFilter) filtered = filtered.filter(d => d.Class == classFilter);
+            if (gradeFilter) filtered = filtered.filter(d => String(d.Grade) === String(gradeFilter));
+            if (classFilter) filtered = filtered.filter(d => String(d.Class) === String(classFilter));
 
             if (filtered.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터가 없습니다.</td></tr>';
                 return;
             }
 
+            // Sort: Grade -> Class -> Number
+            filtered.sort((a, b) => {
+                if (a.Grade !== b.Grade) return a.Grade - b.Grade;
+                if (a.Class !== b.Class) return a.Class - b.Class;
+                return a.Number - b.Number;
+            });
+
             tbody.innerHTML = filtered.map(d => {
                 const date = new Date(d.Timestamp).toLocaleString();
-                const isValid = true; // Mock validation
-                const statusColor = isValid ? 'text-green-600' : 'text-red-600';
-                const statusText = isValid ? '정상' : '주의';
+                const isValid = true;
+                // We could calculate validation status here if needed, but for now assuming valid
 
                 return `
                     <tr class="border-b hover:bg-opacity-50" style="background-color: var(--card-bg); border-color: var(--border-color)">
                         <td class="px-4 py-2 theme-text">${date}</td>
-                        <td class="px-4 py-2 theme-text">${d.Grade}-${d.Class}-${d.Number}</td>
+                        <td class="px-4 py-2 theme-text">${d.Grade}${String(d.Class).padStart(2, '0')}${String(d.Number).padStart(2, '0')}</td>
                         <td class="px-4 py-2 font-medium theme-text">${d.Name}</td>
                         <td class="px-4 py-2 theme-text">${d.Major}</td>
                         <td class="px-4 py-2 theme-text">${d.TotalCredits}</td>
-                        <td class="px-4 py-2 ${statusColor}">${statusText}</td>
+                        <td class="px-4 py-2 text-green-600">제출완료</td>
                     </tr>
                 `;
             }).join('');
@@ -763,35 +919,139 @@
         document.getElementById('filter-class').addEventListener('change', renderStudentTable);
         document.getElementById('refresh-data-btn').addEventListener('click', loadStudentData);
 
-        // Excel Matrix Download
+        // Excel Matrix Download (Enhanced)
         document.getElementById('download-matrix-btn').addEventListener('click', () => {
             if (allStudentData.length === 0) return alert('데이터가 없습니다.');
 
-            const allCourses = new Set();
+            // 1. Get all subject names and their semester info from allCourseData
+            // If allCourseData is empty (rare), we might miss filtering
+            const courseMeta = {}; // { "Slug/ID" : { grade: 1, semester: 1, required: false } }
+
+            allCourseData.forEach(c => {
+                const id = c.id || c.subjectName; // Use ID if available
+                // Normalize required
+                const req = (c.required === true || String(c.required).toUpperCase() === 'TRUE');
+                courseMeta[id] = {
+                    grade: c.grade,
+                    semester: c.semester,
+                    required: req
+                };
+                // Also map subjectName just in case selectedCourses uses name
+                courseMeta[c.subjectName] = courseMeta[id];
+            });
+
+            // 2. Collect all courses actually selected by students
+            const allSelectedCourses = new Set();
             allStudentData.forEach(d => {
                 if (d.SelectedCourses) {
-                    d.SelectedCourses.split(', ').forEach(c => allCourses.add(c.trim()));
+                    d.SelectedCourses.split(', ').forEach(c => {
+                        allSelectedCourses.add(c.trim());
+                    });
                 }
             });
-            const courseList = [...allCourses].sort();
 
+            // 3. Filter and Sort Columns
+            // Filter out School Designated (Required) courses
+            const courseColumns = [...allSelectedCourses].filter(c => {
+                const meta = courseMeta[c];
+                return meta ? !meta.required : true; // Keep if unknown or not required
+            });
+
+            // Sort by Grade-Semester-Name
+            courseColumns.sort((a, b) => {
+                const metaA = courseMeta[a] || { grade: 9, semester: 9 };
+                const metaB = courseMeta[b] || { grade: 9, semester: 9 };
+
+                if (metaA.grade !== metaB.grade) return metaA.grade - metaB.grade;
+                if (metaA.semester !== metaB.semester) return metaA.semester - metaB.semester;
+                return a.localeCompare(b);
+            });
+
+            // 4. Build Matrix
             const matrix = allStudentData.map(d => {
                 const row = {
                     '학년': d.Grade,
                     '반': d.Class,
                     '번호': d.Number,
+                    '학번': `${d.Grade}${String(d.Class).padStart(2, '0')}${String(d.Number).padStart(2, '0')}`,
                     '이름': d.Name,
-                    '진로': d.Major
+                    '진로': d.Major,
+                    '총학점': d.TotalCredits
                 };
                 const selected = new Set(d.SelectedCourses ? d.SelectedCourses.split(', ').map(c => c.trim()) : []);
-                courseList.forEach(c => {
+
+                courseColumns.forEach(c => {
                     row[c] = selected.has(c) ? 1 : 0;
                 });
                 return row;
             });
 
-            ExcelHandler.downloadExcel(matrix, '학생선택과목_매트릭스.xlsx');
+            ExcelHandler.downloadExcel(matrix, '학생선택과목_매트릭스(비필수).xlsx');
         });
+
+        // --- Class Stats & Modal Functions ---
+        const modal = document.getElementById('class-lookup-modal');
+        const modalContent = document.getElementById('class-stats-content');
+
+        window.openClassStats = () => {
+            modal.classList.remove('hidden');
+        };
+
+        window.closeClassStats = () => {
+            modal.classList.add('hidden');
+        };
+
+        // Close on click outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeClassStats();
+        });
+
+        window.queryClassStats = () => {
+            const grade = document.getElementById('modal-select-grade').value;
+            const cls = document.getElementById('modal-select-class').value;
+            const html = `
+                <div class="mb-2 text-center font-bold text-lg border-b pb-2">${grade}학년 ${cls}반 과목 선택 현황 (${students.length}명)</div>
+                <table class="w-full text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 dark:bg-gray-700">
+                            <th class="border p-1">번호</th>
+                            <th class="border p-1">이름</th>
+                            <th class="border p-1">진로</th>
+                            <th class="border p-1">신청과목수</th>
+                            <th class="border p-1">총학점</th>
+                            <th class="border p-1">상태</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${students.map(s => {
+                const courseCount = s.SelectedCourses ? s.SelectedCourses.split(',').length : 0;
+                return `
+                                <tr>
+                                    <td class="border p-1 text-center font-bold">${s.Number}</td>
+                                    <td class="border p-1 text-center">${s.Name}</td>
+                                    <td class="border p-1 text-center text-gray-600 truncate max-w-[100px]">${s.Major}</td>
+                                    <td class="border p-1 text-center">${courseCount}</td>
+                                    <td class="border p-1 text-center">${s.TotalCredits}</td>
+                                    <td class="border p-1 text-center text-green-600">완료</td>
+                                </tr>
+                             `;
+            }).join('')}
+                    </tbody>
+                </table>
+             `;
+            modalContent.innerHTML = html;
+        };
+
+        window.downloadClassImage = () => {
+            if (!modalContent.querySelector('table')) return alert('먼저 조회를 해주세요.');
+
+            html2canvas(modalContent).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `학급통계_${document.getElementById('modal-select-grade').value}학년${document.getElementById('modal-select-class').value}반.png`;
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        };
 
         // Initialize
         loadConfig();
