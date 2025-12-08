@@ -468,15 +468,32 @@
                         newRow[mappedKey] = row[key];
                     });
 
+                    // Standard Schema Keys
+                    const standardKeys = [
+                        'subjectName', 'slug', 'grade', 'semester', 'credits',
+                        'category', 'subCategory', 'required', 'offered', 'prerequisites'
+                    ];
+
+                    // Ensure all standard keys exist
+                    standardKeys.forEach(k => {
+                        if (newRow[k] === undefined) newRow[k] = '';
+                    });
+
                     // Normalize required field
-                    if (newRow.required !== undefined) {
+                    if (newRow.required !== undefined && newRow.required !== '') {
                         const v = String(newRow.required).toUpperCase();
                         newRow.required = (v === 'TRUE' || v === 'YES' || v === '1' || newRow.required === true);
+                    } else {
+                        newRow.required = false;
                     }
-                    if (newRow.offered !== undefined) {
+
+                    if (newRow.offered !== undefined && newRow.offered !== '') {
                         const v = String(newRow.offered).toUpperCase();
                         newRow.offered = (v === 'TRUE' || v === 'YES' || v === '1' || newRow.offered === true);
+                    } else {
+                        newRow.offered = true;
                     }
+
                     // Generate Slug if missing
                     if (!newRow.slug && newRow.subjectName) {
                         // Simple fallback slug generation (not perfect but better than nothing)
