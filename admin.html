@@ -1659,9 +1659,44 @@
                 let meta = allCourseData.find(c => c.id === cName || c.slug === cName || c.subjectName === cName);
 
                 // Fallback: check parts if hyphenated
+                // Handle format: slug-grade-semester-numbering (e.g., "dokseotorongwa-geulssgi-3-1-57")
                 if (!meta && cName.includes('-')) {
                     const parts = cName.split('-');
-                    meta = allCourseData.find(c => c.id === parts[0] || c.slug === parts[0] || c.subjectName === parts[0]);
+                    
+                    // Try multiple patterns to find the slug
+                    // Pattern 1: Check if last 2 parts are numbers (grade-semester)
+                    if (parts.length >= 3) {
+                        const lastTwo = parts.slice(-2);
+                        const isGradeSemester = lastTwo.every(p => /^\d+$/.test(p));
+                        
+                        if (isGradeSemester) {
+                            // Pattern: slug-grade-semester or slug-grade-semester-numbering
+                            // Remove last 2 (or 3 if last is also number) parts to get slug
+                            let slugParts = parts.slice(0, -2);
+                            
+                            // If there's a 3rd number at the end (numbering), remove it too
+                            if (parts.length >= 4 && /^\d+$/.test(parts[parts.length - 3])) {
+                                slugParts = parts.slice(0, -3);
+                            }
+                            
+                            const slug = slugParts.join('-');
+                            meta = allCourseData.find(c => c.id === slug || c.slug === slug || c.subjectName === slug);
+                        }
+                    }
+                    
+                    // Pattern 2: If still not found, try first part only (original behavior)
+                    if (!meta && parts.length > 0) {
+                        meta = allCourseData.find(c => c.id === parts[0] || c.slug === parts[0] || c.subjectName === parts[0]);
+                    }
+                    
+                    // Pattern 3: Try progressively removing last parts
+                    if (!meta && parts.length > 2) {
+                        for (let i = parts.length - 2; i >= 1; i--) {
+                            const slug = parts.slice(0, i).join('-');
+                            meta = allCourseData.find(c => c.id === slug || c.slug === slug || c.subjectName === slug);
+                            if (meta) break;
+                        }
+                    }
                 }
 
                 let displayName = cName;
@@ -1763,6 +1798,16 @@
             let basicCredits = 0;
             let artCredits = 0;
             let electiveGroupCredits = 0; // 교양/제2외국어/정보
+            
+            // 교과별 필수 이수학점 계산
+            let koreanCredits = 0; // 국어
+            let mathCredits = 0; // 수학
+            let englishCredits = 0; // 영어
+            let koreanHistory1 = false; // 한국사1
+            let koreanHistory2 = false; // 한국사2
+            let socialCredits = 0; // 사회
+            let scienceCredits = 0; // 과학
+            let physicalCredits = 0; // 체육
 
             // Map for Joint Courses/etc.
             const jointSubCategoryToCategoryMap = {
@@ -1780,15 +1825,38 @@
 
                 // Determine Category
                 let cat = c.category;
+                let subCat = '';
                 if (!cat || cat === '기타') {
                     // Try to infer from name or use passed info
                     const meta = allCourseData.find(m => m.subjectName === c.name);
-                    if (meta) cat = meta.category;
+                    if (meta) {
+                        cat = meta.category;
+                        subCat = meta.subCategory || '';
+                    }
+                } else {
+                    // Get subCategory from meta if available
+                    const meta = allCourseData.find(m => m.subjectName === c.name);
+                    if (meta) subCat = meta.subCategory || '';
                 }
 
                 if (cat === '기초교과' || (cat && cat.includes('기초'))) basicCredits += credits;
                 if (cat === '체육교과' || cat === '예술교과' || (cat && (cat.includes('체육') || cat.includes('예술')))) artCredits += credits;
                 if (['교양교과', '제2외국어', '정보', '생활·교양'].includes(cat) || (cat && (cat.includes('교양') || cat.includes('외국어') || cat.includes('정보')))) electiveGroupCredits += credits;
+
+                // 교과별 필수 이수학점 계산
+                if (subCat === '국어') koreanCredits += credits;
+                if (subCat === '수학') mathCredits += credits;
+                if (subCat === '영어') englishCredits += credits;
+                if (subCat === '사회') socialCredits += credits;
+                if (subCat === '과학') scienceCredits += credits;
+                if (subCat === '체육') physicalCredits += credits;
+                
+                // 한국사1, 한국사2 확인
+                const subjectName = (c.name || '').toLowerCase();
+                if (subjectName.includes('한국사')) {
+                    if (subjectName.includes('1') || c.semester && c.semester.includes('-1')) koreanHistory1 = true;
+                    if (subjectName.includes('2') || c.semester && c.semester.includes('-2')) koreanHistory2 = true;
+                }
 
                 // Add to slug set for prerequisites
                 // Try to find slug from meta first
@@ -1796,6 +1864,38 @@
                 if (meta) selectedSlugs.add(meta.slug);
                 else selectedSlugs.add(c.name); // Fallback: Name is slug
             });
+            
+            // Also check required courses for subject-specific credits
+            allCourseData.forEach(c => {
+                const isRequired = c.required === true || String(c.required).toLowerCase() === 'true';
+                if (isRequired && (parseInt(c.grade) === parseInt(s.Grade))) {
+                    const cred = parseInt(c.credit || c.credits || 0);
+                    const subCat = c.subCategory || '';
+                    if (subCat === '국어') koreanCredits += cred;
+                    if (subCat === '수학') mathCredits += cred;
+                    if (subCat === '영어') englishCredits += cred;
+                    if (subCat === '사회') socialCredits += cred;
+                    if (subCat === '과학') scienceCredits += cred;
+                    if (subCat === '체육') physicalCredits += cred;
+                    
+                    // 한국사1, 한국사2 확인
+                    const subjectName = (c.subjectName || '').toLowerCase();
+                    if (subjectName.includes('한국사')) {
+                        if (subjectName.includes('1') || c.semester === '1') koreanHistory1 = true;
+                        if (subjectName.includes('2') || c.semester === '2') koreanHistory2 = true;
+                    }
+                }
+            });
+            
+            // Check JointCourses for subject-specific credits
+            if (s.JointCourses) {
+                const jointRaw = s.JointCourses.split(',').map(c => c.trim()).filter(x => x);
+                jointRaw.forEach(jointName => {
+                    // Joint courses are handled separately, but we need to check if they contribute to subject credits
+                    // This would require parsing the joint course data, which may not be available here
+                    // For now, we'll rely on the courseList processing above
+                });
+            }
 
             // Rules
             const validationChecklist = [];
@@ -1815,14 +1915,80 @@
                 desc: `기초교과(국어, 영어, 수학, 한국사) 이수학점이 총 이수학점의 50%를 초과하였는지 검증합니다. (현재: ${foundationRatio.toFixed(1)}%)`
             });
 
-            // 3) Subject Minimums (Simplified check: Art >= 10, Elective >= 16)
-            // Note: This matches index.html logic which checks these specific loose groups
+            // 3) Subject Minimums - 교과별 최소 이수학점 검증
             const artPass = artCredits >= 10;
             const electivePass = electiveGroupCredits >= 16;
+            const koreanPass = koreanCredits >= 8;
+            const mathPass = mathCredits >= 8;
+            const englishPass = englishCredits >= 8;
+            const koreanHistoryPass = koreanHistory1 && koreanHistory2;
+            const socialPass = socialCredits >= 8;
+            const sciencePass = scienceCredits >= 10;
+            const physicalPass = physicalCredits >= 10;
+            
+            const allSubjectMinimumsPass = artPass && electivePass && koreanPass && mathPass && englishPass && 
+                                          koreanHistoryPass && socialPass && sciencePass && physicalPass;
+            
             validationChecklist.push({
                 label: `교과별 최소 이수학점 충족 여부`,
-                status: artPass && electivePass, // Combine them or list separate? Requirement implies single item or strict check. Listing as one for "Subject Minimums"
-                desc: `교과별 최소 이수학점이 충족되었는지 검증합니다. (예술 10학점, 생활·교양 16학점 등)`
+                status: allSubjectMinimumsPass,
+                desc: `교과별 최소 이수학점이 충족되었는지 검증합니다. 
+                국어 8학점, 수학 8학점, 영어 8학점, 한국사1/2 이수, 사회 8학점, 과학 10학점, 체육 10학점, 예술 10학점, 교양 16학점`
+            });
+            
+            // 개별 교과별 검증 항목 추가
+            validationChecklist.push({
+                label: `국어 교과 필수 이수학점 (8학점)`,
+                status: koreanPass,
+                desc: `국어 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${koreanCredits}학점)`
+            });
+            
+            validationChecklist.push({
+                label: `수학 교과 필수 이수학점 (8학점)`,
+                status: mathPass,
+                desc: `수학 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${mathCredits}학점)`
+            });
+            
+            validationChecklist.push({
+                label: `영어 교과 필수 이수학점 (8학점)`,
+                status: englishPass,
+                desc: `영어 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${englishCredits}학점)`
+            });
+            
+            validationChecklist.push({
+                label: `한국사1, 한국사2 이수 여부`,
+                status: koreanHistoryPass,
+                desc: `한국사1과 한국사2를 모두 이수했는지 검증합니다. ${!koreanHistory1 ? '한국사1 미이수' : ''} ${!koreanHistory2 ? '한국사2 미이수' : ''}`
+            });
+            
+            validationChecklist.push({
+                label: `사회 교과 필수 이수학점 (8학점)`,
+                status: socialPass,
+                desc: `사회 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${socialCredits}학점)`
+            });
+            
+            validationChecklist.push({
+                label: `과학 교과 필수 이수학점 (10학점)`,
+                status: sciencePass,
+                desc: `과학 교과 필수 이수학점 10학점을 충족했는지 검증합니다. (현재: ${scienceCredits}학점)`
+            });
+            
+            validationChecklist.push({
+                label: `체육 교과 필수 이수학점 (10학점)`,
+                status: physicalPass,
+                desc: `체육 교과 필수 이수학점 10학점을 충족했는지 검증합니다. (현재: ${physicalCredits}학점)`
+            });
+            
+            validationChecklist.push({
+                label: `예술 교과 필수 이수학점 (10학점)`,
+                status: artPass,
+                desc: `예술 교과 필수 이수학점 10학점을 충족했는지 검증합니다. (현재: ${artCredits}학점)`
+            });
+            
+            validationChecklist.push({
+                label: `교양 교과 필수 이수학점 (16학점)`,
+                status: electivePass,
+                desc: `교양 교과 필수 이수학점 16학점을 충족했는지 검증합니다. (현재: ${electiveGroupCredits}학점)`
             });
 
             // 4) Prerequisites
