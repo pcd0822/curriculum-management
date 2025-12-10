@@ -1612,12 +1612,30 @@
                 if (isRequired && (parseInt(c.grade) === parseInt(s.Grade))) {
                     const cred = parseInt(c.credit || c.credits || 0);
                     const cat = c.category || '기타';
+                    const subCat = c.subCategory || '';
 
-                    if (cat.includes('기초') || cat.includes('국어') || cat.includes('영어') || cat.includes('수학') || cat.includes('한국사')) creditStats['기초'] += cred;
-                    else if (cat.includes('사회') || cat.includes('역사') || cat.includes('도덕')) creditStats['사회'] += cred;
-                    else if (cat.includes('과학')) creditStats['과학'] += cred;
-                    else if (cat.includes('체육') || cat.includes('예술')) creditStats['체육·예술'] += cred;
-                    else creditStats['생활·교양'] += cred;
+                    // Check category and subCategory for proper classification
+                    if (cat === '기초교과' || cat.includes('기초') || cat.includes('국어') || cat.includes('영어') || cat.includes('수학') || cat.includes('한국사')) {
+                        creditStats['기초'] += cred;
+                    } else if (cat === '탐구교과') {
+                        // For 탐구교과, check subCategory to split into 사회 and 과학
+                        if (subCat.includes('사회') || subCat.includes('역사') || subCat.includes('도덕')) {
+                            creditStats['사회'] += cred;
+                        } else if (subCat.includes('과학')) {
+                            creditStats['과학'] += cred;
+                        } else {
+                            // Default to 사회 if subCategory is unclear
+                            creditStats['사회'] += cred;
+                        }
+                    } else if (cat.includes('사회') || cat.includes('역사') || cat.includes('도덕')) {
+                        creditStats['사회'] += cred;
+                    } else if (cat.includes('과학')) {
+                        creditStats['과학'] += cred;
+                    } else if (cat === '체육교과' || cat === '예술교과' || cat.includes('체육') || cat.includes('예술')) {
+                        creditStats['체육·예술'] += cred;
+                    } else {
+                        creditStats['생활·교양'] += cred;
+                    }
                 }
             });
 
@@ -1631,13 +1649,19 @@
             let calculatedTotal = 0; // For verification
 
             allRaw.forEach(cName => {
-                // 1. Resolve Metadata
-                let meta = allCourseData.find(c => c.slug === cName || c.subjectName === cName);
+                // Skip joint courses (joint-### format) - they should not appear in the course list
+                // but their credits are already counted in creditStats via JointCourses processing
+                if (cName.startsWith('joint-')) {
+                    return; // Skip joint courses from course list
+                }
+
+                // 1. Resolve Metadata - Check id, slug, and subjectName
+                let meta = allCourseData.find(c => c.id === cName || c.slug === cName || c.subjectName === cName);
 
                 // Fallback: check parts if hyphenated
                 if (!meta && cName.includes('-')) {
                     const parts = cName.split('-');
-                    meta = allCourseData.find(c => c.slug === parts[0] || c.subjectName === parts[0]);
+                    meta = allCourseData.find(c => c.id === parts[0] || c.slug === parts[0] || c.subjectName === parts[0]);
                 }
 
                 let displayName = cName;
@@ -1645,21 +1669,40 @@
                 let displayCat = '기타';
                 let displaySem = '??';
                 let displayGrade = 99;
+                let isRequired = false;
 
                 if (meta) {
                     // FOUND: Use Korean Name and Correct Data
-                    displayName = meta.subjectName;
+                    displayName = meta.subjectName || meta.name || cName; // Ensure subjectName is used
                     displayCredit = parseInt(meta.credit || meta.credits || 0);
                     displayCat = meta.category || '기타';
-                    displaySem = `${meta.grade}-${meta.semester}`;
+                    displaySem = `${meta.grade || '?'}-${meta.semester || '?'}`;
                     displayGrade = parseInt(meta.grade || 99);
+                    isRequired = meta.required === true || String(meta.required).toLowerCase() === 'true';
 
-                    // Add to Stats (Split Categories)
-                    if (displayCat.includes('기초') || displayCat.includes('국어') || displayCat.includes('영어') || displayCat.includes('수학') || displayCat.includes('한국사')) creditStats['기초'] += displayCredit;
-                    else if (displayCat.includes('사회') || displayCat.includes('역사') || displayCat.includes('도덕')) creditStats['사회'] += displayCredit;
-                    else if (displayCat.includes('과학')) creditStats['과학'] += displayCredit;
-                    else if (displayCat.includes('체육') || displayCat.includes('예술')) creditStats['체육·예술'] += displayCredit;
-                    else creditStats['생활·교양'] += displayCredit; // Includes Tech/Home/Language/Liberal
+                    // Add to Stats (Split Categories) - Check subCategory for 탐구교과
+                    const subCat = meta.subCategory || '';
+                    if (displayCat === '기초교과' || displayCat.includes('기초') || displayCat.includes('국어') || displayCat.includes('영어') || displayCat.includes('수학') || displayCat.includes('한국사')) {
+                        creditStats['기초'] += displayCredit;
+                    } else if (displayCat === '탐구교과') {
+                        // For 탐구교과, check subCategory to split into 사회 and 과학
+                        if (subCat.includes('사회') || subCat.includes('역사') || subCat.includes('도덕')) {
+                            creditStats['사회'] += displayCredit;
+                        } else if (subCat.includes('과학')) {
+                            creditStats['과학'] += displayCredit;
+                        } else {
+                            // Default to 사회 if subCategory is unclear
+                            creditStats['사회'] += displayCredit;
+                        }
+                    } else if (displayCat.includes('사회') || displayCat.includes('역사') || displayCat.includes('도덕')) {
+                        creditStats['사회'] += displayCredit;
+                    } else if (displayCat.includes('과학')) {
+                        creditStats['과학'] += displayCredit;
+                    } else if (displayCat === '체육교과' || displayCat === '예술교과' || displayCat.includes('체육') || displayCat.includes('예술')) {
+                        creditStats['체육·예술'] += displayCredit;
+                    } else {
+                        creditStats['생활·교양'] += displayCredit; // Includes Tech/Home/Language/Liberal
+                    }
 
                 } else {
                     // NOT FOUND: Best Effort Parse
@@ -1680,17 +1723,20 @@
                     creditStats['생활·교양'] += displayCredit;
                 }
 
-                // Add to Course List (Deduplicate)
-                const uniqueKey = `${displayName}-${displaySem}`;
-                if (!addedCourses.has(uniqueKey)) {
-                    addedCourses.add(uniqueKey);
-                    courseList.push({
-                        name: displayName,
-                        semester: displaySem,
-                        grade: displayGrade,
-                        credit: displayCredit,
-                        category: displayCat
-                    });
+                // Add to Course List (Deduplicate) - Only add non-required courses
+                if (!isRequired) {
+                    const uniqueKey = `${displayName}-${displaySem}`;
+                    if (!addedCourses.has(uniqueKey)) {
+                        addedCourses.add(uniqueKey);
+                        courseList.push({
+                            name: displayName,
+                            semester: displaySem,
+                            grade: displayGrade,
+                            credit: displayCredit,
+                            category: displayCat,
+                            required: isRequired
+                        });
+                    }
                 }
             });
 
@@ -1822,13 +1868,17 @@
     </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:block print:space-y-4"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-4"><h4 class="font-bold mb-2 theme-text print:text-black">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-40"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-4"><h4 class="font-bold mb-2 theme-text print:text-black">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2"><p class="font-bold text-center ${vColor} text-sm print:text-black">${isPass ? 'PASS (적합)' : '확인 필요'
                 }
 
-    </p></div><table class="w-full text-xs">${validationChecklist.map(v => ` <tr class="border-b last:border-0 border-gray-100 cursor-help" title="${v.desc || ''}"> <td class="py-2 text-gray-600 print:text-black" >${v.label
+    </p></div><table class="w-full text-xs">${validationChecklist.map(v => {
+                    // Escape HTML in description for tooltip
+                    const escapedDesc = (v.desc || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    return ` <tr class="border-b last:border-0 border-gray-100 cursor-help" title="${escapedDesc}"> <td class="py-2 text-gray-600 print:text-black" >${v.label
                     }
 
             </td> <td class="py-2 text-right font-bold ${v.status ? 'text-blue-600' : 'text-red-500'}" > ${v.status ? '적합' : '미달/확인'
                     }
 
-            </td> </tr > `).join('')
+            </td> </tr > `;
+                }).join('')
                 }
 
     </table>${!isPass ? `<p class="mt-2 text-xs text-red-500 font-medium bg-white p-1 rounded border border-red-100 print:text-red-600" > ${vRes
