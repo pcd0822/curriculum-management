@@ -84,80 +84,125 @@
 
     @media print {
         @page {
-            size: A4;
+            size: A4 portrait;
             margin: 5mm;
-            /* Reduced margin for compact fit */
         }
 
         body {
             padding: 0;
             background: white;
-            font-size: 10pt;
-            /* Smaller base font */
+            font-size: 9pt;
+            /* Reduced font size */
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
 
-        header,
-        .tab-btn,
-        #class-lookup-modal .modal-controls,
-        /* Hide controls inside modal */
-        #class-lookup-modal button,
-        .no-print {
+        /* Hide everything except the modal */
+        body>*:not(#class-lookup-modal) {
             display: none !important;
         }
 
-        /* Hide all other contents */
-        .max-w-6xl>div:not(#class-lookup-modal),
-        #class-stats-dashboard-modal {
-            display: none !important;
-        }
-
-        /* Show modal as main content */
+        /* Modal styling */
         #class-lookup-modal {
-            position: relative;
-            z-index: 1000;
-            display: block !important;
-            inset: 0;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: auto;
             background: white !important;
-            padding: 0;
-            max-width: none;
-            box-shadow: none;
-        }
-
-        #class-lookup-modal>div {
-            max-width: none !important;
-            max-height: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
+            z-index: 9999;
+            display: block !important;
             overflow: visible !important;
         }
 
-        /* Compact Layout Overrides */
-        #student-report-card {
+        #class-lookup-modal>div {
             box-shadow: none !important;
-            border: none !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
 
-        /* Grid Layout for Print */
+        /* Report Card Optimization */
+        #student-report-card {
+            border: none !important;
+            box-shadow: none !important;
+            /* Scale down to fit if needed */
+            transform: scale(0.95);
+            transform-origin: top left;
+            width: 105%;
+        }
+
+        /* Hide UI controls */
+        .modal-controls,
+        button,
+        .no-print,
+        .print\:hidden {
+            display: none !important;
+        }
+
+        /* Compact Spacing */
+        .print\:mb-1 {
+            margin-bottom: 0.25rem !important;
+        }
+
+        .print\:mb-2 {
+            margin-bottom: 0.5rem !important;
+        }
+
+        .print\:p-1 {
+            padding: 0.25rem !important;
+        }
+
+        .print\:p-2 {
+            padding: 0.5rem !important;
+        }
+
+        .print\:gap-2 {
+            gap: 0.5rem !important;
+        }
+
+        /* Grid Layout */
         .print\:grid-cols-2 {
             display: grid !important;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 0.75rem !important;
         }
 
-        .print\:block {
-            display: block !important;
+        /* Chart Height Reduction */
+        .print\:h-32 {
+            height: 8rem !important;
         }
 
-        /* Force background colors */
+        .print\:h-40 {
+            height: 10rem !important;
+        }
+
+        /* Text Adjustments */
+        .print\:text-xs {
+            font-size: 0.65rem !important;
+        }
+
+        .print\:text-sm {
+            font-size: 0.75rem !important;
+        }
+
+        /* Table Optimization */
+        table td,
+        table th {
+            padding: 2px 4px !important;
+            /* Tighter table cells */
+        }
+
+        /* Ensure colors print */
         * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
 
-        /* Hide buttons */
-        button,
-        .print-hidden {
-            display: none !important;
+        /* Force text colors to black/dark for readability */
+        .print\:text-black {
+            color: black !important;
         }
     }
 </style>
@@ -347,7 +392,9 @@
                     </select><button id="refresh-data-btn" class="px-3 py-2 rounded hover:bg-gray-300"
                         style="background-color: var(--hover-bg)">🔄</button></div>
                 <!-- Visual Stats Buttons -->
-                <div class="flex gap-2"><button onclick="openIndividualStats()"
+                <div class="flex gap-2"><button onclick="deleteSelectedStudents()" id="delete-selected-btn"
+                        class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">🗑️ 선택 삭제</button><button
+                        onclick="openIndividualStats()"
                         class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">📊
                         개인별 통계</button><button onclick="openClassStatsDashboard()"
                         class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700">📈
@@ -359,6 +406,9 @@
                 <table class="w-full text-sm text-left">
                     <thead class="uppercase" style="background-color: var(--hover-bg); color: var(--text-muted)">
                         <tr>
+                            <th class="px-4 py-3 text-center w-10">
+                                <input type="checkbox" id="select-all-students" onchange="toggleAllStudents(this)">
+                            </th>
                             <th class="px-4 py-3">시간</th>
                             <th class="px-4 py-3">학번</th>
                             <th class="px-4 py-3">이름</th>
@@ -369,7 +419,7 @@
                     </thead>
                     <tbody id="student-table-body">
                         <tr>
-                            <td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터를 불러오는
+                            <td colspan="7" class="px-4 py-4 text-center theme-text-muted">데이터를 불러오는
                                 중...</td>
                         </tr>
                     </tbody>
@@ -1165,7 +1215,7 @@
             if (classFilter) filtered = filtered.filter(d => String(d.Class) === String(classFilter));
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터가 없습니다.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-4 text-center theme-text-muted">데이터가 없습니다.</td></tr>';
                 return;
             }
 
@@ -1178,33 +1228,62 @@
 
             tbody.innerHTML = filtered.map(d => {
                 const date = new Date(d.Timestamp).toLocaleString();
-                const isValid = true;
-                // We could calculate validation status here if needed, but for now assuming valid
+                const isValid = true; // Assuming valid for now
+                // Use Timestamp as unique ID for deletion, fallback to Student ID string
+                const uniqueId = d.Timestamp || `${d.Grade}-${d.Class}-${d.Number}`;
 
-                return ` <tr class="border-b hover:bg-opacity-50" style="background-color: var(--card-bg); border-color: var(--border-color)" > <td class="px-4 py-2 theme-text" >${date
-                    }
-
-                </td> <td class="px-4 py-2 theme-text" >${d.Grade
-                    }
-
-                ${String(d.Class).padStart(2, '0')
-                    }
-
-                ${String(d.Number).padStart(2, '0')
-                    }
-
-                </td> <td class="px-4 py-2 font-medium theme-text" >${d.Name
-                    }
-
-                </td> <td class="px-4 py-2 theme-text" >${d.Major
-                    }
-
-                </td> <td class="px-4 py-2 theme-text" >${d.TotalCredits
-                    }
-
-                </td> <td class="px-4 py-2 text-green-600" >제출완료</td> </tr> `;
+                return ` <tr class="border-b hover:bg-opacity-50" style="background-color: var(--card-bg); border-color: var(--border-color)" > <td class="px-4 py-2 text-center" > <input type="checkbox" class="student-checkbox" value="${uniqueId}" > </td> <td class="px-4 py-2 theme-text" >${date}</td> <td class="px-4 py-2 theme-text font-mono" >${d.Grade}${String(d.Class).padStart(2, '0')}${String(d.Number).padStart(2, '0')}</td> <td class="px-4 py-2 font-medium theme-text" >${d.Name}</td> <td class="px-4 py-2 theme-text" >${d.Major}</td> <td class="px-4 py-2 theme-text" >${d.TotalCredits}</td> <td class="px-4 py-2 text-green-600" >제출완료</td> </tr> `;
             }).join('');
         }
+
+        // Bulk Delete Functions
+        window.toggleAllStudents = (source) => {
+            document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = source.checked);
+        };
+
+        window.deleteSelectedStudents = async () => {
+            const selected = Array.from(document.querySelectorAll('.student-checkbox:checked')).map(cb => cb.value);
+            if (selected.length === 0) return alert('삭제할 학생을 선택해주세요.');
+
+            if (!confirm(`${selected.length}명의 데이터를 삭제하시겠습니까?\n(주의: 서버 스크립트가 삭제 기능을 지원해야 하며, 지원하지 않을 경우 새로고침 시 다시 나타날 수 있습니다.)`)) return;
+
+            try {
+                const btn = document.getElementById('delete-selected-btn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = '삭제 중...';
+                }
+
+                // Try server delete
+                if (DB.deleteResponse) {
+                    const res = await DB.deleteResponse(selected);
+                    if (res && res.status === 'success') {
+                        alert('삭제되었습니다.');
+                        loadStudentData(); // Reload
+                    } else {
+                        throw new Error(res.message || 'Server error');
+                    }
+                } else {
+                    // Local simulation if DB.deleteResponse undefined (should be defined now though)
+                    allStudentData = allStudentData.filter(s => {
+                        const uid = s.Timestamp || `${s.Grade}-${s.Class}-${s.Number}`;
+                        return !selected.includes(String(uid));
+                    });
+                    renderStudentTable();
+                    updateDashboardCounts();
+                    alert('목록에서 제거되었습니다. (서버 반영을 위해 스크립트 업데이트가 필요할 수 있습니다)');
+                }
+            } catch (e) {
+                console.error('Delete failed', e);
+                alert('삭제 실패: ' + e.message);
+            } finally {
+                const btn = document.getElementById('delete-selected-btn');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '🗑️ 선택 삭제';
+                }
+            }
+        };
 
         function updateClassFilter() {
             const classSelect = document.getElementById('filter-class');
@@ -1222,99 +1301,45 @@
 
         // Excel Matrix Download (Enhanced)
         document.getElementById('download-matrix-btn').addEventListener('click', () => {
-            if (allStudentData.length === 0) return alert('데이터가 없습니다.');
+            if (!allStudentData || allStudentData.length === 0) return alert('다운로드할 데이터가 없습니다.');
 
-            // 1. Get all subject names and their semester info from allCourseData
-            // If allCourseData is empty (rare), we might miss filtering
-            const courseMeta = {}
-
-                ; // { "Slug/ID" : { grade: 1, semester: 1, required: false } }
-
-            allCourseData.forEach(c => {
-                const id = c.id || c.subjectName; // Use ID if available
-                // Normalize required
-                const req = (c.required === true || String(c.required).toUpperCase() === 'TRUE');
-
-                courseMeta[id] = {
-                    grade: c.grade,
-                    semester: c.semester,
-                    required: req
-                }
-
-                    ;
-                // Also map subjectName just in case selectedCourses uses name
-                courseMeta[c.subjectName] = courseMeta[id];
+            // 1. Prepare All Courses Columns (Sorted 2-1 ~ 3-2)
+            // Filter: Grade 2 or 3, and NOT required (electives only)
+            const allCourses = allCourseData.filter(c => {
+                const isReq = (c.required === true || String(c.required).toLowerCase() === 'true');
+                return (c.grade == 2 || c.grade == 3) && !isReq;
             });
 
-            // 2. Collect all courses actually selected by students
-            const allSelectedCourses = new Set();
-
-            allStudentData.forEach(d => {
-                if (d.SelectedCourses) {
-                    d.SelectedCourses.split(', ').forEach(c => {
-                        allSelectedCourses.add(c.trim());
-                    });
-                }
+            // Sort: Grade -> Semester -> SubjectName
+            allCourses.sort((a, b) => {
+                if (a.grade !== b.grade) return a.grade - b.grade;
+                if (a.semester !== b.semester) return a.semester - b.semester;
+                return a.subjectName.localeCompare(b.subjectName);
             });
 
-            // 3. Filter and Sort Columns
-            // Filter out School Designated (Required) courses
-            const courseColumns = [...allSelectedCourses].filter(c => {
-                const meta = courseMeta[c];
-                return meta ? !meta.required : true; // Keep if unknown or not required
-            });
+            const headers = allCourses.map(c => c.subjectName); // Using Names for headers
 
-            // Sort by Grade-Semester-Name
-            courseColumns.sort((a, b) => {
-                const metaA = courseMeta[a] || {
-                    grade: 9, semester: 9
-                }
-
-                    ;
-
-                const metaB = courseMeta[b] || {
-                    grade: 9, semester: 9
-                }
-
-                    ;
-
-                if (metaA.grade !== metaB.grade) return metaA.grade - metaB.grade;
-                if (metaA.semester !== metaB.semester) return metaA.semester - metaB.semester;
-                return a.localeCompare(b);
-            });
-
-            // 4. Build Matrix
+            // 2. Build Matrix
             const matrix = allStudentData.map(d => {
                 const row = {
-
                     '학년': d.Grade,
                     '반': d.Class,
                     '번호': d.Number,
-                    '학번': `${d.Grade
-                        }
-
-                        ${String(d.Class).padStart(2, '0')
-                        }
-
-                        ${String(d.Number).padStart(2, '0')
-                        }
-
-                        `,
+                    '학번': `${d.Grade}${String(d.Class).padStart(2, '0')}${String(d.Number).padStart(2, '0')}`,
                     '이름': d.Name,
                     '진로': d.Major,
                     '총학점': d.TotalCredits
-                }
+                };
 
-                    ;
                 const selected = new Set(d.SelectedCourses ? d.SelectedCourses.split(', ').map(c => c.trim()) : []);
 
-                courseColumns.forEach(c => {
-                    row[c] = selected.has(c) ? 1 : 0;
+                headers.forEach(h => {
+                    row[h] = selected.has(h) ? 1 : 0;
                 });
                 return row;
             });
 
-            ExcelHandler.downloadExcel(matrix, '학생선택과목_매트릭스(비필수).xlsx');
+            ExcelHandler.downloadExcel(matrix, '학생선택과목_매트릭스(전체).xlsx');
         });
 
         // --- Class Stats & Modal Functions ---
@@ -1650,16 +1675,7 @@
 
             ];
 
-            const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full"><!-- Header --><div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-2 print:pb-2"><div><div class="flex items-center gap-2"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border print:bg-white print:text-black">${s.Grade
-                }
-
-    학년 ${s.Class
-                }
-
-    반 ${s.Number
-                }
-
-    번</span><h3 class="text-2xl font-bold theme-text print:text-black">${s.Name
+            const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full"><!-- Header --><div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-2 print:pb-2"><div><div class="flex items-center gap-2"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border print:bg-white print:text-black">${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}</span><h3 class="text-2xl font-bold theme-text print:text-black">${s.Name
                 }
 
     </h3></div><p class="text-gray-500 mt-1 flex items-center gap-2 print:text-xs"><span class="font-bold text-gray-400 print:text-black">진로 희망:</span><span class="font-medium text-blue-600 text-lg print:text-black">${s.Major || '-'
@@ -1691,16 +1707,10 @@
 
     </div><!-- Left Bottom: Selected Course List (Sorted) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-4"><h4 class="font-bold mb-2 theme-text print:text-black">📚 선택 과목 목록 (${courseList.length
 
-                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-16">시기</th><th class="p-2">과목명</th><th class="p-2 w-10 text-center">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => ` <tr class="hover:bg-gray-50" > <td class="p-2 text-center text-gray-500 print:text-black font-mono" >${c.semester
-                    }
-
-            </td> <td class="p-2 font-medium theme-text print:text-black" >${c.name
-                    }
-
-            </td> <td class="p-2 text-center text-gray-500 print:text-black" >${c.credit
-                    }
-
-            </td> </tr > `).join('')
+                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center">학년</th><th class="p-2 w-10 text-center">학기</th><th class="p-2">과목명</th><th class="p-2 w-10 text-center">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
+                    const [grade, sem] = c.semester.includes('-') ? c.semester.split('-') : ['?', '?'];
+                    return ` <tr class="hover:bg-gray-50" > <td class="p-2 text-center text-gray-500 print:text-black font-mono" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black" >${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black" >${c.credit}</td> </tr> `;
+                }).join('')
                 }
 
     </tbody></table></div></div><!-- Right Bottom: AI Recommendations --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black">🤖 AI 진로 추천 가이드 </h4><div class="text-sm space-y-3"><div><span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">추천 탐구 과목 및 활동</span><ul class="list-disc pl-4 text-gray-700 dark:text-gray-300 space-y-1 print:text-black">${recs.subjects.map(s => `<li > ${s
@@ -1935,6 +1945,7 @@
         };
 
         // Main Dashboard Render Function
+        // Main Dashboard Render Function
         window.renderClassStatsDashboard = () => {
             const grade = document.getElementById('dashboard-select-grade').value || '1';
             const cls = document.getElementById('dashboard-select-class').value || '1';
@@ -1942,42 +1953,28 @@
             // Filter Students for this class
             const students = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
 
-            const container = document.getElementById('class-stats-content');
-            const tabsContainer = document.getElementById('class-stats-tabs');
+            const messageEl = document.getElementById('dashboard-message');
+            const contentEl = document.getElementById('dashboard-content');
+            const container = document.getElementById('dashboard-tab-content');
+            const tabsContainer = document.getElementById('dashboard-tabs');
 
             if (!container) return;
 
-            // 1. Render Tabs
+            // Show Content, Hide Message
+            if (messageEl) messageEl.classList.add('hidden');
+            if (contentEl) contentEl.classList.remove('hidden');
+
+            // 1. Remove Tabs (Single View Mode)
             if (tabsContainer) {
-                const tabs = [
-                    { id: 'class-status-list', label: '학급 전체 현황 (명렬표)' },
-                    { id: 'class-subjects', label: '과목별 선택 현황' },
-                    { id: 'class-validation', label: '수강 신청 검증' }
-                ];
-
-                tabsContainer.innerHTML = tabs.map(t => `
-                            <button 
-                                onclick="switchDashboardTab('${t.id}')"
-                                class="px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${currentDashboardTab === t.id ? 'bg-white text-blue-600 border-t border-l border-r border-gray-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border-b border-gray-200'}"
-                                style="${currentDashboardTab === t.id ? 'border-bottom: 1px solid white; margin-bottom: -1px;' : ''}"
-                            >
-                                ${t.label}
-                            </button>
-                        `).join('');
-                tabsContainer.className = 'flex border-b border-gray-200 mb-6';
+                tabsContainer.innerHTML = `
+            <div class="px-4 py-2 text-lg font-bold text-blue-600 border-b-2 border-blue-600">
+                📋 학생별 신청 현황 (명렬표)
+            </div>`;
             }
 
-            // 2. Render Content
+            // 2. Render Content (Always Roster)
             container.innerHTML = '';
-
-            if (currentDashboardTab === 'class-status-list') {
-                renderClassStatusList(container, students, grade, cls);
-            } else if (currentDashboardTab === 'class-subjects') {
-                // Using the existing (but renamed logic) Class Subject Stats
-                renderClassSubjectStats(container, students);
-            } else if (currentDashboardTab === 'class-validation') {
-                renderValidationStats(container, students, grade, cls);
-            }
+            renderClassStatusList(container, students, grade, cls);
         };
 
         // New Feature: Class Status List (Roster)
@@ -2371,7 +2368,7 @@
             let social = 0;
             let science = 0;
 
-            // Need to match course names to categories. 
+            // Need to match course names to categories.
             // Using allCourseData global to lookup category by subjectName
             const courseMap = {}
 
@@ -2481,38 +2478,7 @@
         }
 
     </script>
-    <!-- Modal: Class Stats Dashboard (New) -->
-    <div id="class-stats-dashboard-modal"
-        class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div
-            class="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl relative">
-            <button onclick="document.getElementById('class-stats-dashboard-modal').classList.add('hidden')"
-                class="absolute top-4 right-4 text-gray-500 text-2xl hover:text-gray-700">&times;
-            </button>
-            <h2 class="text-2xl font-bold mb-4 theme-text">📊 학급/학년 통계 대시보드</h2>
-            <!-- Scope Selection -->
-            <div class="flex gap-4 mb-4 items-center bg-gray-50 dark:bg-gray-700 p-3 rounded"><select
-                    id="dashboard-select-grade" class="border p-2 rounded w-24">
-                    <option value="1">1학년</option>
-                    <option value="2">2학년</option>
-                    <option value="3">3학년</option>
-                </select><select id="dashboard-select-class" class="border p-2 rounded w-24">
-                    <!-- Dynamic -->
-                </select><button onclick="renderClassStatsDashboard()"
-                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">조회</button></div>
-            <div id="dashboard-message" class="text-center text-gray-500 py-10 hidden"></div>
-            <div id="dashboard-content" class="flex-1 flex flex-col overflow-hidden hidden">
-                <!-- Tabs -->
-                <div id="dashboard-tabs" class="flex gap-2 border-b theme-border mb-4 overflow-x-auto">
-                    <!-- Injected via JS -->
-                </div>
-                <!-- Content Area -->
-                <div id="dashboard-tab-content" class="flex-1 overflow-y-auto custom-scrollbar p-1">
-                    <!-- Injected via JS -->
-                </div>
-            </div>
-        </div>
-    </div>
+
     <!-- Floating Theme Selector -->
     <div class="fixed bottom-6 left-6 z-50 group">
         <div id="theme-menu"
