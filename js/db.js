@@ -43,6 +43,10 @@ const DB = {
                 data: courses
             })
         });
+
+        if (!response.ok) throw new Error("Failed to save config");
+        const json = await response.json();
+        return json;
     },
 
     /**
@@ -69,6 +73,9 @@ const DB = {
                 data: settings
             })
         });
+
+        if (!response.ok) throw new Error("Failed to save settings");
+        return await response.json();
     },
 
 
@@ -109,6 +116,36 @@ const DB = {
         } catch (error) {
             console.error('Submission error:', error);
             throw error;
+        }
+    },
+
+    /**
+     * Deletes specific responses.
+     * @param {Array} ids - List of student IDs (GradeClassNumber) or timestamps to identify rows.
+     */
+    deleteResponse: async (ids) => {
+        if (!DB.apiUrl) throw new Error("API URL not configured");
+
+        const response = await fetch(DB.apiUrl, {
+            method: 'POST',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'deleteResponse',
+                data: ids
+            })
+        });
+
+        if (!response.ok) throw new Error("Failed to delete responses");
+
+        const text = await response.text();
+        try {
+            const json = JSON.parse(text);
+            if (json.status === 'error') throw new Error(json.message);
+            return json;
+        } catch (e) {
+            console.warn("Server response was not JSON:", text);
+            return { status: 'unknown', raw: text };
         }
     },
 
