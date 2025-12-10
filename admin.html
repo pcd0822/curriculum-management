@@ -126,54 +126,63 @@
         #student-report-card {
             border: none !important;
             box-shadow: none !important;
-            padding: 2mm !important;
+            padding: 1mm !important;
             margin: 0 !important;
+            font-size: 6pt !important;
         }
         
         /* Compact header */
         #student-report-card > div:first-child {
-            margin-bottom: 3mm !important;
-            padding-bottom: 2mm !important;
+            margin-bottom: 0.5mm !important;
+            padding-bottom: 0.5mm !important;
         }
         
         #student-report-card h3 {
-            font-size: 14pt !important;
+            font-size: 9pt !important;
             margin: 0 !important;
+            line-height: 1.1 !important;
         }
         
         #student-report-card .text-2xl {
-            font-size: 16pt !important;
+            font-size: 10pt !important;
         }
         
         /* Compact grid layout */
         #student-report-card .grid {
-            gap: 2mm !important;
+            gap: 0.5mm !important;
         }
         
         /* Compact cards */
         #student-report-card .theme-card {
-            padding: 2mm !important;
-            margin-bottom: 2mm !important;
+            padding: 0.5mm !important;
+            margin-bottom: 0.5mm !important;
         }
         
         #student-report-card h4 {
-            font-size: 8pt !important;
-            margin-bottom: 1mm !important;
+            font-size: 5pt !important;
+            margin-bottom: 0.25mm !important;
+            line-height: 1.1 !important;
         }
         
         /* Compact chart */
         #student-report-card canvas {
-            height: 60px !important;
+            height: 30px !important;
         }
         
         /* Compact tables */
         #student-report-card table {
-            font-size: 6pt !important;
+            font-size: 4pt !important;
         }
         
         #student-report-card table th,
         #student-report-card table td {
-            padding: 1mm 0.5mm !important;
+            padding: 0.25mm 0.1mm !important;
+            line-height: 1.1 !important;
+        }
+        
+        /* Compact validation table */
+        #student-report-card .text-xs {
+            font-size: 3.5pt !important;
         }
         
         /* Hide AI section in print */
@@ -181,30 +190,52 @@
             display: none !important;
         }
         
-        /* Compact validation table */
-        #student-report-card .text-xs {
-            font-size: 6pt !important;
-        }
-        
         /* Remove unnecessary spacing */
         #student-report-card .space-y-4 > * + * {
-            margin-top: 1mm !important;
+            margin-top: 0.5mm !important;
         }
         
         #student-report-card .gap-6 {
-            gap: 2mm !important;
+            gap: 0.5mm !important;
         }
         
         #student-report-card .mb-6 {
-            margin-bottom: 2mm !important;
+            margin-bottom: 0.5mm !important;
         }
         
         #student-report-card .mb-4 {
-            margin-bottom: 1mm !important;
+            margin-bottom: 0.25mm !important;
         }
         
         #student-report-card .mb-2 {
-            margin-bottom: 0.5mm !important;
+            margin-bottom: 0.1mm !important;
+        }
+        
+        /* Hide dropdown area in print */
+        #class-lookup-modal select,
+        #class-lookup-modal .flex.gap-2.items-center,
+        #class-lookup-modal .mb-4:has(select) {
+            display: none !important;
+        }
+        
+        /* Compact validation table rows */
+        #student-report-card table tr {
+            line-height: 1.0 !important;
+        }
+        
+        /* Compact course list table */
+        #student-report-card .overflow-y-auto {
+            max-height: none !important;
+        }
+        
+        /* Reduce spacing in all sections */
+        #student-report-card * {
+            line-height: 1.0 !important;
+        }
+        
+        /* Compact border spacing */
+        #student-report-card .border-b {
+            border-width: 0.5px !important;
         }
 
         /* Hide UI controls */
@@ -1869,7 +1900,8 @@
 
             // 3. Validation Detail (Replicating index.html logic)
             // Calculate Stats for Validation (totalCredits는 이미 위에서 계산됨)
-            let basicCredits = 0;
+            // basicCredits는 creditStats['기초']를 사용 (required + selected 모두 포함)
+            let basicCredits = creditStats['기초'] || 0;
             let artCredits = 0;
             let electiveGroupCredits = 0; // 교양/제2외국어/정보
             
@@ -1913,7 +1945,7 @@
                     if (meta) subCat = meta.subCategory || '';
                 }
 
-                if (cat === '기초교과' || (cat && cat.includes('기초'))) basicCredits += credits;
+                // basicCredits는 이미 creditStats['기초']에서 계산되었으므로 여기서는 더하지 않음
                 if (cat === '체육교과' || cat === '예술교과' || (cat && (cat.includes('체육') || cat.includes('예술')))) artCredits += credits;
                 if (['교양교과', '제2외국어', '정보', '생활·교양'].includes(cat) || (cat && (cat.includes('교양') || cat.includes('외국어') || cat.includes('정보')))) electiveGroupCredits += credits;
 
@@ -1923,7 +1955,12 @@
                 if (subCat === '영어') englishCredits += credits;
                 if (subCat === '사회') socialCredits += credits;
                 if (subCat === '과학') scienceCredits += credits;
-                if (subCat === '체육') physicalCredits += credits;
+                // 체육: subCategory가 있으면 우선, 없으면 category 확인 (중복 방지)
+                if (subCat === '체육') {
+                    physicalCredits += credits;
+                } else if ((cat === '체육교과' || (cat && cat.includes('체육'))) && subCat !== '체육') {
+                    physicalCredits += credits;
+                }
                 
                 // 한국사1, 한국사2 확인
                 const subjectName = (c.name || '').toLowerCase();
@@ -1945,12 +1982,20 @@
                 if (isRequired && (parseInt(c.grade) === parseInt(s.Grade))) {
                     const cred = parseInt(c.credit || c.credits || 0);
                     const subCat = c.subCategory || '';
+                    const cat = c.category || '';
+                    
+                    // subCategory로 확인
                     if (subCat === '국어') koreanCredits += cred;
                     if (subCat === '수학') mathCredits += cred;
                     if (subCat === '영어') englishCredits += cred;
                     if (subCat === '사회') socialCredits += cred;
                     if (subCat === '과학') scienceCredits += cred;
-                    if (subCat === '체육') physicalCredits += cred;
+                    // 체육: subCategory가 있으면 우선, 없으면 category 확인 (중복 방지)
+                    if (subCat === '체육') {
+                        physicalCredits += cred;
+                    } else if ((cat === '체육교과' || (cat && cat.includes('체육'))) && subCat !== '체육') {
+                        physicalCredits += cred;
+                    }
                     
                     // 한국사1, 한국사2 확인
                     const subjectName = (c.subjectName || '').toLowerCase();
@@ -2003,66 +2048,62 @@
             const allSubjectMinimumsPass = artPass && electivePass && koreanPass && mathPass && englishPass && 
                                           koreanHistoryPass && socialPass && sciencePass && physicalPass;
             
+            // 개별 교과별 검증 항목 (토글용)
+            const subjectDetails = [
+                {
+                    label: `국어 교과 필수 이수학점 (8학점)`,
+                    status: koreanPass,
+                    desc: `국어 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${koreanCredits}학점)`
+                },
+                {
+                    label: `수학 교과 필수 이수학점 (8학점)`,
+                    status: mathPass,
+                    desc: `수학 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${mathCredits}학점)`
+                },
+                {
+                    label: `영어 교과 필수 이수학점 (8학점)`,
+                    status: englishPass,
+                    desc: `영어 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${englishCredits}학점)`
+                },
+                {
+                    label: `한국사1, 한국사2 이수 여부`,
+                    status: koreanHistoryPass,
+                    desc: `한국사1과 한국사2를 모두 이수했는지 검증합니다. ${!koreanHistory1 ? '한국사1 미이수' : ''} ${!koreanHistory2 ? '한국사2 미이수' : ''}`
+                },
+                {
+                    label: `사회 교과 필수 이수학점 (8학점)`,
+                    status: socialPass,
+                    desc: `사회 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${socialCredits}학점)`
+                },
+                {
+                    label: `과학 교과 필수 이수학점 (10학점)`,
+                    status: sciencePass,
+                    desc: `과학 교과 필수 이수학점 10학점을 충족했는지 검증합니다. (현재: ${scienceCredits}학점)`
+                },
+                {
+                    label: `체육 교과 필수 이수학점 (10학점)`,
+                    status: physicalPass,
+                    desc: `체육 교과 필수 이수학점 10학점을 충족했는지 검증합니다. (현재: ${physicalCredits}학점)`
+                },
+                {
+                    label: `예술 교과 필수 이수학점 (10학점)`,
+                    status: artPass,
+                    desc: `예술 교과 필수 이수학점 10학점을 충족했는지 검증합니다. (현재: ${artCredits}학점)`
+                },
+                {
+                    label: `교양 교과 필수 이수학점 (16학점)`,
+                    status: electivePass,
+                    desc: `교양 교과 필수 이수학점 16학점을 충족했는지 검증합니다. (현재: ${electiveGroupCredits}학점)`
+                }
+            ];
+            
             validationChecklist.push({
                 label: `교과별 최소 이수학점 충족 여부`,
                 status: allSubjectMinimumsPass,
                 desc: `교과별 최소 이수학점이 충족되었는지 검증합니다. 
-                국어 8학점, 수학 8학점, 영어 8학점, 한국사1/2 이수, 사회 8학점, 과학 10학점, 체육 10학점, 예술 10학점, 교양 16학점`
-            });
-            
-            // 개별 교과별 검증 항목 추가
-            validationChecklist.push({
-                label: `국어 교과 필수 이수학점 (8학점)`,
-                status: koreanPass,
-                desc: `국어 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${koreanCredits}학점)`
-            });
-            
-            validationChecklist.push({
-                label: `수학 교과 필수 이수학점 (8학점)`,
-                status: mathPass,
-                desc: `수학 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${mathCredits}학점)`
-            });
-            
-            validationChecklist.push({
-                label: `영어 교과 필수 이수학점 (8학점)`,
-                status: englishPass,
-                desc: `영어 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${englishCredits}학점)`
-            });
-            
-            validationChecklist.push({
-                label: `한국사1, 한국사2 이수 여부`,
-                status: koreanHistoryPass,
-                desc: `한국사1과 한국사2를 모두 이수했는지 검증합니다. ${!koreanHistory1 ? '한국사1 미이수' : ''} ${!koreanHistory2 ? '한국사2 미이수' : ''}`
-            });
-            
-            validationChecklist.push({
-                label: `사회 교과 필수 이수학점 (8학점)`,
-                status: socialPass,
-                desc: `사회 교과 필수 이수학점 8학점을 충족했는지 검증합니다. (현재: ${socialCredits}학점)`
-            });
-            
-            validationChecklist.push({
-                label: `과학 교과 필수 이수학점 (10학점)`,
-                status: sciencePass,
-                desc: `과학 교과 필수 이수학점 10학점을 충족했는지 검증합니다. (현재: ${scienceCredits}학점)`
-            });
-            
-            validationChecklist.push({
-                label: `체육 교과 필수 이수학점 (10학점)`,
-                status: physicalPass,
-                desc: `체육 교과 필수 이수학점 10학점을 충족했는지 검증합니다. (현재: ${physicalCredits}학점)`
-            });
-            
-            validationChecklist.push({
-                label: `예술 교과 필수 이수학점 (10학점)`,
-                status: artPass,
-                desc: `예술 교과 필수 이수학점 10학점을 충족했는지 검증합니다. (현재: ${artCredits}학점)`
-            });
-            
-            validationChecklist.push({
-                label: `교양 교과 필수 이수학점 (16학점)`,
-                status: electivePass,
-                desc: `교양 교과 필수 이수학점 16학점을 충족했는지 검증합니다. (현재: ${electiveGroupCredits}학점)`
+                국어 8학점, 수학 8학점, 영어 8학점, 한국사1/2 이수, 사회 8학점, 과학 10학점, 체육 10학점, 예술 10학점, 교양 16학점`,
+                details: subjectDetails,
+                hasToggle: true
             });
 
             // 4) Prerequisites
@@ -2105,33 +2146,49 @@
     </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-1"><div class="text-xs text-gray-500 print:text-black print:text-[5pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[10pt]">${s.TotalCredits
                 }
 
-    </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1 print:mb-0"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-[50px]"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-0.5 print:p-0.5"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[6pt]">${isPass ? 'PASS' : '확인 필요'
+    </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-0.5 print:mb-0"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-[35px]"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-0.25 print:p-0.25"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[5pt]">${isPass ? 'PASS' : '확인 필요'
                 }
 
-    </p></div><table class="w-full text-xs print:text-[5pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.5 print:text-[5pt]">항목</th><th class="text-right print:p-0.5 print:text-[5pt]">상태</th></tr></thead><tbody>${validationChecklist.map(v => {
+    </p></div><table class="w-full text-xs print:text-[3.5pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.1 print:text-[3.5pt]">항목</th><th class="text-right print:p-0.1 print:text-[3.5pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
                     // Escape HTML in description for tooltip
-                    const escapedDesc = (v.desc || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                    return ` <tr class="border-b last:border-0 border-gray-100 cursor-help print:border-gray-300" title="${escapedDesc}"> <td class="py-2 text-gray-600 print:text-black print:py-0.5 print:px-0.5 print:text-[5pt]" >${v.label
+                    const escapedDesc = (v.desc || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, ' ');
+                    const toggleId = 'validation-toggle-' + idx;
+                    const hasDetails = v.hasToggle && v.details && v.details.length > 0;
+                    let rowHtml = ' <tr class="border-b last:border-0 border-gray-100 cursor-help print:border-gray-300" title="' + escapedDesc + '"> <td class="py-1 text-gray-600 print:text-black print:py-0.1 print:px-0.1 print:text-[3.5pt]" >';
+                    
+                    if (hasDetails) {
+                        rowHtml += '<span class="cursor-pointer select-none hover:text-blue-600" onclick="const toggle = document.getElementById(\'' + toggleId + '\'); toggle.classList.toggle(\'hidden\'); const icon = this.querySelector(\'span\'); if (icon) icon.textContent = toggle.classList.contains(\'hidden\') ? \'▶\' : \'▼\';">' + v.label + ' <span class="text-xs inline-block ml-1">▶</span></span>';
+                    } else {
+                        rowHtml += v.label;
                     }
-
-            </td> <td class="py-2 text-right font-bold ${v.status ? 'text-blue-600' : 'text-red-500'} print:text-black print:py-0.5 print:px-0.5 print:text-[5pt]" > ${v.status ? '✓' : '✗'
+                    
+                    rowHtml += '</td> <td class="py-1 text-right font-bold ' + (v.status ? 'text-blue-600' : 'text-red-500') + ' print:text-black print:py-0.1 print:px-0.1 print:text-[3.5pt]" > ' + (v.status ? '✓' : '✗') + '</td> </tr>';
+                    
+                    // Add detail rows if toggle exists
+                    if (hasDetails) {
+                        rowHtml += '<tr id="' + toggleId + '" class="hidden print:table-row"><td colspan="2" class="py-0.5 px-2 bg-gray-50 print:bg-white print:py-0.1"><table class="w-full text-xs print:text-[3pt]">';
+                        v.details.forEach(d => {
+                            const detailEscaped = (d.desc || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, ' ');
+                            rowHtml += '<tr class="border-b last:border-0 border-gray-200 cursor-help" title="' + detailEscaped + '"><td class="py-0.5 pl-2 text-gray-500 print:text-black print:py-0.1 print:pl-1">' + d.label + '</td><td class="py-0.5 text-right font-bold ' + (d.status ? 'text-blue-600' : 'text-red-500') + ' print:text-black print:py-0.1">' + (d.status ? '✓' : '✗') + '</td></tr>';
+                        });
+                        rowHtml += '</table></td></tr>';
                     }
-
-            </td> </tr > `;
+                    
+                    return rowHtml;
                 }).join('')
                 }
 
-    </tbody></table>${!isPass ? `<p class="mt-2 text-xs text-red-500 font-medium bg-white p-1 rounded border border-red-100 print:text-red-600 print:mt-0.5 print:p-0.5 print:text-[5pt]" > ${vRes
+    </tbody></table>${!isPass ? `<p class="mt-2 text-xs text-red-500 font-medium bg-white p-1 rounded border border-red-100 print:text-red-600 print:mt-0.25 print:p-0.25 print:text-[4pt]" > ${vRes
                     }
 
         </p > ` : ''
                 }
 
-    </div><!-- Left Bottom: Selected Course List (Sorted) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 print:col-span-2"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📚 선택 과목 목록 (${courseList.length
+    </div><!-- Left Bottom: Selected Course List (Sorted) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5 print:col-span-2"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">📚 선택 과목 목록 (${courseList.length
 
-                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left print:text-[5pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[5pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[5pt]">학기</th><th class="p-2 print:p-0.5 print:text-[5pt]">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[5pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
+                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left print:text-[4pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.25 print:text-[4pt]">학년</th><th class="p-2 w-10 text-center print:p-0.25 print:text-[4pt]">학기</th><th class="p-2 print:p-0.25 print:text-[4pt]">과목명</th><th class="p-2 w-10 text-center print:p-0.25 print:text-[4pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
                     const [grade, sem] = c.semester.includes('-') ? c.semester.split('-') : ['?', '?'];
-                    return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[5pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[5pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-0.5 print:text-[5pt]" >${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-0.5 print:text-[5pt]" >${c.credit}</td> </tr> `;
+                    return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.25 print:text-[4pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.25 print:text-[4pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-0.25 print:text-[4pt]" >${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-0.25 print:text-[4pt]" >${c.credit}</td> </tr> `;
                 }).join('')
                 }
 
