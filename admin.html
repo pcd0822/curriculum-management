@@ -192,23 +192,23 @@
         
         /* Remove unnecessary spacing */
         #student-report-card .space-y-4 > * + * {
-            margin-top: 0.5mm !important;
+            margin-top: 1mm !important;
         }
         
         #student-report-card .gap-6 {
-            gap: 0.5mm !important;
+            gap: 1mm !important;
         }
         
         #student-report-card .mb-6 {
-            margin-bottom: 0.5mm !important;
+            margin-bottom: 1mm !important;
         }
         
         #student-report-card .mb-4 {
-            margin-bottom: 0.25mm !important;
+            margin-bottom: 0.5mm !important;
         }
         
         #student-report-card .mb-2 {
-            margin-bottom: 0.1mm !important;
+            margin-bottom: 0.25mm !important;
         }
         
         /* Hide dropdown area in print */
@@ -220,7 +220,7 @@
         
         /* Compact validation table rows */
         #student-report-card table tr {
-            line-height: 1.0 !important;
+            line-height: 1.2 !important;
         }
         
         /* Compact course list table */
@@ -230,7 +230,7 @@
         
         /* Reduce spacing in all sections */
         #student-report-card * {
-            line-height: 1.0 !important;
+            line-height: 1.2 !important;
         }
         
         /* Compact border spacing */
@@ -1702,9 +1702,17 @@
             const vBg = !isPass ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200';
 
             // 1. Course Processing: Exclude Required, Sort by Semester
-            // 1. Stats Setup (5 Categories)
+            // 1. Stats Setup (index.html과 동일한 카테고리)
             const creditStats = {
-                '기초': 0, '사회': 0, '과학': 0, '체육·예술': 0, '생활·교양': 0
+                '기초교과': 0, '사회 및 과학': 0, '예술교과': 0, '체육교과': 0, '교양,제2외국어,정보': 0
+            };
+            
+            // jointSubCategoryToCategoryMap (index.html과 동일)
+            const jointSubCategoryToCategoryMap = {
+                '국어': '기초교과', '수학': '기초교과', '영어': '기초교과', '한국사': '기초교과',
+                '사회': '탐구교과', '과학': '탐구교과',
+                '체육': '체육교과', '예술': '예술교과',
+                '제2외국어': '교양교과', '정보': '교양교과', '교양': '교양교과'
             };
 
             // 2. Base Credits from REQUIRED Courses
@@ -1719,27 +1727,17 @@
                     const cat = c.category || '기타';
                     const subCat = c.subCategory || '';
 
-                    // Check category and subCategory for proper classification
-                    if (cat === '기초교과' || cat.includes('기초') || cat.includes('국어') || cat.includes('영어') || cat.includes('수학') || cat.includes('한국사')) {
-                        creditStats['기초'] += cred;
+                    // Check category and subCategory for proper classification (index.html과 동일)
+                    if (cat === '기초교과') {
+                        creditStats['기초교과'] += cred;
                     } else if (cat === '탐구교과') {
-                        // For 탐구교과, check subCategory to split into 사회 and 과학
-                        if (subCat.includes('사회') || subCat.includes('역사') || subCat.includes('도덕')) {
-                            creditStats['사회'] += cred;
-                        } else if (subCat.includes('과학')) {
-                            creditStats['과학'] += cred;
-                        } else {
-                            // Default to 사회 if subCategory is unclear
-                            creditStats['사회'] += cred;
-                        }
-                    } else if (cat.includes('사회') || cat.includes('역사') || cat.includes('도덕')) {
-                        creditStats['사회'] += cred;
-                    } else if (cat.includes('과학')) {
-                        creditStats['과학'] += cred;
-                    } else if (cat === '체육교과' || cat === '예술교과' || cat.includes('체육') || cat.includes('예술')) {
-                        creditStats['체육·예술'] += cred;
-                    } else {
-                        creditStats['생활·교양'] += cred;
+                        creditStats['사회 및 과학'] += cred;
+                    } else if (cat === '예술교과') {
+                        creditStats['예술교과'] += cred;
+                    } else if (cat === '체육교과') {
+                        creditStats['체육교과'] += cred;
+                    } else if (['교양교과', '제2외국어', '정보'].includes(cat)) {
+                        creditStats['교양,제2외국어,정보'] += cred;
                     }
                 }
             });
@@ -1820,28 +1818,22 @@
                     displayGrade = parseInt(meta.grade || 99);
                     isRequired = meta.required === true || String(meta.required).toLowerCase() === 'true';
 
-                    // Add to Stats (Split Categories) - Check subCategory for 탐구교과
-                    const subCat = meta.subCategory || '';
-                    if (displayCat === '기초교과' || displayCat.includes('기초') || displayCat.includes('국어') || displayCat.includes('영어') || displayCat.includes('수학') || displayCat.includes('한국사')) {
-                        creditStats['기초'] += displayCredit;
-                    } else if (displayCat === '탐구교과') {
-                        // For 탐구교과, check subCategory to split into 사회 and 과학
-                        if (subCat.includes('사회') || subCat.includes('역사') || subCat.includes('도덕')) {
-                            creditStats['사회'] += displayCredit;
-                        } else if (subCat.includes('과학')) {
-                            creditStats['과학'] += displayCredit;
-                        } else {
-                            // Default to 사회 if subCategory is unclear
-                            creditStats['사회'] += displayCredit;
-                        }
-                    } else if (displayCat.includes('사회') || displayCat.includes('역사') || displayCat.includes('도덕')) {
-                        creditStats['사회'] += displayCredit;
-                    } else if (displayCat.includes('과학')) {
-                        creditStats['과학'] += displayCredit;
-                    } else if (displayCat === '체육교과' || displayCat === '예술교과' || displayCat.includes('체육') || displayCat.includes('예술')) {
-                        creditStats['체육·예술'] += displayCredit;
-                    } else {
-                        creditStats['생활·교양'] += displayCredit; // Includes Tech/Home/Language/Liberal
+                    // Add to Stats (index.html과 동일한 로직)
+                    let cat = displayCat;
+                    if (meta.subCategory && jointSubCategoryToCategoryMap[meta.subCategory]) {
+                        cat = jointSubCategoryToCategoryMap[meta.subCategory];
+                    }
+                    
+                    if (cat === '기초교과') {
+                        creditStats['기초교과'] += displayCredit;
+                    } else if (cat === '탐구교과') {
+                        creditStats['사회 및 과학'] += displayCredit;
+                    } else if (cat === '예술교과') {
+                        creditStats['예술교과'] += displayCredit;
+                    } else if (cat === '체육교과') {
+                        creditStats['체육교과'] += displayCredit;
+                    } else if (['교양교과', '제2외국어', '정보'].includes(cat)) {
+                        creditStats['교양,제2외국어,정보'] += displayCredit;
                     }
 
                 } else {
@@ -1852,7 +1844,7 @@
                         if (p.length >= 3) displayName = p[0];
                     }
                     // Assume default credit/cat for unknown
-                    displayCat = '생활·교양';
+                    displayCat = '교양교과';
 
                     // Try parse credit from string if possible (name-grade-sem-credit)
                     const p = cName.split('-');
@@ -1860,7 +1852,7 @@
                         displayCredit = parseInt(p[3]) || 0;
                     }
 
-                    creditStats['생활·교양'] += displayCredit;
+                    creditStats['교양,제2외국어,정보'] += displayCredit;
                 }
 
                 // Add to Course List (Deduplicate) - Only add non-required courses
@@ -1900,8 +1892,8 @@
 
             // 3. Validation Detail (Replicating index.html logic)
             // Calculate Stats for Validation (totalCredits는 이미 위에서 계산됨)
-            // basicCredits는 creditStats['기초']를 사용 (required + selected 모두 포함)
-            let basicCredits = creditStats['기초'] || 0;
+            // basicCredits는 creditStats['기초교과']를 사용 (required + selected 모두 포함)
+            let basicCredits = creditStats['기초교과'] || 0;
             let artCredits = 0;
             let electiveGroupCredits = 0; // 교양/제2외국어/정보
             
@@ -1915,19 +1907,19 @@
             let scienceCredits = 0; // 과학
             let physicalCredits = 0; // 체육
 
-            // Map for Joint Courses/etc.
-            const jointSubCategoryToCategoryMap = {
-                '국어': '기초교과', '영어': '기초교과', '수학': '기초교과', '한국사': '기초교과',
-                '사회(역사/도덕 포함)': '탐구교과', '과학': '탐구교과',
-                '체육': '예술교과', '예술': '예술교과',
-                '기술·가정': '교양교과', '제2외국어': '교양교과', '한문': '교양교과', '교양': '교양교과'
+            // Map for Joint Courses/etc. (index.html과 동일)
+            const jointSubCategoryToCategoryMapForValidation = {
+                '국어': '기초교과', '수학': '기초교과', '영어': '기초교과', '한국사': '기초교과',
+                '사회': '탐구교과', '과학': '탐구교과',
+                '체육': '체육교과', '예술': '예술교과',
+                '제2외국어': '교양교과', '정보': '교양교과', '교양': '교양교과'
             };
 
             const selectedSlugs = new Set();
 
+            // Calculate artCredits and electiveGroupCredits from selected courses (index.html과 동일)
             courseList.forEach(c => {
                 const credits = parseInt(c.credit || 0);
-                // totalCredits는 이미 creditStats에서 계산되었으므로 여기서는 더하지 않음
 
                 // Determine Category
                 let cat = c.category;
@@ -1945,9 +1937,9 @@
                     if (meta) subCat = meta.subCategory || '';
                 }
 
-                // basicCredits는 이미 creditStats['기초']에서 계산되었으므로 여기서는 더하지 않음
-                if (cat === '체육교과' || cat === '예술교과' || (cat && (cat.includes('체육') || cat.includes('예술')))) artCredits += credits;
-                if (['교양교과', '제2외국어', '정보', '생활·교양'].includes(cat) || (cat && (cat.includes('교양') || cat.includes('외국어') || cat.includes('정보')))) electiveGroupCredits += credits;
+                // Category sums (index.html과 동일)
+                if (cat === '예술교과') artCredits += credits;
+                if (['교양교과', '제2외국어', '정보'].includes(cat)) electiveGroupCredits += credits;
 
                 // 교과별 필수 이수학점 계산
                 if (subCat === '국어') koreanCredits += credits;
@@ -1976,13 +1968,17 @@
                 else selectedSlugs.add(c.name); // Fallback: Name is slug
             });
             
-            // Also check required courses for subject-specific credits
+            // Also check required courses for subject-specific credits and category sums (index.html과 동일)
             allCourseData.forEach(c => {
                 const isRequired = c.required === true || String(c.required).toLowerCase() === 'true';
                 if (isRequired && (parseInt(c.grade) === parseInt(s.Grade))) {
                     const cred = parseInt(c.credit || c.credits || 0);
                     const subCat = c.subCategory || '';
                     const cat = c.category || '';
+                    
+                    // Category sums (index.html과 동일)
+                    if (cat === '예술교과') artCredits += cred;
+                    if (['교양교과', '제2외국어', '정보'].includes(cat)) electiveGroupCredits += cred;
                     
                     // subCategory로 확인
                     if (subCat === '국어') koreanCredits += cred;
@@ -2006,13 +2002,14 @@
                 }
             });
             
-            // Check JointCourses for subject-specific credits
+            // Check JointCourses for subject-specific credits (index.html과 동일)
             if (s.JointCourses) {
                 const jointRaw = s.JointCourses.split(',').map(c => c.trim()).filter(x => x);
                 jointRaw.forEach(jointName => {
-                    // Joint courses are handled separately, but we need to check if they contribute to subject credits
-                    // This would require parsing the joint course data, which may not be available here
-                    // For now, we'll rely on the courseList processing above
+                    // Joint courses format: "joint-###" - parse if needed
+                    // For now, joint courses credits are already counted in creditStats
+                    // But we need to add to category sums if they contribute
+                    // This would require parsing the joint course data structure
                 });
             }
 
@@ -2149,12 +2146,12 @@
     </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-0.5 print:mb-0"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-[35px]"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-0.25 print:p-0.25"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[5pt]">${isPass ? 'PASS' : '확인 필요'
                 }
 
-    </p></div><table class="w-full text-xs print:text-[3.5pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.1 print:text-[3.5pt]">항목</th><th class="text-right print:p-0.1 print:text-[3.5pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
+    </p></div><table class="w-full text-xs print:text-[4.5pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.25 print:text-[4.5pt]">항목</th><th class="text-right print:p-0.25 print:text-[4.5pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
                     // Escape HTML in description for tooltip
                     const escapedDesc = (v.desc || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, ' ');
                     const toggleId = 'validation-toggle-' + idx;
                     const hasDetails = v.hasToggle && v.details && v.details.length > 0;
-                    let rowHtml = ' <tr class="border-b last:border-0 border-gray-100 cursor-help print:border-gray-300" title="' + escapedDesc + '"> <td class="py-1 text-gray-600 print:text-black print:py-0.1 print:px-0.1 print:text-[3.5pt]" >';
+                    let rowHtml = ' <tr class="border-b last:border-0 border-gray-100 cursor-help print:border-gray-300" title="' + escapedDesc + '"> <td class="py-1 text-gray-600 print:text-black print:py-0.25 print:px-0.25 print:text-[4.5pt]" >';
                     
                     if (hasDetails) {
                         rowHtml += '<span class="cursor-pointer select-none hover:text-blue-600" onclick="const toggle = document.getElementById(\'' + toggleId + '\'); toggle.classList.toggle(\'hidden\'); const icon = this.querySelector(\'span\'); if (icon) icon.textContent = toggle.classList.contains(\'hidden\') ? \'▶\' : \'▼\';">' + v.label + ' <span class="text-xs inline-block ml-1">▶</span></span>';
@@ -2162,14 +2159,14 @@
                         rowHtml += v.label;
                     }
                     
-                    rowHtml += '</td> <td class="py-1 text-right font-bold ' + (v.status ? 'text-blue-600' : 'text-red-500') + ' print:text-black print:py-0.1 print:px-0.1 print:text-[3.5pt]" > ' + (v.status ? '✓' : '✗') + '</td> </tr>';
+                    rowHtml += '</td> <td class="py-1 text-right font-bold ' + (v.status ? 'text-blue-600' : 'text-red-500') + ' print:text-black print:py-0.25 print:px-0.25 print:text-[4.5pt]" > ' + (v.status ? '✓' : '✗') + '</td> </tr>';
                     
                     // Add detail rows if toggle exists
                     if (hasDetails) {
-                        rowHtml += '<tr id="' + toggleId + '" class="hidden print:table-row"><td colspan="2" class="py-0.5 px-2 bg-gray-50 print:bg-white print:py-0.1"><table class="w-full text-xs print:text-[3pt]">';
+                        rowHtml += '<tr id="' + toggleId + '" class="hidden print:table-row"><td colspan="2" class="py-0.5 px-2 bg-gray-50 print:bg-white print:py-0.25"><table class="w-full text-xs print:text-[4pt]">';
                         v.details.forEach(d => {
                             const detailEscaped = (d.desc || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, ' ');
-                            rowHtml += '<tr class="border-b last:border-0 border-gray-200 cursor-help" title="' + detailEscaped + '"><td class="py-0.5 pl-2 text-gray-500 print:text-black print:py-0.1 print:pl-1">' + d.label + '</td><td class="py-0.5 text-right font-bold ' + (d.status ? 'text-blue-600' : 'text-red-500') + ' print:text-black print:py-0.1">' + (d.status ? '✓' : '✗') + '</td></tr>';
+                            rowHtml += '<tr class="border-b last:border-0 border-gray-200 cursor-help" title="' + detailEscaped + '"><td class="py-0.5 pl-2 text-gray-500 print:text-black print:py-0.25 print:pl-1">' + d.label + '</td><td class="py-0.5 text-right font-bold ' + (d.status ? 'text-blue-600' : 'text-red-500') + ' print:text-black print:py-0.25">' + (d.status ? '✓' : '✗') + '</td></tr>';
                         });
                         rowHtml += '</table></td></tr>';
                     }
@@ -2186,16 +2183,23 @@
 
     </div><!-- Left Bottom: Selected Course List (Sorted) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5 print:col-span-2"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">📚 선택 과목 목록 (${courseList.length
 
-                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left print:text-[4pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.25 print:text-[4pt]">학년</th><th class="p-2 w-10 text-center print:p-0.25 print:text-[4pt]">학기</th><th class="p-2 print:p-0.25 print:text-[4pt]">과목명</th><th class="p-2 w-10 text-center print:p-0.25 print:text-[4pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
+                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left print:text-[5pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[5pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[5pt]">학기</th><th class="p-2 print:p-0.5 print:text-[5pt]">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[5pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
                     const [grade, sem] = c.semester.includes('-') ? c.semester.split('-') : ['?', '?'];
-                    return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.25 print:text-[4pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.25 print:text-[4pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-0.25 print:text-[4pt]" >${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-0.25 print:text-[4pt]" >${c.credit}</td> </tr> `;
+                    return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[5pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[5pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-0.5 print:text-[5pt]" >${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-0.5 print:text-[5pt]" >${c.credit}</td> </tr> `;
                 }).join('')
                 }
 
-    </tbody></table></div></div><!-- Right Bottom: AI Recommendations --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid print:hidden"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black">🤖 AI 진로 추천 가이드 </h4><div id="ai-analysis-container" class="text-sm space-y-3"><div class="text-center py-4 print:hidden"><button onclick="fetchAiCareerAnalysis('${s.Major}', '${courseList.map(c => c.name).join(',')}')" class="px-4 py-2 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 transition flex items-center gap-2 mx-auto" ${!s.Major ? 'disabled' : ''}><span>✨</span> ${s.Major ? 'AI 진로/생기부 분석 실행' : '진로 희망 정보 없음'}</button><p class="text-xs text-indigo-400 mt-2">클릭 시 OpenAI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</p></div><div class="hidden print:block text-gray-400 text-center italic text-xs p-4">분석 결과가 여기에 표시됩니다. (화면에서 분석 실행 후 출력하세요)</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
+    </tbody></table></div></div><!-- Right Bottom: AI Recommendations --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid print:hidden"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black">🤖 AI 진로 추천 가이드 </h4><div id="ai-analysis-container" class="text-sm space-y-3"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="hidden print:block text-gray-400 text-center italic text-xs p-4">분석 결과가 여기에 표시됩니다. (화면에서 분석 실행 후 출력하세요)</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
     class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="window.print()"
     class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>이 학생 리포트 출력 </button><button onclick="downloadStudentReportImage('${s.Name}', '${s.Number}')" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow flex items-center gap-2"><span>💾</span>이미지 저장</button></div></div>`;
             modalContent.innerHTML = html;
+
+            // Auto-fetch AI analysis if major is available
+            if (s.Major) {
+                setTimeout(() => {
+                    fetchAiCareerAnalysis(s.Major, courseList.map(c => c.name).join(','));
+                }, 500);
+            }
 
             // Render Chart
             // Increased timeout to ensure Modal animation is finished or DOM is ready
