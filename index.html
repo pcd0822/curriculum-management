@@ -1092,7 +1092,7 @@
                     ];
                     const hash = (c.id || c.subjectName || c.name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
                     const colorClass = colors[hash % colors.length];
-                    return `<span class="text-xs font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.slug || c.id}</span>`;
+                    return `<span class="text-xs font-medium ${colorClass} hover:opacity-80 transition-opacity cursor-default" data-required="${c.required}">${c.subjectName}</span>`;
                 }).join('')}
                         </div>
                     </div>
