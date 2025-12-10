@@ -85,14 +85,13 @@
     @media print {
         @page {
             size: A4 portrait;
-            margin: 5mm;
+            margin: 3mm;
         }
 
         body {
             padding: 0;
             background: white;
-            font-size: 9pt;
-            /* Reduced font size */
+            font-size: 7pt;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
@@ -123,14 +122,89 @@
             margin: 0 !important;
         }
 
-        /* Report Card Optimization */
+        /* Report Card Optimization - Compact for A4 */
         #student-report-card {
             border: none !important;
             box-shadow: none !important;
-            /* Scale down to fit if needed */
-            transform: scale(0.95);
-            transform-origin: top left;
-            width: 105%;
+            padding: 2mm !important;
+            margin: 0 !important;
+        }
+        
+        /* Compact header */
+        #student-report-card > div:first-child {
+            margin-bottom: 3mm !important;
+            padding-bottom: 2mm !important;
+        }
+        
+        #student-report-card h3 {
+            font-size: 14pt !important;
+            margin: 0 !important;
+        }
+        
+        #student-report-card .text-2xl {
+            font-size: 16pt !important;
+        }
+        
+        /* Compact grid layout */
+        #student-report-card .grid {
+            gap: 2mm !important;
+        }
+        
+        /* Compact cards */
+        #student-report-card .theme-card {
+            padding: 2mm !important;
+            margin-bottom: 2mm !important;
+        }
+        
+        #student-report-card h4 {
+            font-size: 8pt !important;
+            margin-bottom: 1mm !important;
+        }
+        
+        /* Compact chart */
+        #student-report-card canvas {
+            height: 60px !important;
+        }
+        
+        /* Compact tables */
+        #student-report-card table {
+            font-size: 6pt !important;
+        }
+        
+        #student-report-card table th,
+        #student-report-card table td {
+            padding: 1mm 0.5mm !important;
+        }
+        
+        /* Hide AI section in print */
+        #student-report-card .bg-indigo-50 {
+            display: none !important;
+        }
+        
+        /* Compact validation table */
+        #student-report-card .text-xs {
+            font-size: 6pt !important;
+        }
+        
+        /* Remove unnecessary spacing */
+        #student-report-card .space-y-4 > * + * {
+            margin-top: 1mm !important;
+        }
+        
+        #student-report-card .gap-6 {
+            gap: 2mm !important;
+        }
+        
+        #student-report-card .mb-6 {
+            margin-bottom: 2mm !important;
+        }
+        
+        #student-report-card .mb-4 {
+            margin-bottom: 1mm !important;
+        }
+        
+        #student-report-card .mb-2 {
+            margin-bottom: 0.5mm !important;
         }
 
         /* Hide UI controls */
@@ -2019,49 +2093,49 @@
             });
 
 
-            const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full"><!-- Header --><div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-2 print:pb-2"><div><div class="flex items-center gap-2"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border print:bg-white print:text-black">${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}</span><h3 class="text-2xl font-bold theme-text print:text-black">${s.Name
+            const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full print:p-0"><!-- Header --><div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-1 print:pb-1 print:flex-row print:items-center"><div class="print:flex-1"><div class="flex items-center gap-2 print:gap-1"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border print:bg-white print:text-black print:px-1 print:py-0.5 print:text-[6pt]">${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}</span><h3 class="text-2xl font-bold theme-text print:text-black print:text-[10pt] print:m-0">${s.Name
                 }
 
-    </h3></div><p class="text-gray-500 mt-1 flex items-center gap-2 print:text-xs"><span class="font-bold text-gray-400 print:text-black">진로 희망:</span><span class="font-medium text-blue-600 text-lg print:text-black">${s.Major || '-'
+    </h3></div><p class="text-gray-500 mt-1 flex items-center gap-2 print:text-xs print:mt-0 print:text-[6pt]"><span class="font-bold text-gray-400 print:text-black">진로:</span><span class="font-medium text-blue-600 text-lg print:text-black print:text-[7pt]">${s.Major || '-'
                 }
 
-    </span></p></div><div class="flex gap-4 text-center bg-gray-50 dark:bg-gray-700 p-3 rounded-lg print:bg-white print:border print:text-black"><div class="px-2"><div class="text-xs text-gray-500 print:text-black">선택 과목 수</div><div class="text-2xl font-bold theme-text print:text-black">${courseList.length
+    </span></p></div><div class="flex gap-4 text-center bg-gray-50 dark:bg-gray-700 p-3 rounded-lg print:bg-white print:border print:text-black print:gap-2 print:p-1 print:flex-shrink-0"><div class="px-2 print:px-1"><div class="text-xs text-gray-500 print:text-black print:text-[5pt]">선택 과목</div><div class="text-2xl font-bold theme-text print:text-black print:text-[10pt]">${courseList.length
                 }
 
-    </div></div><div class="w-px bg-gray-300"></div><div class="px-2"><div class="text-xs text-gray-500 print:text-black">총 신청 학점</div><div class="text-2xl font-bold theme-text print:text-black">${s.TotalCredits
+    </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-1"><div class="text-xs text-gray-500 print:text-black print:text-[5pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[10pt]">${s.TotalCredits
                 }
 
-    </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:block print:space-y-4"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-4"><h4 class="font-bold mb-2 theme-text print:text-black">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-40"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-4"><h4 class="font-bold mb-2 theme-text print:text-black">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2"><p class="font-bold text-center ${vColor} text-sm print:text-black">${isPass ? 'PASS (적합)' : '확인 필요'
+    </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1 print:mb-0"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-[50px]"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-0.5 print:p-0.5"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[6pt]">${isPass ? 'PASS' : '확인 필요'
                 }
 
-    </p></div><table class="w-full text-xs">${validationChecklist.map(v => {
+    </p></div><table class="w-full text-xs print:text-[5pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.5 print:text-[5pt]">항목</th><th class="text-right print:p-0.5 print:text-[5pt]">상태</th></tr></thead><tbody>${validationChecklist.map(v => {
                     // Escape HTML in description for tooltip
                     const escapedDesc = (v.desc || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                    return ` <tr class="border-b last:border-0 border-gray-100 cursor-help" title="${escapedDesc}"> <td class="py-2 text-gray-600 print:text-black" >${v.label
+                    return ` <tr class="border-b last:border-0 border-gray-100 cursor-help print:border-gray-300" title="${escapedDesc}"> <td class="py-2 text-gray-600 print:text-black print:py-0.5 print:px-0.5 print:text-[5pt]" >${v.label
                     }
 
-            </td> <td class="py-2 text-right font-bold ${v.status ? 'text-blue-600' : 'text-red-500'}" > ${v.status ? '적합' : '미달/확인'
+            </td> <td class="py-2 text-right font-bold ${v.status ? 'text-blue-600' : 'text-red-500'} print:text-black print:py-0.5 print:px-0.5 print:text-[5pt]" > ${v.status ? '✓' : '✗'
                     }
 
             </td> </tr > `;
                 }).join('')
                 }
 
-    </table>${!isPass ? `<p class="mt-2 text-xs text-red-500 font-medium bg-white p-1 rounded border border-red-100 print:text-red-600" > ${vRes
+    </tbody></table>${!isPass ? `<p class="mt-2 text-xs text-red-500 font-medium bg-white p-1 rounded border border-red-100 print:text-red-600 print:mt-0.5 print:p-0.5 print:text-[5pt]" > ${vRes
                     }
 
         </p > ` : ''
                 }
 
-    </div><!-- Left Bottom: Selected Course List (Sorted) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-4"><h4 class="font-bold mb-2 theme-text print:text-black">📚 선택 과목 목록 (${courseList.length
+    </div><!-- Left Bottom: Selected Course List (Sorted) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 print:col-span-2"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📚 선택 과목 목록 (${courseList.length
 
-                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center">학년</th><th class="p-2 w-10 text-center">학기</th><th class="p-2">과목명</th><th class="p-2 w-10 text-center">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
+                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left print:text-[5pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[5pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[5pt]">학기</th><th class="p-2 print:p-0.5 print:text-[5pt]">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[5pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
                     const [grade, sem] = c.semester.includes('-') ? c.semester.split('-') : ['?', '?'];
-                    return ` <tr class="hover:bg-gray-50" > <td class="p-2 text-center text-gray-500 print:text-black font-mono" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black" >${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black" >${c.credit}</td> </tr> `;
+                    return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[5pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[5pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-0.5 print:text-[5pt]" >${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-0.5 print:text-[5pt]" >${c.credit}</td> </tr> `;
                 }).join('')
                 }
 
-    </tbody></table></div></div><!-- Right Bottom: AI Recommendations --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black">🤖 AI 진로 추천 가이드 </h4><div id="ai-analysis-container" class="text-sm space-y-3"><div class="text-center py-4 print:hidden"><button onclick="fetchAiCareerAnalysis('${s.Major}', '${courseList.map(c => c.name).join(',')}')" class="px-4 py-2 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 transition flex items-center gap-2 mx-auto" ${!s.Major ? 'disabled' : ''}><span>✨</span> ${s.Major ? 'AI 진로/생기부 분석 실행' : '진로 희망 정보 없음'}</button><p class="text-xs text-indigo-400 mt-2">클릭 시 OpenAI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</p></div><div class="hidden print:block text-gray-400 text-center italic text-xs p-4">분석 결과가 여기에 표시됩니다. (화면에서 분석 실행 후 출력하세요)</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
+    </tbody></table></div></div><!-- Right Bottom: AI Recommendations --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid print:hidden"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black">🤖 AI 진로 추천 가이드 </h4><div id="ai-analysis-container" class="text-sm space-y-3"><div class="text-center py-4 print:hidden"><button onclick="fetchAiCareerAnalysis('${s.Major}', '${courseList.map(c => c.name).join(',')}')" class="px-4 py-2 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 transition flex items-center gap-2 mx-auto" ${!s.Major ? 'disabled' : ''}><span>✨</span> ${s.Major ? 'AI 진로/생기부 분석 실행' : '진로 희망 정보 없음'}</button><p class="text-xs text-indigo-400 mt-2">클릭 시 OpenAI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</p></div><div class="hidden print:block text-gray-400 text-center italic text-xs p-4">분석 결과가 여기에 표시됩니다. (화면에서 분석 실행 후 출력하세요)</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
     class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="window.print()"
     class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>이 학생 리포트 출력 </button><button onclick="downloadStudentReportImage('${s.Name}', '${s.Number}')" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow flex items-center gap-2"><span>💾</span>이미지 저장</button></div></div>`;
             modalContent.innerHTML = html;
@@ -2073,24 +2147,17 @@
 
                 if (ctx) {
                     new Chart(ctx, {
-
                         type: 'bar',
                         data: {
-
                             labels: Object.keys(creditStats),
                             datasets: [{
                                 label: '이수 학점',
                                 data: Object.values(creditStats),
-                                backgroundColor: ['#60A5FA', '#34D399', '#3B82F6', '#F472B6', '#A78BFA'], // Added Blue for Science
+                                backgroundColor: ['#60A5FA', '#34D399', '#3B82F6', '#F472B6', '#A78BFA'],
                                 borderRadius: 4
-                            }
-
-                            ]
-                        }
-
-                        ,
+                            }]
+                        },
                         options: {
-
                             indexAxis: 'y',
                             responsive: true,
                             maintainAspectRatio: false,
@@ -2098,22 +2165,31 @@
                                 legend: {
                                     display: false
                                 }
-                            }
-
-                            ,
+                            },
                             scales: {
                                 x: {
-                                    beginAtZero: true, grid: {
+                                    beginAtZero: true,
+                                    grid: {
                                         display: false
+                                    },
+                                    ticks: {
+                                        font: {
+                                            size: window.matchMedia('print').matches ? 6 : 12
+                                        }
+                                    }
+                                },
+                                y: {
+                                    ticks: {
+                                        font: {
+                                            size: window.matchMedia('print').matches ? 6 : 12
+                                        }
                                     }
                                 }
                             }
                         }
                     });
                 }
-            }
-
-                , 300); // 300ms delay
+            }, 300); // 300ms delay
         }
 
         function getAiRecommendations(major) {
@@ -2138,9 +2214,7 @@
                 'default': {
                     subjects: ['진로와 직업 탐색', '창의적 체험활동', '독서와 토론'], keywords: ['자기주도', '협업', '의사소통']
                 }
-            }
-
-                ;
+            };
 
             let key = 'default';
 
@@ -3152,4 +3226,4 @@
     </script>
 </body>
 
-</html>/
+</html>
