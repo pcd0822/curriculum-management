@@ -1669,6 +1669,26 @@
                 return a.name.localeCompare(b.name);
             });
 
+            // Sort Fix: Override to ensure Grade > Semester > Name order
+            courseList.sort((a, b) => {
+                const getMeta = (name) => allCourseData.find(c => c.subjectName === name);
+                const metaA = getMeta(a.name);
+                const metaB = getMeta(b.name);
+
+                // 1. Grade (Int)
+                const gradeA = metaA ? parseInt(metaA.grade) : 99;
+                const gradeB = metaB ? parseInt(metaB.grade) : 99;
+                if (gradeA !== gradeB) return gradeA - gradeB;
+
+                // 2. Semester (Int)
+                const semA = metaA ? (parseInt(metaA.semester) || 99) : 99;
+                const semB = metaB ? (parseInt(metaB.semester) || 99) : 99;
+                if (semA !== semB) return semA - semB;
+
+                // 3. Name (Korean)
+                return a.name.localeCompare(b.name);
+            });
+
             // 2. AI Recommendations (Mock)
             const recs = getAiRecommendations(s.Major);
 
