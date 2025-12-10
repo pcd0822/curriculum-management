@@ -1494,7 +1494,7 @@
                     <div class="text-center py-10">
                         <h3 class="text-xl font-bold mb-2">${selectedStudent.Grade}학년 ${selectedStudent.Class}반 ${selectedStudent.Number}번 ${selectedStudent.Name}</h3>
                         <p class="text-red-500 font-bold mb-4">아직 수강신청 내용을 제출하지 않았습니다.</p>
-                        <button onclick="renderIndividualStatsTable()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">목록으로 돌아가기</button>
+                        <button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">목록으로 돌아가기</button>
                     </div>
                 `;
                     }
@@ -1579,6 +1579,8 @@
         };
 
         function renderDetailedStudentReport(s) {
+            const modalContent = document.getElementById('class-stats-content');
+
             const vRes = s.ValidationResult || '특이사항 없음';
             const isPass = !vRes.includes('부족') && !vRes.includes('초과') && !vRes.includes('필요') && !vRes.includes('확인');
             const vColor = !isPass ? 'text-red-600' : 'text-blue-600';
