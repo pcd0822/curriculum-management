@@ -542,6 +542,16 @@
             let requiredArtCredits = 0; // 학교지정 예술교과 학점
             let electiveGroupCredits = 0; // 교양/제2외국어/정보
             let requiredElectiveGroupCredits = 0; // 학교지정 교양/제2외국어/정보 학점
+            
+            // 교과별 필수 이수학점 계산
+            let koreanCredits = 0; // 국어
+            let mathCredits = 0; // 수학
+            let englishCredits = 0; // 영어
+            let koreanHistory1 = false; // 한국사1
+            let koreanHistory2 = false; // 한국사2
+            let socialCredits = 0; // 사회
+            let scienceCredits = 0; // 과학
+            let physicalCredits = 0; // 체육
 
             const countedCourseSlugs = new Set();
             const countedMultiSemesterNames = new Set(); // 복수편제과목 중복 방지용
@@ -597,6 +607,22 @@
                         electiveGroupCredits += credits;
                         requiredElectiveGroupCredits += credits;
                     }
+                    
+                    // 교과별 필수 이수학점 계산
+                    const subCat = course.subCategory || '';
+                    if (subCat === '국어') koreanCredits += credits;
+                    if (subCat === '수학') mathCredits += credits;
+                    if (subCat === '영어') englishCredits += credits;
+                    if (subCat === '사회') socialCredits += credits;
+                    if (subCat === '과학') scienceCredits += credits;
+                    if (subCat === '체육') physicalCredits += credits;
+                    
+                    // 한국사1, 한국사2 확인
+                    const subjectName = (course.subjectName || '').toLowerCase();
+                    if (subjectName.includes('한국사')) {
+                        if (subjectName.includes('1') || course.semester === '1') koreanHistory1 = true;
+                        if (subjectName.includes('2') || course.semester === '2') koreanHistory2 = true;
+                    }
                 }
             });
 
@@ -634,6 +660,22 @@
                     if (course.category === '기초교과') basicCredits += credits;
                     if (course.category === '예술교과') artCredits += credits;
                     if (['교양교과', '제2외국어', '정보'].includes(course.category)) electiveGroupCredits += credits;
+                    
+                    // 교과별 필수 이수학점 계산
+                    const subCat = course.subCategory || '';
+                    if (subCat === '국어') koreanCredits += credits;
+                    if (subCat === '수학') mathCredits += credits;
+                    if (subCat === '영어') englishCredits += credits;
+                    if (subCat === '사회') socialCredits += credits;
+                    if (subCat === '과학') scienceCredits += credits;
+                    if (subCat === '체육') physicalCredits += credits;
+                    
+                    // 한국사1, 한국사2 확인
+                    const subjectName = (course.subjectName || '').toLowerCase();
+                    if (subjectName.includes('한국사')) {
+                        if (subjectName.includes('1') || course.semester === '1') koreanHistory1 = true;
+                        if (subjectName.includes('2') || course.semester === '2') koreanHistory2 = true;
+                    }
                 }
             });
 
@@ -645,6 +687,15 @@
                 if (mappedCategory === '기초교과') basicCredits += course.credits;
                 if (mappedCategory === '예술교과') artCredits += course.credits;
                 if (mappedCategory === '교양교과') electiveGroupCredits += course.credits;
+                
+                // 교과별 필수 이수학점 계산 (공동교육과정)
+                const subCat = course.subCategory || '';
+                if (subCat === '국어') koreanCredits += course.credits;
+                if (subCat === '수학') mathCredits += course.credits;
+                if (subCat === '영어') englishCredits += course.credits;
+                if (subCat === '사회') socialCredits += course.credits;
+                if (subCat === '과학') scienceCredits += course.credits;
+                if (subCat === '체육') physicalCredits += course.credits;
             });
 
             // Debug: Log total credits calculation
@@ -714,6 +765,59 @@
                 addMsg(`교양/제2외국어/정보 필수이수학점 중 <span class="font-bold">${neededCredits}학점</span>이 부족합니다. (학교지정: ${requiredElectiveGroupCredits}학점 포함)${suggestionList}`);
             } else {
                 addMsg(`교양/제2외국어/정보 필수이수학점(16)을 충족했습니다. (학교지정: ${requiredElectiveGroupCredits}학점 포함)`, 'success');
+            }
+
+            // Rule 5: 교과별 필수 이수학점 검증
+            // 국어 교과 (8학점)
+            if (koreanCredits < 8) {
+                addMsg(`국어 교과 필수 이수학점(8)이 부족합니다. <span class="font-bold">${8 - koreanCredits}학점</span> 더 선택해주세요. (현재: ${koreanCredits}학점)`);
+            } else {
+                addMsg(`국어 교과 필수 이수학점(8)을 충족했습니다. (현재: ${koreanCredits}학점)`, 'success');
+            }
+
+            // 수학 교과 (8학점)
+            if (mathCredits < 8) {
+                addMsg(`수학 교과 필수 이수학점(8)이 부족합니다. <span class="font-bold">${8 - mathCredits}학점</span> 더 선택해주세요. (현재: ${mathCredits}학점)`);
+            } else {
+                addMsg(`수학 교과 필수 이수학점(8)을 충족했습니다. (현재: ${mathCredits}학점)`, 'success');
+            }
+
+            // 영어 교과 (8학점)
+            if (englishCredits < 8) {
+                addMsg(`영어 교과 필수 이수학점(8)이 부족합니다. <span class="font-bold">${8 - englishCredits}학점</span> 더 선택해주세요. (현재: ${englishCredits}학점)`);
+            } else {
+                addMsg(`영어 교과 필수 이수학점(8)을 충족했습니다. (현재: ${englishCredits}학점)`, 'success');
+            }
+
+            // 한국사1, 한국사2 이수 여부
+            if (!koreanHistory1 || !koreanHistory2) {
+                const missing = [];
+                if (!koreanHistory1) missing.push('한국사1');
+                if (!koreanHistory2) missing.push('한국사2');
+                addMsg(`한국사 필수 이수 과목이 부족합니다. 다음 과목을 선택해주세요: <span class="font-bold">${missing.join(', ')}</span>`);
+            } else {
+                addMsg(`한국사1, 한국사2 이수 요건을 충족했습니다.`, 'success');
+            }
+
+            // 사회 교과 (8학점)
+            if (socialCredits < 8) {
+                addMsg(`사회 교과 필수 이수학점(8)이 부족합니다. <span class="font-bold">${8 - socialCredits}학점</span> 더 선택해주세요. (현재: ${socialCredits}학점)`);
+            } else {
+                addMsg(`사회 교과 필수 이수학점(8)을 충족했습니다. (현재: ${socialCredits}학점)`, 'success');
+            }
+
+            // 과학 교과 (10학점)
+            if (scienceCredits < 10) {
+                addMsg(`과학 교과 필수 이수학점(10)이 부족합니다. <span class="font-bold">${10 - scienceCredits}학점</span> 더 선택해주세요. (현재: ${scienceCredits}학점)`);
+            } else {
+                addMsg(`과학 교과 필수 이수학점(10)을 충족했습니다. (현재: ${scienceCredits}학점)`, 'success');
+            }
+
+            // 체육 교과 (10학점)
+            if (physicalCredits < 10) {
+                addMsg(`체육 교과 필수 이수학점(10)이 부족합니다. <span class="font-bold">${10 - physicalCredits}학점</span> 더 선택해주세요. (현재: ${physicalCredits}학점)`);
+            } else {
+                addMsg(`체육 교과 필수 이수학점(10)을 충족했습니다. (현재: ${physicalCredits}학점)`, 'success');
             }
 
             // Rule 5: Prerequisites
