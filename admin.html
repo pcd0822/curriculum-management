@@ -85,19 +85,22 @@
     @media print {
         @page {
             size: A4;
-            margin: 10mm;
+            margin: 5mm;
+            /* Reduced margin for compact fit */
         }
 
         body {
             padding: 0;
             background: white;
+            font-size: 10pt;
+            /* Smaller base font */
         }
 
         header,
         .tab-btn,
-        #class-lookup-modal .flex.justify-between,
-        #class-lookup-modal .bg-blue-600,
-        #class-lookup-modal .bg-green-600,
+        #class-lookup-modal .modal-controls,
+        /* Hide controls inside modal */
+        #class-lookup-modal button,
         .no-print {
             display: none !important;
         }
@@ -128,59 +131,33 @@
             overflow: visible !important;
         }
 
+        /* Compact Layout Overrides */
+        #student-report-card {
+            box-shadow: none !important;
+            border: none !important;
+        }
+
+        /* Grid Layout for Print */
+        .print\:grid-cols-2 {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .print\:block {
+            display: block !important;
+        }
+
         /* Force background colors */
         * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
 
-        /* Page breaks */
-        .page-break {
-            page-break-before: always;
-        }
-
-        /* Modal specific overrides for print */
-        #modal-select-grade,
-        #modal-select-class,
-        #modal-select-number,
-        .modal-controls {
-            display: none !important;
-        }
-
-        /* Print Styles */
-        #class-lookup-modal,
-        #class-lookup-modal * {
-            visibility: visible;
-        }
-
-        #class-lookup-modal {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: 9999;
-            padding: 0 !important;
-            margin: 0 !important;
-            display: block !important;
-        }
-
+        /* Hide buttons */
         button,
         .print-hidden {
             display: none !important;
-        }
-
-        .theme-card {
-            box-shadow: none !important;
-            border: 1px solid #ddd !important;
-        }
-
-        /* Layout adjustments for A4 fit */
-        #student-report-container {
-            transform: scale(0.95);
-            transform-origin: top left;
-            width: 105%;
         }
     }
 </style>
@@ -426,7 +403,8 @@
                     onclick="downloadClassImage()"
                     class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ml-auto">이미지 저장</button>
             </div>
-            <div id="class-stats-content" class="bg-white p-4 rounded border min-h-[300px] overflow-auto">
+            <div id="class-stats-content"
+                class="bg-white p-4 rounded border min-h-[300px] overflow-auto dark:text-black">
                 <div class="text-center text-gray-500 py-10">학년과 반을 선택하고 조회를 눌러주세요.</div>
             </div>
         </div>
@@ -1713,7 +1691,7 @@
 
     </div><!-- Left Bottom: Selected Course List (Sorted) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-4"><h4 class="font-bold mb-2 theme-text print:text-black">📚 선택 과목 목록 (${courseList.length
 
-                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-16">학기</th><th class="p-2">과목명</th><th class="p-2 w-10 text-center">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => ` <tr class="hover:bg-gray-50" > <td class="p-2 text-center text-gray-500 print:text-black font-mono" >${c.semester
+                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-16">시기</th><th class="p-2">과목명</th><th class="p-2 w-10 text-center">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => ` <tr class="hover:bg-gray-50" > <td class="p-2 text-center text-gray-500 print:text-black font-mono" >${c.semester
                     }
 
             </td> <td class="p-2 font-medium theme-text print:text-black" >${c.name
@@ -1831,9 +1809,19 @@
 
         window.downloadStudentReportImage = (studentName, studentNumber) => {
             const modalContent = document.getElementById('class-stats-content');
-            if (!modalContent || !modalContent.querySelector('table')) return alert('먼저 조회를 해주세요.');
+            if (!modalContent || !modalContent.querySelector('table')) return alert('데이터가 없습니다.');
 
-            html2canvas(modalContent, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
+            // Use html2canvas
+            html2canvas(modalContent, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                logging: false,
+                ignoreElements: (element) => {
+                    // Ignore buttons in the capture
+                    return element.tagName === 'BUTTON';
+                }
+            }).then(canvas => {
                 const link = document.createElement('a');
                 link.download = `${studentNumber}_${studentName}_리포트.png`;
                 link.href = canvas.toDataURL('image/png');
@@ -1843,6 +1831,33 @@
                 alert('이미지 저장 중 오류가 발생했습니다.');
             });
         };
+
+        // NEW: Download Class Image (Entire View)
+        window.downloadClassImage = () => {
+            const modalContent = document.getElementById('class-stats-content');
+            // Check if content exists
+            if (!modalContent || modalContent.innerText.trim().length === 0) return alert('저장할 내용이 없습니다. 먼저 조회를 해주세요.');
+
+            html2canvas(modalContent, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                ignoreElements: (element) => {
+                    return element.tagName === 'BUTTON';
+                }
+            }).then(canvas => {
+                const link = document.createElement('a');
+                const grade = document.getElementById('modal-select-grade').value;
+                const cls = document.getElementById('modal-select-class').value;
+                link.download = `${grade}학년_${cls}반_통계.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }).catch(err => {
+                console.error('이미지 저장 실패:', err);
+                alert('이미지 저장 중 오류가 발생했습니다.');
+            });
+        }
+
         function populateClassOptions() {
             // Find existing max class or default to 15
             const maxClass = 15;
@@ -1873,40 +1888,31 @@
             populateClassOptions();
         });
 
-        // 1. Individual Stats (Renaming queryClassStats logic)
+        // 1. Individual Stats (Class Lookup Modal) - "개인별 통계"
         window.openIndividualStats = () => {
             document.getElementById('class-lookup-modal').classList.remove('hidden');
-            populateStudentNumberOptions(); // Initialize
-        }
+            populateStudentNumberOptions();
+        };
 
-            ;
-
-        window.closeClassStats = () => {
-            // Renamed or kept for compatibility
-            document.getElementById('class-lookup-modal').classList.add('hidden');
-        }
-
+        // 2. Class Stats Dashboard (Dashboard Modal) - "학급 통계" & "학급별 신청 현황 조회"
         window.openClassStats = () => {
-            // Redirect "Class Stats" Button to Dashboard
             document.getElementById('class-stats-dashboard-modal').classList.remove('hidden');
 
-            // Sync with main page filters if set, otherwise default
             const mainGrade = document.getElementById('filter-grade').value || '1';
             const mainClass = document.getElementById('filter-class').value || '1';
-
             document.getElementById('dashboard-select-grade').value = mainGrade;
             document.getElementById('dashboard-select-class').value = mainClass;
 
-            window.switchDashboardTab('class-subjects');
-            renderClassStatsDashboard();
-        }
+            // Default tab
+            window.switchDashboardTab('class-status-list');
+        };
 
-            ;
+        // Alias for clarity (used by HTML button)
+        window.openClassStatsDashboard = window.openClassStats;
 
         window.closeClassStats = () => {
-            // Renamed or kept for compatibility
             document.getElementById('class-lookup-modal').classList.add('hidden');
-        }
+        };
 
         // Reuse existing queryClassStats but renamed internally or alias it? 
         // The user wants "Individual Stats" button to trigger the view.
