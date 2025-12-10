@@ -482,10 +482,7 @@
         function switchTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
 
-            document.getElementById(`tab-${tabName
-                }
-
-                `).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
 
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
@@ -760,13 +757,7 @@
                 ;
 
             courses.forEach(c => {
-                const key = `${c.grade
-                    }
-
-                -${c.semester
-                    }
-
-                `;
+                const key = `${c.grade}-${c.semester}`;
                 if (!grouped[key]) grouped[key] = [];
                 grouped[key].push(c);
             });
@@ -986,10 +977,7 @@
         }
 
         function renderRulesList(key) {
-            const listEl = document.getElementById(`rules-list-${key
-                }
-
-            `);
+            const listEl = document.getElementById(`rules-list-${key}`);
             listEl.innerHTML = '';
 
             if (!currentRules[key] || currentRules[key].length === 0) {
@@ -1095,13 +1083,7 @@
             const baseUrl = window.location.href.replace('admin.html', 'index.html');
             const encodedKey = btoa(savedUrl);
 
-            const fullLink = `${baseUrl
-                }
-
-        ?key=${encodedKey
-                }
-
-        `;
+            const fullLink = `${baseUrl}?key=${encodedKey}`;
 
             document.getElementById('share-link-text').textContent = fullLink;
             QRCodeGenerator.generate('qrcode', fullLink, 256);
