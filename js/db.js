@@ -65,7 +65,7 @@ const DB = {
      */
     saveSettings: async (settings) => {
         if (!DB.apiUrl) throw new Error("API URL not configured");
-        await fetch(DB.apiUrl, {
+        const response = await fetch(DB.apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({
