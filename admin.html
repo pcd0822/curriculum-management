@@ -433,7 +433,7 @@
         <div
             class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl flex flex-col">
             <div class="flex justify-between items-center mb-4 border-b pb-2 theme-border">
-                <h2 class="text-xl font-bold theme-text">개인별 통계 및 학급 신청 현황</h2><button onclick="closeClassStats()"
+                <h2 class="text-xl font-bold theme-text">개인별 통계 및 학급 신청 현황</h2><button onclick="closeIndividualStats()"
                     class="text-gray-500 hover:text-gray-700 text-2xl">&times;
                 </button>
             </div>
@@ -1597,11 +1597,18 @@
                 ;
 
             rawCourses.forEach(cName => {
-                // Find course metadata
-                // Prefer exact match, or case-insensitive match
+                // Parse slug-grade-semester-credits format if present
+                let searchKey = cName;
+                if (cName.includes('-')) {
+                    searchKey = cName.split('-')[0]; // Extract slug
+                }
+
+                // Find course metadata: Try ID (slug) match first, then Name match
                 // Logic update: Ensure we don't just pick the first one blindly if there are multiple same-named courses (but we have no other ID).
                 // Given the limitation, we find the first one but display logic handles duplicates if the Name is identical.
-                const meta = allCourseData.find(c => c.subjectName === cName);
+                const meta = allCourseData.find(c => c.id === searchKey || c.subjectName === searchKey || c.subjectName === cName);
+
+                // If meta found, use IT for the name display. If not, fallback to parsing the raw string.
 
                 if (meta) {
                     const credits = parseInt(meta.credits || meta.credit || 0); // Fix for 'credits' typo
@@ -1616,45 +1623,41 @@
                     if (meta.required !== true && String(meta.required).toLowerCase() !== 'true') {
 
                         // Deduplication Key: Name + Semester (to avoid exact duplicates in list)
-                        const semDisplay = `${meta.grade
-                            }
-
-                        -${meta.semester
-                            }
-
-                        `;
-
-                        const uniqueKey = `${cName
-                            }
-
-                        -${semDisplay
-                            }
-
-                        `;
+                        const semDisplay = `${meta.grade}-${meta.semester}`;
+                        const uniqueKey = `${meta.subjectName}-${semDisplay}`;
 
                         if (!addedCourses.has(uniqueKey)) {
                             addedCourses.add(uniqueKey);
 
                             courseList.push({
-                                name: cName, semester: semDisplay, credit: credits, category: cat
+                                name: meta.subjectName, semester: semDisplay, credit: credits, category: cat
                             });
                         }
                     }
                 }
 
                 else {
+                    // Unknown course - Try to parse info from the string if it matches format
+                    // format: slug-grade-semester-credit
+                    const parts = cName.split('-');
+                    let dispName = cName;
+                    let dispSem = '?';
+                    let dispCredit = 0;
 
-                    // Unknown course
-                    const uniqueKey = `${cName
-                        }
+                    if (parts.length >= 4) {
+                        // Assuming the slug is the name or we can't find real name. Use slug.
+                        dispName = parts[0];
+                        dispSem = `${parts[1]}-${parts[2]}`;
+                        dispCredit = parseInt(parts[3]) || 0;
+                    }
 
-                -?`;
+                    const uniqueKey = `${dispName}-${dispSem}`;
 
                     if (!addedCourses.has(uniqueKey)) {
                         addedCourses.add(uniqueKey);
 
                         courseList.push({
-                            name: cName, semester: '?', credit: 0, category: '기타'
+                            name: dispName, semester: dispSem, credit: dispCredit, category: '기타'
                         });
                     }
                 }
@@ -1835,18 +1838,44 @@
             return db[key];
         }
 
+        // NEW: Download Individual Student Report (Full Capture)
         window.downloadStudentReportImage = (studentName, studentNumber) => {
-            const modalContent = document.getElementById('class-stats-content');
-            if (!modalContent || !modalContent.querySelector('table')) return alert('데이터가 없습니다.');
+            // Target the actual Report Card Div
+            const element = document.getElementById('student-report-card');
 
-            // Use html2canvas
-            html2canvas(modalContent, {
+            if (!element) return alert('리포트 데이터를 찾을 수 없습니다.');
+
+            // Use formatting similar to class roster to ensure full height capture even if inside scroll
+            // Note: student-report-card is likely inside a scrollable modal.
+
+            // Clone to detach from DOM constraints
+            const clone = element.cloneNode(true);
+            clone.style.width = element.offsetWidth + 'px';
+            clone.style.height = 'auto';
+            clone.style.maxHeight = 'none';
+            clone.style.overflow = 'visible';
+            clone.style.transform = 'none'; // Clear any potential transforms
+
+            // Add to temp container
+            const container = document.createElement('div');
+            container.style.position = 'absolute';
+            container.style.top = '-9999px';
+            container.style.left = '-9999px';
+            container.style.background = '#ffffff';
+            container.style.padding = '20px'; // Add some padding for white border
+            container.appendChild(clone);
+            document.body.appendChild(container);
+
+            html2canvas(container, {
                 scale: 2,
                 backgroundColor: '#ffffff',
                 useCORS: true,
                 logging: false,
+                width: element.scrollWidth + 40, // +padding
+                height: element.scrollHeight + 40, // +padding
+                windowWidth: element.scrollWidth + 40,
+                windowHeight: element.scrollHeight + 40,
                 ignoreElements: (element) => {
-                    // Ignore buttons in the capture
                     return element.tagName === 'BUTTON';
                 }
             }).then(canvas => {
@@ -1857,34 +1886,65 @@
             }).catch(err => {
                 console.error('이미지 저장 실패:', err);
                 alert('이미지 저장 중 오류가 발생했습니다.');
+            }).finally(() => {
+                document.body.removeChild(container);
             });
         };
 
-        // NEW: Download Class Image (Entire View)
-        window.downloadClassImage = () => {
-            const modalContent = document.getElementById('class-stats-content');
-            // Check if content exists
-            if (!modalContent || modalContent.innerText.trim().length === 0) return alert('저장할 내용이 없습니다. 먼저 조회를 해주세요.');
+        // Close Individual Stats Modal
+        window.closeIndividualStats = () => {
+            document.getElementById('class-lookup-modal').classList.add('hidden');
+        };
 
-            html2canvas(modalContent, {
+        // Helper to capture class roster
+        window.downloadClassRosterImage = () => {
+            // Target the scrollable content area
+            const element = document.getElementById('dashboard-tab-content');
+            if (!element) return;
+
+            // Verify content exists
+            if (element.children.length === 0) return alert('저장할 데이터가 없습니다.');
+
+            // Clone the element to capture full height without scrollbars
+            const clone = element.cloneNode(true);
+            clone.style.height = 'auto';
+            clone.style.overflow = 'visible';
+            clone.style.width = element.scrollWidth + 'px'; // Ensure full width
+            clone.style.maxHeight = 'none';
+
+            // Create a temporary container off-screen
+            const container = document.createElement('div');
+            container.style.position = 'absolute';
+            container.style.top = '-9999px';
+            container.style.left = '-9999px';
+            container.style.width = element.offsetWidth + 'px'; // Match original width
+            container.style.background = '#ffffff';
+            container.appendChild(clone);
+            document.body.appendChild(container);
+
+            html2canvas(clone, {
                 scale: 2,
-                backgroundColor: '#ffffff',
                 useCORS: true,
-                ignoreElements: (element) => {
-                    return element.tagName === 'BUTTON';
-                }
+                backgroundColor: '#ffffff',
+                ignoreElements: (el) => {
+                    return el.tagName === 'BUTTON'; // Remove buttons from image
+                },
+                windowWidth: element.scrollWidth,
+                windowHeight: element.scrollHeight
             }).then(canvas => {
                 const link = document.createElement('a');
-                const grade = document.getElementById('modal-select-grade').value;
-                const cls = document.getElementById('modal-select-class').value;
-                link.download = `${grade}학년_${cls}반_통계.png`;
+                const grade = document.getElementById('dashboard-select-grade').value;
+                const cls = document.getElementById('dashboard-select-class').value;
+                link.download = `학급신청현황_${grade}학년${cls}반.png`;
                 link.href = canvas.toDataURL('image/png');
                 link.click();
             }).catch(err => {
-                console.error('이미지 저장 실패:', err);
-                alert('이미지 저장 중 오류가 발생했습니다.');
+                console.error('Capture failed', err);
+                alert('이미지 저장 중 오류가 발생했습니다: ' + err.message);
+            }).finally(() => {
+                document.body.removeChild(container);
             });
-        }
+        };
 
         function populateClassOptions() {
             // Find existing max class or default to 15
@@ -2127,79 +2187,84 @@
             renderIndividualStatsTable();
         }
 
-        // Render Class Subject Stats (Refactored from corrupted block)
+        // Render Class Subject Stats (Refactored)
         function renderClassSubjectStats(container, students) {
+            if (!container) return;
+
             const html = `
-                        <div class="mb-4 flex gap-2 items-center bg-gray-50 p-3 rounded border border-gray-200">
-                             <span class="font-bold text-gray-700">🔍 필터: </span>
-                             <select id="stats-filter-grade" onchange="window.dashboardGradeFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm bg-white">
-                                 <option value="all" ${window.dashboardGradeFilter === 'all' ? 'selected' : ''}>전체 학년 과목</option>
-                                 <option value="2" ${window.dashboardGradeFilter === '2' ? 'selected' : ''}>2학년 과목</option>
-                                 <option value="3" ${window.dashboardGradeFilter === '3' ? 'selected' : ''}>3학년 과목</option>
-                             </select>
-                             <select id="stats-filter-semester" onchange="window.dashboardSemesterFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm bg-white">
-                                 <option value="all" ${window.dashboardSemesterFilter === 'all' ? 'selected' : ''}>전체 학기</option>
-                                 <option value="1" ${window.dashboardSemesterFilter === '1' ? 'selected' : ''}>1학기</option>
-                                 <option value="2" ${window.dashboardSemesterFilter === '2' ? 'selected' : ''}>2학기</option>
-                             </select>
-                        </div>
-                        <div id="class-subject-table-container"></div>
-                    `;
+                <div class="mb-4 flex gap-2 items-center bg-gray-50 p-3 rounded border border-gray-200">
+                     <span class="font-bold text-gray-700">🔍 필터: </span>
+                     <select id="stats-filter-grade" onchange="window.dashboardGradeFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm bg-white">
+                        <option value="all" ${window.dashboardGradeFilter === 'all' ? 'selected' : ''}>전체 학년</option>
+                        <option value="1" ${window.dashboardGradeFilter === '1' ? 'selected' : ''}>1학년</option>
+                        <option value="2" ${window.dashboardGradeFilter === '2' ? 'selected' : ''}>2학년</option>
+                        <option value="3" ${window.dashboardGradeFilter === '3' ? 'selected' : ''}>3학년</option>
+                     </select>
+                </div>
+                <div id="class-subject-table-container"></div>
+            `;
             container.innerHTML = html;
 
-            // Calculate Stats
-            const counts = {};
+            // Process Data
+            const subjectCounts = {};
             students.forEach(s => {
-                if (s.SelectedCourses) {
-                    const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
-                    uniqueCourses.forEach(cName => {
-                        counts[cName] = (counts[cName] || 0) + 1;
-                    });
-                }
+                if (!s.SelectedCourses) return;
+                s.SelectedCourses.split(',').forEach(cName => {
+                    const name = cName.trim();
+                    if (!name) return;
+                    subjectCounts[name] = (subjectCounts[name] || 0) + 1;
+                });
             });
 
-            // Prepare List
-            let displayList = allCourseData.filter(c => {
-                if (c.required === true || String(c.required).toLowerCase() === 'true') return false;
-                if (window.dashboardGradeFilter !== 'all' && String(c.grade) !== String(window.dashboardGradeFilter)) return false;
-                if (window.dashboardSemesterFilter !== 'all') {
-                    const cSem = String(c.semester).replace(/[^0-9]/g, '');
-                    const fSem = String(window.dashboardSemesterFilter).replace(/[^0-9]/g, '');
-                    if (cSem && fSem && cSem !== fSem) return false;
-                }
-                return true;
-            });
+            // Filter by Grade (using allCourseData for metadata)
+            let filteredCourses = allCourseData || [];
+            if (window.dashboardGradeFilter !== 'all') {
+                filteredCourses = filteredCourses.filter(c => String(c.grade) === String(window.dashboardGradeFilter));
+            }
 
             // Sort
-            displayList.sort((a, b) => {
+            const courseList = filteredCourses.sort((a, b) => {
                 if (a.grade !== b.grade) return a.grade - b.grade;
-                if (a.semester !== b.semester) return String(a.semester).localeCompare(String(b.semester));
+                if (a.semester !== b.semester) return a.semester - b.semester;
                 return a.subjectName.localeCompare(b.subjectName);
             });
 
-            // Render Table
-            let tableHtml = `<table class="w-full text-sm border-collapse text-left"><thead class="bg-gray-100"><tr class="theme-text"><th class="border p-2 text-center w-16">학년</th><th class="border p-2 text-center w-16">학기</th><th class="border p-2">과목명</th><th class="border p-2 text-center w-24">신청 인원</th></tr></thead><tbody>`;
+            let tableHtml = `
+            <table class="w-full text-sm text-left border-collapse">
+                <thead class="bg-gray-100 text-gray-700 uppercase">
+                    <tr>
+                        <th class="border p-2 text-center w-16">학년</th>
+                        <th class="border p-2 text-center w-16">학기</th>
+                        <th class="border p-2 text-center">과목명</th>
+                        <th class="border p-2 text-center w-24">신청 인원</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white">
+            `;
 
-            if (displayList.length === 0) {
-                tableHtml += `<tr><td colspan="4" class="p-4 text-center text-gray-500">표시할 과목이 없습니다.</td></tr>`;
+            if (courseList.length === 0) {
+                tableHtml += `<tr><td colspan="4" class="p-8 text-center text-gray-500">표시할 과목 데이터가 없습니다.</td></tr>`;
             } else {
-                displayList.forEach(c => {
-                    const count = counts[c.subjectName] || 0;
+                courseList.forEach(c => {
+                    const count = subjectCounts[c.subjectName] || 0;
                     const isZero = count === 0;
                     tableHtml += `
-                                <tr class="hover:bg-gray-50 ${isZero ? 'opacity-50' : ''}">
-                                    <td class="border p-2 text-center text-gray-500">${c.grade}</td>
-                                    <td class="border p-2 text-center text-gray-500">${c.semester}</td>
-                                    <td class="border p-2 font-medium text-gray-800">${c.subjectName}</td>
-                                    <td class="border p-2 text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}">${count}명</td>
-                                </tr>
-                             `;
+                    <tr class="hover:bg-gray-50">
+                        <td class="border p-2 text-center text-gray-500">${c.grade}</td>
+                        <td class="border p-2 text-center text-gray-500">${c.semester}</td>
+                        <td class="border p-2 font-medium text-gray-800">${c.subjectName}</td>
+                        <td class="border p-2 text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}">${count}명</td>
+                    </tr>
+                 `;
                 });
             }
             tableHtml += `</tbody></table>`;
 
-            document.getElementById('class-subject-table-container').innerHTML = tableHtml;
+            // Render INTO the container created above
+            const tableContainer = document.getElementById('class-subject-table-container');
+            if (tableContainer) tableContainer.innerHTML = tableHtml;
         }
+
 
         // Tab 3: Validation Stats
         function renderValidationStats(container, students, grade, cls) {
@@ -2238,7 +2303,7 @@
                     ${String(s.Number).padStart(2, '0')
                         }
 
-                    `,
+        `,
                     fromRegistry: false
                 }));
             }
@@ -2255,10 +2320,10 @@
                     ;
             });
 
-            let html = ` <div class="mb-2 text-sm text-gray-500 text-right" > 총 ${merged.length
+            let html = ` < div class="mb-2 text-sm text-gray-500 text-right" > 총 ${merged.length
                 }
 
-                    명(제출: ${merged.filter(m => m.response).length
+        명(제출: ${merged.filter(m => m.response).length
                 }
 
         명)</div > <div class="overflow-y-auto max-h-[400px]"><table class="w-full text-sm border-collapse"><thead class="sticky top-0 bg-gray-100 dark:bg-gray-700 z-10 shadow-sm"><tr class="theme-text"><th class="border p-2 theme-border w-16 text-center">번호</th><th class="border p-2 theme-border w-24 text-center">이름</th><th class="border p-2 theme-border text-center">검증 현황</th></tr></thead><tbody>`;
@@ -2292,13 +2357,13 @@
                 html += ` <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text" > <td class="border p-2 theme-border text-center" >${m.number
                     }
 
-                        </td> <td class="border p-2 theme-border text-center font-medium" >${m.name
+            </td> <td class="border p-2 theme-border text-center font-medium" >${m.name
                     }
 
-                            </td> <td class="border p-2 theme-border" >${statusHtml
+                </td> <td class="border p-2 theme-border" >${statusHtml
                     }
 
-                            </td> </tr> `;
+                </td> </tr> `;
             });
             html += '</tbody></table></div>';
             container.innerHTML = html;
@@ -2307,105 +2372,87 @@
         // Tab 4: Grade Subject Stats (Rank Estimation)
         // Tab 4: Grade Subject Stats (Entire Grade)
         function renderGradeSubjectStats(container, students, grade) {
-            // Update state if element exists (before re-render)
-            const semEl = document.getElementById('grade-stats-filter-semester');
+            if (!container) return;
 
-            // State
             if (!window.gradeDashboardSemesterFilter) window.gradeDashboardSemesterFilter = 'all';
-            if (semEl) window.gradeDashboardSemesterFilter = semEl.value;
 
+            const html = `
+                <div class="mb-4 flex gap-2 items-center bg-gray-50 p-3 rounded border border-gray-200">
+                     <span class="font-bold text-gray-700">🔍 필터: </span>
+                     <select onchange="window.gradeDashboardSemesterFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm bg-white">
+                        <option value="all" ${window.gradeDashboardSemesterFilter === 'all' ? 'selected' : ''}>전체 학기</option>
+                        <option value="1" ${window.gradeDashboardSemesterFilter === '1' ? 'selected' : ''}>1학기</option>
+                        <option value="2" ${window.gradeDashboardSemesterFilter === '2' ? 'selected' : ''}>2학기</option>
+                     </select>
+                     <span class="text-xs text-gray-400 ml-2">* ${grade}학년 전체 학생 기준</span>
+                </div>
+                <div id="grade-subject-table-container"></div>
+            `;
+            container.innerHTML = html;
 
-            container.innerHTML = ` <div class="mb-4 flex gap-2 items-center bg-white p-3 rounded border border-gray-200"><span class="font-bold theme-text">🔍 필터: </span> <select id="grade-stats-filter-semester" onchange="window.gradeDashboardSemesterFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm" > <option value="all"${window.gradeDashboardSemesterFilter === 'all' ? 'selected' : ''
-                }
+            // Filter students by Grade ONLY (ignore class)
+            const targetGrade = grade || '1';
+            const gradeStudents = students.filter(s => String(s.Grade) === String(targetGrade));
+            const totalStudents = gradeStudents.length;
 
-        >전체 학기</option><option value="1"${window.gradeDashboardSemesterFilter === '1' ? 'selected' : ''
-                }
-
-        >1학기</option><option value="2"${window.gradeDashboardSemesterFilter === '2' ? 'selected' : ''
-                }
-
-        >2학기</option></select><span class="text-xs text-gray-400 ml-2">* ${grade
-                }
-
-        학년 전체 학생들의 과목 선택 통계입니다.</span></div><div id="grade-subject-table-container" class="overflow-x-auto"></div>`;
-
-            const semesterFilter = window.gradeDashboardSemesterFilter;
-
-            const counts = {}
-
-                ;
-
-            students.forEach(s => {
-                if (s.SelectedCourses) {
-                    const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
-
-                    uniqueCourses.forEach(cName => {
-                        counts[cName] = (counts[cName] || 0) + 1;
-                    });
-                }
+            // Counts
+            const subjectCounts = {};
+            gradeStudents.forEach(s => {
+                if (!s.SelectedCourses) return;
+                s.SelectedCourses.split(',').forEach(cName => {
+                    const name = cName.trim();
+                    if (!name) return;
+                    subjectCounts[name] = (subjectCounts[name] || 0) + 1;
+                });
             });
 
-            // Display List (Full Courses matching Grade)
-            let displayList = allCourseData.filter(c => {
-                // Exclude Required
-                if (c.required === true || String(c.required).toLowerCase() === 'true') return false;
+            // Filter Courses
+            let courses = allCourseData.filter(c => String(c.grade) === String(targetGrade));
+            if (window.gradeDashboardSemesterFilter !== 'all') {
+                courses = courses.filter(c => String(c.semester) === String(window.gradeDashboardSemesterFilter));
+            }
 
-                // Grade Filter (Strictly this Grade)
-                if (String(c.grade) !== String(grade)) return false;
-
-                // Semester Filter
-                if (semesterFilter !== 'all') {
-                    const cSem = String(c.semester).replace(/[^0-9]/g, '');
-                    const fSem = String(semesterFilter).replace(/[^0-9]/g, '');
-                    if (cSem && fSem && cSem !== fSem) return false;
-                }
-
-                return true;
-            });
-
-            // Sort: Semester -> Name
-            displayList.sort((a, b) => {
-                if (a.semester !== b.semester) return String(a.semester).localeCompare(String(b.semester));
+            courses.sort((a, b) => {
+                if (a.semester !== b.semester) return a.semester - b.semester;
                 return a.subjectName.localeCompare(b.subjectName);
             });
 
-            let html = ` <table class="w-full text-sm border-collapse text-left"><thead><tr class="bg-gray-100 dark:bg-gray-700 theme-text"><th class="border p-2 theme-border w-16 text-center">학년</th><th class="border p-2 theme-border w-16 text-center">학기</th><th class="border p-2 theme-border">과목명</th><th class="border p-2 theme-border text-center w-24">선택 인원</th><th class="border p-2 theme-border text-center w-24">비율</th></tr></thead><tbody>`;
+            let tableHtml = `
+                <table class="w-full text-sm text-left border-collapse">
+                    <thead class="bg-gray-100 text-gray-700 uppercase">
+                        <tr>
+                            <th class="border p-2 text-center w-16">학기</th>
+                            <th class="border p-2 text-center">과목명</th>
+                            <th class="border p-2 text-center w-24">신청 인원</th>
+                            <th class="border p-2 text-center w-24">비율</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white">
+            `;
 
-            const totalStudents = students.length;
-
-            if (displayList.length === 0) {
-                html += `<tr><td colspan="5" class="p-4 text-center text-gray-500">데이터가 없습니다.</td></tr>`;
-            }
-
-            else {
-                displayList.forEach(c => {
-                    const count = counts[c.subjectName] || 0;
-                    const percent = totalStudents > 0 ? ((count / totalStudents) * 100).toFixed(1) : 0;
+            if (courses.length === 0) {
+                tableHtml += `<tr><td colspan="4" class="p-8 text-center text-gray-500">데이터가 없습니다.</td></tr>`;
+            } else {
+                courses.forEach(c => {
+                    const count = subjectCounts[c.subjectName] || 0;
+                    const percent = totalStudents > 0 ? ((count / totalStudents) * 100).toFixed(1) : '0.0';
                     const isZero = count === 0;
 
-                    html += ` <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text ${isZero ? 'opacity-50' : ''}" > <td class="border p-2 theme-border text-center" >${c.grade
-                        }
-
-                    </td> <td class="border p-2 theme-border text-center" >${c.semester
-                        }
-
-                    </td> <td class="border p-2 theme-border font-medium" >${c.subjectName
-                        }
-
-                    </td> <td class="border p-2 theme-border text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}" >${count
-                        }
-
-                    명</td> <td class="border p-2 theme-border text-center text-gray-500" >${percent
-                        }
-
-                    %</td> </tr> `;
+                    tableHtml += `
+                        <tr class="hover:bg-gray-50">
+                            <td class="border p-2 text-center text-gray-500">${c.semester}학기</td>
+                            <td class="border p-2 font-medium text-gray-800">${c.subjectName}</td>
+                            <td class="border p-2 text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}">${count}명</td>
+                            <td class="border p-2 text-center text-gray-500">${percent}%</td>
+                        </tr>
+                    `;
                 });
             }
+            tableHtml += `</tbody></table>`;
 
-            html += `</tbody></table>`;
-            document.getElementById('grade-subject-table-container').innerHTML = html;
-
-            if (document.getElementById('grade-stats-filter-semester')) document.getElementById('grade-stats-filter-semester').value = semesterFilter;
+            // Render INTO the container
+            const tableContainer = document.getElementById('grade-subject-table-container');
+            if (tableContainer) tableContainer.innerHTML = tableHtml;
         }
 
 
@@ -2527,6 +2574,47 @@
         }
 
     </script>
+
+    <!-- Class Stats Dashboard Modal -->
+    <div id="class-stats-dashboard-modal"
+        class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div
+            class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-2 theme-border">
+                <h2 class="text-xl font-bold theme-text">학급 통계 대시보드</h2>
+                <button onclick="closeClassStats()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+
+            <!-- Dashboard Filters -->
+            <div id="dashboard-active-filters" class="flex gap-4 mb-4 items-center bg-gray-50 p-3 rounded">
+                <span class="font-bold text-gray-700">📌 조회 대상:</span>
+                <select id="dashboard-select-grade" class="p-2 border rounded" disabled>
+                    <option value="1">1학년</option>
+                    <option value="2">2학년</option>
+                    <option value="3">3학년</option>
+                </select>
+                <select id="dashboard-select-class" class="p-2 border rounded" disabled>
+                    <!-- Populated by JS -->
+                </select>
+                <span class="text-xs text-gray-400 ml-auto">* 필터는 메인 화면에서 연동됩니다.</span>
+            </div>
+
+            <!-- Tabs -->
+            <div id="dashboard-tabs" class="flex gap-2 border-b mb-4">
+                <!-- Populated by JS -->
+            </div>
+
+            <!-- Content Area -->
+            <div id="dashboard-content" class="flex-1 overflow-hidden flex flex-col min-h-[400px]">
+                <div id="dashboard-message" class="text-center text-gray-500 py-10">
+                    좌측 탭을 선택하여 통계를 확인하세요.
+                </div>
+                <div id="dashboard-tab-content" class="flex-1 overflow-y-auto custom-scrollbar p-2">
+                    <!-- Tab Content Rendered Here -->
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Floating Theme Selector -->
     <div class="fixed bottom-6 left-6 z-50 group">
