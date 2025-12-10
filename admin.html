@@ -1847,117 +1847,127 @@
             return db[key];
         }
 
-        window.downloadClassImage = () => {
-            if (!modalContent.querySelector('table')) return alert('먼저 조회를 해주세요.');
+        window.downloadStudentReportImage = (studentName, studentNumber) => {
+            const modalContent = document.getElementById('class-stats-content');
+            if (!modalContent || !modalContent.querySelector('table')) return alert('먼저 조회를 해주세요.');
 
-            html2canvas(modalContent).then(canvas => {
-                function populateClassOptions() {
-                    // Find existing max class or default to 15
-                    const maxClass = 15;
+            html2canvas(modalContent, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `${studentNumber}_${studentName}_리포트.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }).catch(err => {
+                console.error('이미지 저장 실패:', err);
+                alert('이미지 저장 중 오류가 발생했습니다.');
+            });
+        };
+        function populateClassOptions() {
+            // Find existing max class or default to 15
+            const maxClass = 15;
 
-                    const optionsHtml = [...Array(maxClass).keys()].map(i => `<option value="${i + 1}" >${i + 1
-                        }
+            const optionsHtml = [...Array(maxClass).keys()].map(i => `<option value="${i + 1}" >${i + 1
+                }
 
             반</option>`).join('');
 
-                    const filterEl = document.getElementById('filter-class');
-                    const modalEl = document.getElementById('modal-select-class');
-                    const dashboardEl = document.getElementById('dashboard-select-class');
+            const filterEl = document.getElementById('filter-class');
+            const modalEl = document.getElementById('modal-select-class');
+            const dashboardEl = document.getElementById('dashboard-select-class');
 
-                    if (filterEl) {
+            if (filterEl) {
 
-                        // Ensure filter-class has all options but keep "All Classes"
-                        if (!filterEl.innerHTML.includes('1반')) {
-                            filterEl.innerHTML = '<option value="">전체 반</option>' + optionsHtml;
-                        }
-                    }
-
-                    if (modalEl) modalEl.innerHTML = optionsHtml;
-                    if (dashboardEl) dashboardEl.innerHTML = optionsHtml;
+                // Ensure filter-class has all options but keep "All Classes"
+                if (!filterEl.innerHTML.includes('1반')) {
+                    filterEl.innerHTML = '<option value="">전체 반</option>' + optionsHtml;
                 }
+            }
 
-                // Call on load
-                document.addEventListener('DOMContentLoaded', () => {
-                    populateClassOptions();
-                });
+            if (modalEl) modalEl.innerHTML = optionsHtml;
+            if (dashboardEl) dashboardEl.innerHTML = optionsHtml;
+        }
 
-                // 1. Individual Stats (Renaming queryClassStats logic)
-                window.openIndividualStats = () => {
-                    document.getElementById('class-lookup-modal').classList.remove('hidden');
-                    populateStudentNumberOptions(); // Initialize
-                }
+        // Call on load
+        document.addEventListener('DOMContentLoaded', () => {
+            populateClassOptions();
+        });
 
-                    ;
+        // 1. Individual Stats (Renaming queryClassStats logic)
+        window.openIndividualStats = () => {
+            document.getElementById('class-lookup-modal').classList.remove('hidden');
+            populateStudentNumberOptions(); // Initialize
+        }
 
-                window.closeClassStats = () => {
-                    // Renamed or kept for compatibility
-                    document.getElementById('class-lookup-modal').classList.add('hidden');
-                }
+            ;
 
-                window.openClassStats = () => {
-                    // Redirect "Class Stats" Button to Dashboard
-                    document.getElementById('class-stats-dashboard-modal').classList.remove('hidden');
+        window.closeClassStats = () => {
+            // Renamed or kept for compatibility
+            document.getElementById('class-lookup-modal').classList.add('hidden');
+        }
 
-                    // Sync with main page filters if set, otherwise default
-                    const mainGrade = document.getElementById('filter-grade').value || '1';
-                    const mainClass = document.getElementById('filter-class').value || '1';
+        window.openClassStats = () => {
+            // Redirect "Class Stats" Button to Dashboard
+            document.getElementById('class-stats-dashboard-modal').classList.remove('hidden');
 
-                    document.getElementById('dashboard-select-grade').value = mainGrade;
-                    document.getElementById('dashboard-select-class').value = mainClass;
+            // Sync with main page filters if set, otherwise default
+            const mainGrade = document.getElementById('filter-grade').value || '1';
+            const mainClass = document.getElementById('filter-class').value || '1';
 
-                    window.switchDashboardTab('class-subjects');
-                    renderClassStatsDashboard();
-                }
+            document.getElementById('dashboard-select-grade').value = mainGrade;
+            document.getElementById('dashboard-select-class').value = mainClass;
 
-                    ;
+            window.switchDashboardTab('class-subjects');
+            renderClassStatsDashboard();
+        }
 
-                window.closeClassStats = () => {
-                    // Renamed or kept for compatibility
-                    document.getElementById('class-lookup-modal').classList.add('hidden');
-                }
+            ;
 
-                // Reuse existing queryClassStats but renamed internally or alias it? 
-                // The user wants "Individual Stats" button to trigger the view.
-                // I already mapped the button to openIndividualStats() which opens the modal.
-                // The 'Look up' button inside calls openIndividualStats() (modified from queryClassStats).
+        window.closeClassStats = () => {
+            // Renamed or kept for compatibility
+            document.getElementById('class-lookup-modal').classList.add('hidden');
+        }
+
+        // Reuse existing queryClassStats but renamed internally or alias it? 
+        // The user wants "Individual Stats" button to trigger the view.
+        // I already mapped the button to openIndividualStats() which opens the modal.
+        // The 'Look up' button inside calls openIndividualStats() (modified from queryClassStats).
 
 
-                let dashboardCharts = {}
+        let dashboardCharts = {}
 
-                    ;
+            ;
 
-                // Helper: Dashboard State
-                let currentDashboardTab = 'class-status-list';
-                let dashboardGradeFilter = 'all';
-                let dashboardSemesterFilter = 'all';
+        // Helper: Dashboard State
+        let currentDashboardTab = 'class-status-list';
+        let dashboardGradeFilter = 'all';
+        let dashboardSemesterFilter = 'all';
 
-                window.switchDashboardTab = (tabId) => {
-                    currentDashboardTab = tabId;
-                    renderClassStatsDashboard();
-                };
+        window.switchDashboardTab = (tabId) => {
+            currentDashboardTab = tabId;
+            renderClassStatsDashboard();
+        };
 
-                // Main Dashboard Render Function
-                window.renderClassStatsDashboard = () => {
-                    const grade = document.getElementById('dashboard-select-grade').value || '1';
-                    const cls = document.getElementById('dashboard-select-class').value || '1';
+        // Main Dashboard Render Function
+        window.renderClassStatsDashboard = () => {
+            const grade = document.getElementById('dashboard-select-grade').value || '1';
+            const cls = document.getElementById('dashboard-select-class').value || '1';
 
-                    // Filter Students for this class
-                    const students = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
+            // Filter Students for this class
+            const students = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
 
-                    const container = document.getElementById('class-stats-content');
-                    const tabsContainer = document.getElementById('class-stats-tabs');
+            const container = document.getElementById('class-stats-content');
+            const tabsContainer = document.getElementById('class-stats-tabs');
 
-                    if (!container) return;
+            if (!container) return;
 
-                    // 1. Render Tabs
-                    if (tabsContainer) {
-                        const tabs = [
-                            { id: 'class-status-list', label: '학급 전체 현황 (명렬표)' },
-                            { id: 'class-subjects', label: '과목별 선택 현황' },
-                            { id: 'class-validation', label: '수강 신청 검증' }
-                        ];
+            // 1. Render Tabs
+            if (tabsContainer) {
+                const tabs = [
+                    { id: 'class-status-list', label: '학급 전체 현황 (명렬표)' },
+                    { id: 'class-subjects', label: '과목별 선택 현황' },
+                    { id: 'class-validation', label: '수강 신청 검증' }
+                ];
 
-                        tabsContainer.innerHTML = tabs.map(t => `
+                tabsContainer.innerHTML = tabs.map(t => `
                             <button 
                                 onclick="switchDashboardTab('${t.id}')"
                                 class="px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${currentDashboardTab === t.id ? 'bg-white text-blue-600 border-t border-l border-r border-gray-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border-b border-gray-200'}"
@@ -1966,62 +1976,62 @@
                                 ${t.label}
                             </button>
                         `).join('');
-                        tabsContainer.className = 'flex border-b border-gray-200 mb-6';
-                    }
+                tabsContainer.className = 'flex border-b border-gray-200 mb-6';
+            }
 
-                    // 2. Render Content
-                    container.innerHTML = '';
+            // 2. Render Content
+            container.innerHTML = '';
 
-                    if (currentDashboardTab === 'class-status-list') {
-                        renderClassStatusList(container, students, grade, cls);
-                    } else if (currentDashboardTab === 'class-subjects') {
-                        // Using the existing (but renamed logic) Class Subject Stats
-                        renderClassSubjectStats(container, students);
-                    } else if (currentDashboardTab === 'class-validation') {
-                        renderValidationStats(container, students, grade, cls);
-                    }
-                };
+            if (currentDashboardTab === 'class-status-list') {
+                renderClassStatusList(container, students, grade, cls);
+            } else if (currentDashboardTab === 'class-subjects') {
+                // Using the existing (but renamed logic) Class Subject Stats
+                renderClassSubjectStats(container, students);
+            } else if (currentDashboardTab === 'class-validation') {
+                renderValidationStats(container, students, grade, cls);
+            }
+        };
 
-                // New Feature: Class Status List (Roster)
-                function renderClassStatusList(container, students, grade, cls) {
-                    // 1. Merge with Registry to find missing students
-                    let roster = [];
+        // New Feature: Class Status List (Roster)
+        function renderClassStatusList(container, students, grade, cls) {
+            // 1. Merge with Registry to find missing students
+            let roster = [];
 
-                    // Generate full roster from registry if available
-                    if (registryData && registryData.length > 0) {
-                        roster = registryData.filter(r => {
-                            const sNum = String(r['학번'] || r.studentId || '').trim();
-                            return sNum.startsWith(grade) && parseInt(sNum.substring(1, 3)) == cls;
-                        }).map(r => {
-                            const num = parseInt(String(r['학번']).trim().substring(3, 5));
-                            const submitted = students.find(s => parseInt(s.Number) == num);
-                            return {
-                                number: num,
-                                name: r['이름'] || r.name,
-                                major: submitted ? submitted.Major : '-',
-                                count: submitted && submitted.SelectedCourses ? submitted.SelectedCourses.split(',').length : 0,
-                                credits: submitted ? submitted.TotalCredits : 0,
-                                status: submitted ? '완료' : '미신청',
-                                raw: submitted
-                            };
-                        });
-                    } else {
-                        // Fallback to just submitted students
-                        roster = students.map(s => ({
-                            number: parseInt(s.Number),
-                            name: s.Name,
-                            major: s.Major,
-                            count: s.SelectedCourses ? s.SelectedCourses.split(',').length : 0,
-                            credits: s.TotalCredits,
-                            status: '완료',
-                            raw: s
-                        }));
-                    }
+            // Generate full roster from registry if available
+            if (registryData && registryData.length > 0) {
+                roster = registryData.filter(r => {
+                    const sNum = String(r['학번'] || r.studentId || '').trim();
+                    return sNum.startsWith(grade) && parseInt(sNum.substring(1, 3)) == cls;
+                }).map(r => {
+                    const num = parseInt(String(r['학번']).trim().substring(3, 5));
+                    const submitted = students.find(s => parseInt(s.Number) == num);
+                    return {
+                        number: num,
+                        name: r['이름'] || r.name,
+                        major: submitted ? submitted.Major : '-',
+                        count: submitted && submitted.SelectedCourses ? submitted.SelectedCourses.split(',').length : 0,
+                        credits: submitted ? submitted.TotalCredits : 0,
+                        status: submitted ? '완료' : '미신청',
+                        raw: submitted
+                    };
+                });
+            } else {
+                // Fallback to just submitted students
+                roster = students.map(s => ({
+                    number: parseInt(s.Number),
+                    name: s.Name,
+                    major: s.Major,
+                    count: s.SelectedCourses ? s.SelectedCourses.split(',').length : 0,
+                    credits: s.TotalCredits,
+                    status: '완료',
+                    raw: s
+                }));
+            }
 
-                    roster.sort((a, b) => a.number - b.number);
+            roster.sort((a, b) => a.number - b.number);
 
-                    // Render Table
-                    const html = `
+            // Render Table
+            const html = `
                         <div class="mb-4 flex justify-between items-center">
                             <span class="text-sm text-gray-500">
                                 총 ${roster.length}명 (제출: <span class="text-blue-600 font-bold">${students.length}</span> / 미제출: <span class="text-red-500 font-bold">${roster.length - students.length}</span>)
@@ -2060,32 +2070,32 @@
                         </div>
                         <p class="mt-4 text-xs text-center text-gray-400">학생 이름을 클릭하면 상세 리포트를 볼 수 있습니다.</p>
                     `;
-                    container.innerHTML = html;
-                }
+            container.innerHTML = html;
+        }
 
-                // Helper to link back to detailed report
-                window.openDetailedReport = (studentNum) => {
-                    // Close Dashboard
-                    document.getElementById('class-stats-dashboard-modal').classList.add('hidden');
+        // Helper to link back to detailed report
+        window.openDetailedReport = (studentNum) => {
+            // Close Dashboard
+            document.getElementById('class-stats-dashboard-modal').classList.add('hidden');
 
-                    // Open Individual Stats Modal
-                    document.getElementById('class-lookup-modal').classList.remove('hidden');
+            // Open Individual Stats Modal
+            document.getElementById('class-lookup-modal').classList.remove('hidden');
 
-                    // Set Filters
-                    const grade = document.getElementById('dashboard-select-grade').value;
-                    const cls = document.getElementById('dashboard-select-class').value;
+            // Set Filters
+            const grade = document.getElementById('dashboard-select-grade').value;
+            const cls = document.getElementById('dashboard-select-class').value;
 
-                    document.getElementById('modal-select-grade').value = grade;
-                    document.getElementById('modal-select-class').value = cls;
-                    document.getElementById('modal-select-number').value = studentNum;
+            document.getElementById('modal-select-grade').value = grade;
+            document.getElementById('modal-select-class').value = cls;
+            document.getElementById('modal-select-number').value = studentNum;
 
-                    // Trigger Render
-                    renderIndividualStatsTable();
-                }
+            // Trigger Render
+            renderIndividualStatsTable();
+        }
 
-                // Render Class Subject Stats (Refactored from corrupted block)
-                function renderClassSubjectStats(container, students) {
-                    const html = `
+        // Render Class Subject Stats (Refactored from corrupted block)
+        function renderClassSubjectStats(container, students) {
+            const html = `
                         <div class="mb-4 flex gap-2 items-center bg-gray-50 p-3 rounded border border-gray-200">
                              <span class="font-bold text-gray-700">🔍 필터: </span>
                              <select id="stats-filter-grade" onchange="window.dashboardGradeFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm bg-white">
@@ -2101,48 +2111,48 @@
                         </div>
                         <div id="class-subject-table-container"></div>
                     `;
-                    container.innerHTML = html;
+            container.innerHTML = html;
 
-                    // Calculate Stats
-                    const counts = {};
-                    students.forEach(s => {
-                        if (s.SelectedCourses) {
-                            const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
-                            uniqueCourses.forEach(cName => {
-                                counts[cName] = (counts[cName] || 0) + 1;
-                            });
-                        }
+            // Calculate Stats
+            const counts = {};
+            students.forEach(s => {
+                if (s.SelectedCourses) {
+                    const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
+                    uniqueCourses.forEach(cName => {
+                        counts[cName] = (counts[cName] || 0) + 1;
                     });
+                }
+            });
 
-                    // Prepare List
-                    let displayList = allCourseData.filter(c => {
-                        if (c.required === true || String(c.required).toLowerCase() === 'true') return false;
-                        if (window.dashboardGradeFilter !== 'all' && String(c.grade) !== String(window.dashboardGradeFilter)) return false;
-                        if (window.dashboardSemesterFilter !== 'all') {
-                            const cSem = String(c.semester).replace(/[^0-9]/g, '');
-                            const fSem = String(window.dashboardSemesterFilter).replace(/[^0-9]/g, '');
-                            if (cSem && fSem && cSem !== fSem) return false;
-                        }
-                        return true;
-                    });
+            // Prepare List
+            let displayList = allCourseData.filter(c => {
+                if (c.required === true || String(c.required).toLowerCase() === 'true') return false;
+                if (window.dashboardGradeFilter !== 'all' && String(c.grade) !== String(window.dashboardGradeFilter)) return false;
+                if (window.dashboardSemesterFilter !== 'all') {
+                    const cSem = String(c.semester).replace(/[^0-9]/g, '');
+                    const fSem = String(window.dashboardSemesterFilter).replace(/[^0-9]/g, '');
+                    if (cSem && fSem && cSem !== fSem) return false;
+                }
+                return true;
+            });
 
-                    // Sort
-                    displayList.sort((a, b) => {
-                        if (a.grade !== b.grade) return a.grade - b.grade;
-                        if (a.semester !== b.semester) return String(a.semester).localeCompare(String(b.semester));
-                        return a.subjectName.localeCompare(b.subjectName);
-                    });
+            // Sort
+            displayList.sort((a, b) => {
+                if (a.grade !== b.grade) return a.grade - b.grade;
+                if (a.semester !== b.semester) return String(a.semester).localeCompare(String(b.semester));
+                return a.subjectName.localeCompare(b.subjectName);
+            });
 
-                    // Render Table
-                    let tableHtml = `<table class="w-full text-sm border-collapse text-left"><thead class="bg-gray-100"><tr class="theme-text"><th class="border p-2 text-center w-16">학년</th><th class="border p-2 text-center w-16">학기</th><th class="border p-2">과목명</th><th class="border p-2 text-center w-24">신청 인원</th></tr></thead><tbody>`;
+            // Render Table
+            let tableHtml = `<table class="w-full text-sm border-collapse text-left"><thead class="bg-gray-100"><tr class="theme-text"><th class="border p-2 text-center w-16">학년</th><th class="border p-2 text-center w-16">학기</th><th class="border p-2">과목명</th><th class="border p-2 text-center w-24">신청 인원</th></tr></thead><tbody>`;
 
-                    if (displayList.length === 0) {
-                        tableHtml += `<tr><td colspan="4" class="p-4 text-center text-gray-500">표시할 과목이 없습니다.</td></tr>`;
-                    } else {
-                        displayList.forEach(c => {
-                            const count = counts[c.subjectName] || 0;
-                            const isZero = count === 0;
-                            tableHtml += `
+            if (displayList.length === 0) {
+                tableHtml += `<tr><td colspan="4" class="p-4 text-center text-gray-500">표시할 과목이 없습니다.</td></tr>`;
+            } else {
+                displayList.forEach(c => {
+                    const count = counts[c.subjectName] || 0;
+                    const isZero = count === 0;
+                    tableHtml += `
                                 <tr class="hover:bg-gray-50 ${isZero ? 'opacity-50' : ''}">
                                     <td class="border p-2 text-center text-gray-500">${c.grade}</td>
                                     <td class="border p-2 text-center text-gray-500">${c.semester}</td>
@@ -2150,337 +2160,337 @@
                                     <td class="border p-2 text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}">${count}명</td>
                                 </tr>
                              `;
-                        });
+                });
+            }
+            tableHtml += `</tbody></table>`;
+
+            document.getElementById('class-subject-table-container').innerHTML = tableHtml;
+        }
+
+        // Tab 3: Validation Stats
+        function renderValidationStats(container, students, grade, cls) {
+            // Merge Registry
+            let baseList = [];
+            const hasRegistry = registryData && registryData.length > 0;
+
+            if (hasRegistry) {
+                baseList = registryData.filter(r => {
+                    const sNum = String(r['학번'] || r.studentId || '');
+
+                    if (sNum.trim().length > 0) {
+                        return sNum.trim().startsWith(grade) && parseInt(sNum.trim().substring(1, 3)) == cls;
                     }
-                    tableHtml += `</tbody></table>`;
+                    return false;
 
-                    document.getElementById('class-subject-table-container').innerHTML = tableHtml;
-                }
+                }).map(r => ({
+                    number: parseInt(String(r['학번']).trim().substring(3, 5)),
+                    name: r['이름'] || r.name,
+                    studentId: r['학번'],
+                    fromRegistry: true
+                }));
+            }
 
-                // Tab 3: Validation Stats
-                function renderValidationStats(container, students, grade, cls) {
-                    // Merge Registry
-                    let baseList = [];
-                    const hasRegistry = registryData && registryData.length > 0;
+            if (baseList.length === 0 && students.length > 0) {
+                baseList = students.map(s => ({
 
-                    if (hasRegistry) {
-                        baseList = registryData.filter(r => {
-                            const sNum = String(r['학번'] || r.studentId || '');
-
-                            if (sNum.trim().length > 0) {
-                                return sNum.trim().startsWith(grade) && parseInt(sNum.trim().substring(1, 3)) == cls;
-                            }
-                            return false;
-
-                        }).map(r => ({
-                            number: parseInt(String(r['학번']).trim().substring(3, 5)),
-                            name: r['이름'] || r.name,
-                            studentId: r['학번'],
-                            fromRegistry: true
-                        }));
-                    }
-
-                    if (baseList.length === 0 && students.length > 0) {
-                        baseList = students.map(s => ({
-
-                            number: parseInt(s.Number),
-                            name: s.Name,
-                            studentId: `${s.Grade
-                                }
+                    number: parseInt(s.Number),
+                    name: s.Name,
+                    studentId: `${s.Grade
+                        }
 
                     ${String(s.Class).padStart(2, '0')
-                                }
+                        }
 
                     ${String(s.Number).padStart(2, '0')
-                                }
+                        }
 
                     `,
-                            fromRegistry: false
-                        }));
-                    }
+                    fromRegistry: false
+                }));
+            }
 
-                    baseList.sort((a, b) => a.number - b.number);
+            baseList.sort((a, b) => a.number - b.number);
 
-                    const merged = baseList.map(item => {
-                        const res = students.find(s => parseInt(s.Number) == item.number);
+            const merged = baseList.map(item => {
+                const res = students.find(s => parseInt(s.Number) == item.number);
 
-                        return {
-                            ...item, response: res
-                        }
+                return {
+                    ...item, response: res
+                }
 
-                            ;
-                    });
+                    ;
+            });
 
-                    let html = ` <div class="mb-2 text-sm text-gray-500 text-right" > 총 ${merged.length
-                        }
+            let html = ` <div class="mb-2 text-sm text-gray-500 text-right" > 총 ${merged.length
+                }
 
                     명(제출: ${merged.filter(m => m.response).length
-                        }
+                }
 
         명)</div > <div class="overflow-y-auto max-h-[400px]"><table class="w-full text-sm border-collapse"><thead class="sticky top-0 bg-gray-100 dark:bg-gray-700 z-10 shadow-sm"><tr class="theme-text"><th class="border p-2 theme-border w-16 text-center">번호</th><th class="border p-2 theme-border w-24 text-center">이름</th><th class="border p-2 theme-border text-center">검증 현황</th></tr></thead><tbody>`;
 
-                    merged.forEach(m => {
-                        let statusHtml = '<span class="text-gray-400">-</span>';
+            merged.forEach(m => {
+                let statusHtml = '<span class="text-gray-400">-</span>';
 
-                        if (!m.response) {
-                            statusHtml = '<span class="px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs">미제출</span>';
-                        }
-
-                        else {
-                            const vRes = m.response.ValidationResult || '';
-
-                            if (!vRes) {
-                                statusHtml = '<span class="text-gray-500">특이사항 없음</span>';
-                            }
-
-                            else if (vRes.includes('부족') || vRes.includes('초과') || vRes.includes('필요') || vRes.includes('확인')) {
-                                statusHtml = `<span class="text-red-600 font-bold whitespace-pre-wrap text-xs" >${vRes
-                                    }
-
-                    </span>`;
-                            }
-
-                            else {
-                                statusHtml = `<span class="text-blue-600 font-bold" >PASS (통과)</span>`;
-                            }
-                        }
-
-                        html += ` <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text" > <td class="border p-2 theme-border text-center" >${m.number
-                            }
-
-                        </td> <td class="border p-2 theme-border text-center font-medium" >${m.name
-                            }
-
-                            </td> <td class="border p-2 theme-border" >${statusHtml
-                            }
-
-                            </td> </tr> `;
-                    });
-                    html += '</tbody></table></div>';
-                    container.innerHTML = html;
+                if (!m.response) {
+                    statusHtml = '<span class="px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs">미제출</span>';
                 }
 
-                // Tab 4: Grade Subject Stats (Rank Estimation)
-                // Tab 4: Grade Subject Stats (Entire Grade)
-                function renderGradeSubjectStats(container, students, grade) {
-                    // Update state if element exists (before re-render)
-                    const semEl = document.getElementById('grade-stats-filter-semester');
+                else {
+                    const vRes = m.response.ValidationResult || '';
 
-                    // State
-                    if (!window.gradeDashboardSemesterFilter) window.gradeDashboardSemesterFilter = 'all';
-                    if (semEl) window.gradeDashboardSemesterFilter = semEl.value;
+                    if (!vRes) {
+                        statusHtml = '<span class="text-gray-500">특이사항 없음</span>';
+                    }
 
+                    else if (vRes.includes('부족') || vRes.includes('초과') || vRes.includes('필요') || vRes.includes('확인')) {
+                        statusHtml = `<span class="text-red-600 font-bold whitespace-pre-wrap text-xs" >${vRes
+                            }
 
-                    container.innerHTML = ` <div class="mb-4 flex gap-2 items-center bg-white p-3 rounded border border-gray-200"><span class="font-bold theme-text">🔍 필터: </span> <select id="grade-stats-filter-semester" onchange="window.gradeDashboardSemesterFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm" > <option value="all"${window.gradeDashboardSemesterFilter === 'all' ? 'selected' : ''
-                        }
-
-        >전체 학기</option><option value="1"${window.gradeDashboardSemesterFilter === '1' ? 'selected' : ''
-                        }
-
-        >1학기</option><option value="2"${window.gradeDashboardSemesterFilter === '2' ? 'selected' : ''
-                        }
-
-        >2학기</option></select><span class="text-xs text-gray-400 ml-2">* ${grade
-                        }
-
-        학년 전체 학생들의 과목 선택 통계입니다.</span></div><div id="grade-subject-table-container" class="overflow-x-auto"></div>`;
-
-                    const semesterFilter = window.gradeDashboardSemesterFilter;
-
-                    const counts = {}
-
-                        ;
-
-                    students.forEach(s => {
-                        if (s.SelectedCourses) {
-                            const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
-
-                            uniqueCourses.forEach(cName => {
-                                counts[cName] = (counts[cName] || 0) + 1;
-                            });
-                        }
-                    });
-
-                    // Display List (Full Courses matching Grade)
-                    let displayList = allCourseData.filter(c => {
-                        // Exclude Required
-                        if (c.required === true || String(c.required).toLowerCase() === 'true') return false;
-
-                        // Grade Filter (Strictly this Grade)
-                        if (String(c.grade) !== String(grade)) return false;
-
-                        // Semester Filter
-                        if (semesterFilter !== 'all') {
-                            const cSem = String(c.semester).replace(/[^0-9]/g, '');
-                            const fSem = String(semesterFilter).replace(/[^0-9]/g, '');
-                            if (cSem && fSem && cSem !== fSem) return false;
-                        }
-
-                        return true;
-                    });
-
-                    // Sort: Semester -> Name
-                    displayList.sort((a, b) => {
-                        if (a.semester !== b.semester) return String(a.semester).localeCompare(String(b.semester));
-                        return a.subjectName.localeCompare(b.subjectName);
-                    });
-
-                    let html = ` <table class="w-full text-sm border-collapse text-left"><thead><tr class="bg-gray-100 dark:bg-gray-700 theme-text"><th class="border p-2 theme-border w-16 text-center">학년</th><th class="border p-2 theme-border w-16 text-center">학기</th><th class="border p-2 theme-border">과목명</th><th class="border p-2 theme-border text-center w-24">선택 인원</th><th class="border p-2 theme-border text-center w-24">비율</th></tr></thead><tbody>`;
-
-                    const totalStudents = students.length;
-
-                    if (displayList.length === 0) {
-                        html += `<tr><td colspan="5" class="p-4 text-center text-gray-500">데이터가 없습니다.</td></tr>`;
+                    </span>`;
                     }
 
                     else {
-                        displayList.forEach(c => {
-                            const count = counts[c.subjectName] || 0;
-                            const percent = totalStudents > 0 ? ((count / totalStudents) * 100).toFixed(1) : 0;
-                            const isZero = count === 0;
+                        statusHtml = `<span class="text-blue-600 font-bold" >PASS (통과)</span>`;
+                    }
+                }
 
-                            html += ` <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text ${isZero ? 'opacity-50' : ''}" > <td class="border p-2 theme-border text-center" >${c.grade
-                                }
-
-                    </td> <td class="border p-2 theme-border text-center" >${c.semester
-                                }
-
-                    </td> <td class="border p-2 theme-border font-medium" >${c.subjectName
-                                }
-
-                    </td> <td class="border p-2 theme-border text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}" >${count
-                                }
-
-                    명</td> <td class="border p-2 theme-border text-center text-gray-500" >${percent
-                                }
-
-                    %</td> </tr> `;
-                        });
+                html += ` <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text" > <td class="border p-2 theme-border text-center" >${m.number
                     }
 
-                    html += `</tbody></table>`;
-                    document.getElementById('grade-subject-table-container').innerHTML = html;
+                        </td> <td class="border p-2 theme-border text-center font-medium" >${m.name
+                    }
 
-                    if (document.getElementById('grade-stats-filter-semester')) document.getElementById('grade-stats-filter-semester').value = semesterFilter;
+                            </td> <td class="border p-2 theme-border" >${statusHtml
+                    }
+
+                            </td> </tr> `;
+            });
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        // Tab 4: Grade Subject Stats (Rank Estimation)
+        // Tab 4: Grade Subject Stats (Entire Grade)
+        function renderGradeSubjectStats(container, students, grade) {
+            // Update state if element exists (before re-render)
+            const semEl = document.getElementById('grade-stats-filter-semester');
+
+            // State
+            if (!window.gradeDashboardSemesterFilter) window.gradeDashboardSemesterFilter = 'all';
+            if (semEl) window.gradeDashboardSemesterFilter = semEl.value;
+
+
+            container.innerHTML = ` <div class="mb-4 flex gap-2 items-center bg-white p-3 rounded border border-gray-200"><span class="font-bold theme-text">🔍 필터: </span> <select id="grade-stats-filter-semester" onchange="window.gradeDashboardSemesterFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm" > <option value="all"${window.gradeDashboardSemesterFilter === 'all' ? 'selected' : ''
                 }
 
+        >전체 학기</option><option value="1"${window.gradeDashboardSemesterFilter === '1' ? 'selected' : ''
+                }
 
-                function renderInquiryChart(students) {
-                    const ctx = document.getElementById('inquiryRatioChart');
-                    if (!ctx) return;
+        >1학기</option><option value="2"${window.gradeDashboardSemesterFilter === '2' ? 'selected' : ''
+                }
 
-                    // Count Social vs Science
-                    let social = 0;
-                    let science = 0;
+        >2학기</option></select><span class="text-xs text-gray-400 ml-2">* ${grade
+                }
 
-                    // Need to match course names to categories. 
-                    // Using allCourseData global to lookup category by subjectName
-                    const courseMap = {}
+        학년 전체 학생들의 과목 선택 통계입니다.</span></div><div id="grade-subject-table-container" class="overflow-x-auto"></div>`;
 
-                        ;
+            const semesterFilter = window.gradeDashboardSemesterFilter;
 
-                    allCourseData.forEach(c => {
-                        courseMap[c.subjectName] = c.subCategory || c.category;
+            const counts = {}
+
+                ;
+
+            students.forEach(s => {
+                if (s.SelectedCourses) {
+                    const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
+
+                    uniqueCourses.forEach(cName => {
+                        counts[cName] = (counts[cName] || 0) + 1;
                     });
+                }
+            });
 
-                    students.forEach(s => {
-                        if (s.SelectedCourses) {
-                            const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
+            // Display List (Full Courses matching Grade)
+            let displayList = allCourseData.filter(c => {
+                // Exclude Required
+                if (c.required === true || String(c.required).toLowerCase() === 'true') return false;
 
-                            uniqueCourses.forEach(cName => {
-                                const meta = allCourseData.find(c => c.subjectName === cName);
-                                // Exclude Required
-                                if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) return;
+                // Grade Filter (Strictly this Grade)
+                if (String(c.grade) !== String(grade)) return false;
 
-                                const cat = courseMap[cName];
-                                if (cat && cat.includes('사회')) social++;
-                                if (cat && cat.includes('과학')) science++;
-                            });
+                // Semester Filter
+                if (semesterFilter !== 'all') {
+                    const cSem = String(c.semester).replace(/[^0-9]/g, '');
+                    const fSem = String(semesterFilter).replace(/[^0-9]/g, '');
+                    if (cSem && fSem && cSem !== fSem) return false;
+                }
+
+                return true;
+            });
+
+            // Sort: Semester -> Name
+            displayList.sort((a, b) => {
+                if (a.semester !== b.semester) return String(a.semester).localeCompare(String(b.semester));
+                return a.subjectName.localeCompare(b.subjectName);
+            });
+
+            let html = ` <table class="w-full text-sm border-collapse text-left"><thead><tr class="bg-gray-100 dark:bg-gray-700 theme-text"><th class="border p-2 theme-border w-16 text-center">학년</th><th class="border p-2 theme-border w-16 text-center">학기</th><th class="border p-2 theme-border">과목명</th><th class="border p-2 theme-border text-center w-24">선택 인원</th><th class="border p-2 theme-border text-center w-24">비율</th></tr></thead><tbody>`;
+
+            const totalStudents = students.length;
+
+            if (displayList.length === 0) {
+                html += `<tr><td colspan="5" class="p-4 text-center text-gray-500">데이터가 없습니다.</td></tr>`;
+            }
+
+            else {
+                displayList.forEach(c => {
+                    const count = counts[c.subjectName] || 0;
+                    const percent = totalStudents > 0 ? ((count / totalStudents) * 100).toFixed(1) : 0;
+                    const isZero = count === 0;
+
+                    html += ` <tr class="hover:bg-gray-50 dark:hover:bg-gray-600 theme-text ${isZero ? 'opacity-50' : ''}" > <td class="border p-2 theme-border text-center" >${c.grade
                         }
+
+                    </td> <td class="border p-2 theme-border text-center" >${c.semester
+                        }
+
+                    </td> <td class="border p-2 theme-border font-medium" >${c.subjectName
+                        }
+
+                    </td> <td class="border p-2 theme-border text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}" >${count
+                        }
+
+                    명</td> <td class="border p-2 theme-border text-center text-gray-500" >${percent
+                        }
+
+                    %</td> </tr> `;
+                });
+            }
+
+            html += `</tbody></table>`;
+            document.getElementById('grade-subject-table-container').innerHTML = html;
+
+            if (document.getElementById('grade-stats-filter-semester')) document.getElementById('grade-stats-filter-semester').value = semesterFilter;
+        }
+
+
+        function renderInquiryChart(students) {
+            const ctx = document.getElementById('inquiryRatioChart');
+            if (!ctx) return;
+
+            // Count Social vs Science
+            let social = 0;
+            let science = 0;
+
+            // Need to match course names to categories. 
+            // Using allCourseData global to lookup category by subjectName
+            const courseMap = {}
+
+                ;
+
+            allCourseData.forEach(c => {
+                courseMap[c.subjectName] = c.subCategory || c.category;
+            });
+
+            students.forEach(s => {
+                if (s.SelectedCourses) {
+                    const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
+
+                    uniqueCourses.forEach(cName => {
+                        const meta = allCourseData.find(c => c.subjectName === cName);
+                        // Exclude Required
+                        if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) return;
+
+                        const cat = courseMap[cName];
+                        if (cat && cat.includes('사회')) social++;
+                        if (cat && cat.includes('과학')) science++;
                     });
+                }
+            });
 
-                    if (dashboardCharts.inquiry) dashboardCharts.inquiry.destroy();
+            if (dashboardCharts.inquiry) dashboardCharts.inquiry.destroy();
 
-                    dashboardCharts.inquiry = new Chart(ctx, {
+            dashboardCharts.inquiry = new Chart(ctx, {
 
-                        type: 'doughnut',
-                        data: {
+                type: 'doughnut',
+                data: {
 
-                            labels: ['사회탐구', '과학탐구'],
-                            datasets: [{
-                                data: [social, science],
-                                backgroundColor: ['rgba(251, 146, 60, 0.6)', 'rgba(59, 130, 246, 0.6)'],
-                                borderWidth: 1
-                            }
+                    labels: ['사회탐구', '과학탐구'],
+                    datasets: [{
+                        data: [social, science],
+                        backgroundColor: ['rgba(251, 146, 60, 0.6)', 'rgba(59, 130, 246, 0.6)'],
+                        borderWidth: 1
+                    }
 
-                            ]
-                        }
+                    ]
+                }
 
-                        ,
-                        options: {
-                            responsive: true, maintainAspectRatio: false
+                ,
+                options: {
+                    responsive: true, maintainAspectRatio: false
+                }
+            });
+        }
+
+        function renderLanguageChart(students) {
+            const ctx = document.getElementById('languageChart');
+            if (!ctx) return;
+
+            const counts = {}
+
+                ;
+            const targetLangs = ['일본어',
+                '중국어',
+                '한문',
+                '스페인어',
+                '프랑스어',
+                '독일어'];
+            // Dynamic detection?
+
+            students.forEach(s => {
+                if (s.SelectedCourses) {
+                    const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
+
+                    uniqueCourses.forEach(cName => {
+                        const meta = allCourseData.find(c => c.subjectName === cName);
+                        // Exclude Required
+                        if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) return;
+
+                        // Simple check if course name contains language
+                        if (targetLangs.some(l => cName.includes(l)) || cName.endsWith('어') || cName === '한문') {
+                            counts[cName] = (counts[cName] || 0) + 1;
                         }
                     });
                 }
+            });
 
-                function renderLanguageChart(students) {
-                    const ctx = document.getElementById('languageChart');
-                    if (!ctx) return;
+            const labels = Object.keys(counts);
+            const data = Object.values(counts);
 
-                    const counts = {}
+            if (dashboardCharts.language) dashboardCharts.language.destroy();
 
-                        ;
-                    const targetLangs = ['일본어',
-                        '중국어',
-                        '한문',
-                        '스페인어',
-                        '프랑스어',
-                        '독일어'];
-                    // Dynamic detection?
+            dashboardCharts.language = new Chart(ctx, {
+                type: 'bar', // or doughnut
 
-                    students.forEach(s => {
-                        if (s.SelectedCourses) {
-                            const uniqueCourses = new Set(s.SelectedCourses.split(', ').map(x => x.trim()));
+                data: {
 
-                            uniqueCourses.forEach(cName => {
-                                const meta = allCourseData.find(c => c.subjectName === cName);
-                                // Exclude Required
-                                if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) return;
+                    labels: labels,
+                    datasets: [{
+                        label: '선택 인원',
+                        data: data,
+                        backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                    }
 
-                                // Simple check if course name contains language
-                                if (targetLangs.some(l => cName.includes(l)) || cName.endsWith('어') || cName === '한문') {
-                                    counts[cName] = (counts[cName] || 0) + 1;
-                                }
-                            });
-                        }
-                    });
-
-                    const labels = Object.keys(counts);
-                    const data = Object.values(counts);
-
-                    if (dashboardCharts.language) dashboardCharts.language.destroy();
-
-                    dashboardCharts.language = new Chart(ctx, {
-                        type: 'bar', // or doughnut
-
-                        data: {
-
-                            labels: labels,
-                            datasets: [{
-                                label: '선택 인원',
-                                data: data,
-                                backgroundColor: 'rgba(16, 185, 129, 0.6)',
-                            }
-
-                            ]
-                        }
-
-                        ,
-                        options: {
-                            responsive: true, maintainAspectRatio: false
-                        }
-                    });
+                    ]
                 }
+
+                ,
+                options: {
+                    responsive: true, maintainAspectRatio: false
+                }
+            });
+        }
 
     </script>
     <!-- Modal: Class Stats Dashboard (New) -->
@@ -2532,22 +2542,22 @@
                 class="text-2xl">🎨</span></button>
     </div>
     <script>function changeTheme(themeName) {
-                    applyTheme(themeName);
-                    localStorage.setItem('theme', themeName);
-                    document.getElementById('theme-menu').classList.add('hidden');
-                }
+            applyTheme(themeName);
+            localStorage.setItem('theme', themeName);
+            document.getElementById('theme-menu').classList.add('hidden');
+        }
 
-                function toggleThemeMenu() {
-                    document.getElementById('theme-menu').classList.toggle('hidden');
-                }
+        function toggleThemeMenu() {
+            document.getElementById('theme-menu').classList.toggle('hidden');
+        }
 
-                // Initialize Theme & Class Options & Config
-                document.addEventListener('DOMContentLoaded', () => {
-                    const savedTheme = localStorage.getItem('theme') || 'light';
-                    applyTheme(savedTheme);
-                    populateClassOptions();
-                    loadConfig(); // Load API URL
-                });
+        // Initialize Theme & Class Options & Config
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            applyTheme(savedTheme);
+            populateClassOptions();
+            loadConfig(); // Load API URL
+        });
     </script>
 </body>
 
