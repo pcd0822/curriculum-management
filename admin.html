@@ -350,7 +350,7 @@
         <!-- 4. Student Dashboard -->
         <div id="tab-dashboard" class="tab-content hidden">
             <!-- Stats Overview -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"><button onclick="openClassStats()"
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"><button onclick="openClassRoster()"
                     class="p-4 rounded-lg shadow-md bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition flex items-center justify-between">
                     <div>
                         <h3 class="font-bold text-lg">학급별 신청 현황 조회</h3>
@@ -396,7 +396,7 @@
                         class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">🗑️ 선택 삭제</button><button
                         onclick="openIndividualStats()"
                         class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">📊
-                        개인별 통계</button><button onclick="openClassStatsDashboard()"
+                        개인별 통계</button><button onclick="openClassStatistics()"
                         class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700">📈
                         학급 통계</button><button id="download-matrix-btn"
                         class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">엑셀
@@ -877,13 +877,7 @@
                     nameToIds[c.subjectName] = new Set();
                 }
 
-                nameMap[c.subjectName].add(`${c.grade
-                    }
-
-                    -${c.semester
-                    }
-
-                    `);
+                nameMap[c.subjectName].add(`${c.grade}-${c.semester}`);
                 nameToIds[c.subjectName].add(c.id || c.subjectName);
             });
 
@@ -1341,6 +1335,30 @@
 
             ExcelHandler.downloadExcel(matrix, '학생선택과목_매트릭스(전체).xlsx');
         });
+
+        // Helper to capture class roster
+        window.downloadClassRosterImage = () => {
+            const element = document.getElementById('class-stats-content'); // Capture the whole content area
+            if (!element) return;
+
+            html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                ignoreElements: (element) => {
+                    // Ignore buttons
+                    return element.tagName === 'BUTTON';
+                }
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `학급신청현황_${document.getElementById('dashboard-select-grade').value}-${document.getElementById('dashboard-select-class').value}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }).catch(err => {
+                console.error('Capture failed', err);
+                alert('이미지 저장 중 오류가 발생했습니다.');
+            });
+        };
 
         // --- Class Stats & Modal Functions ---
         const modal = document.getElementById('class-lookup-modal');
@@ -1905,7 +1923,25 @@
         };
 
         // 2. Class Stats Dashboard (Dashboard Modal) - "학급 통계" & "학급별 신청 현황 조회"
-        window.openClassStats = () => {
+        // 2. Class Stats Dashboard (Dashboard Modal) - Shared Entry Point
+        // Mode: 'roster' (List Only) or 'stats' (Analysis Tabs)
+        window.dashboardViewMode = 'roster';
+
+        window.openClassRoster = () => {
+            window.dashboardViewMode = 'roster';
+            document.getElementById('class-stats-dashboard-modal').classList.remove('hidden');
+
+            // Sync filters
+            const mainGrade = document.getElementById('filter-grade').value || '1';
+            const mainClass = document.getElementById('filter-class').value || '1';
+            document.getElementById('dashboard-select-grade').value = mainGrade;
+            document.getElementById('dashboard-select-class').value = mainClass;
+
+            renderClassStatsDashboard();
+        };
+
+        window.openClassStatistics = () => {
+            window.dashboardViewMode = 'stats';
             document.getElementById('class-stats-dashboard-modal').classList.remove('hidden');
 
             const mainGrade = document.getElementById('filter-grade').value || '1';
@@ -1913,69 +1949,82 @@
             document.getElementById('dashboard-select-grade').value = mainGrade;
             document.getElementById('dashboard-select-class').value = mainClass;
 
-            // Default tab
-            window.switchDashboardTab('class-status-list');
-        };
-
-        // Alias for clarity (used by HTML button)
-        window.openClassStatsDashboard = window.openClassStats;
-
-        window.closeClassStats = () => {
-            document.getElementById('class-lookup-modal').classList.add('hidden');
-        };
-
-        // Reuse existing queryClassStats but renamed internally or alias it? 
-        // The user wants "Individual Stats" button to trigger the view.
-        // I already mapped the button to openIndividualStats() which opens the modal.
-        // The 'Look up' button inside calls openIndividualStats() (modified from queryClassStats).
-
-
-        let dashboardCharts = {}
-
-            ;
-
-        // Helper: Dashboard State
-        let currentDashboardTab = 'class-status-list';
-        let dashboardGradeFilter = 'all';
-        let dashboardSemesterFilter = 'all';
-
-        window.switchDashboardTab = (tabId) => {
-            currentDashboardTab = tabId;
+            // Default tab for stats
+            window.switchDashboardTab('class-subjects');
             renderClassStatsDashboard();
         };
 
-        // Main Dashboard Render Function
-        // Main Dashboard Render Function
-        window.renderClassStatsDashboard = () => {
-            const grade = document.getElementById('dashboard-select-grade').value || '1';
-            const cls = document.getElementById('dashboard-select-class').value || '1';
+        // Old Alias kept for compatibility if needed
+        window.openClassStats = window.openClassRoster;
+        window.openClassStatsDashboard = window.openClassStatistics;
 
-            // Filter Students for this class
-            const students = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
-
-            const messageEl = document.getElementById('dashboard-message');
-            const contentEl = document.getElementById('dashboard-content');
-            const container = document.getElementById('dashboard-tab-content');
-            const tabsContainer = document.getElementById('dashboard-tabs');
-
-            if (!container) return;
-
-            // Show Content, Hide Message
-            if (messageEl) messageEl.classList.add('hidden');
-            if (contentEl) contentEl.classList.remove('hidden');
-
-            // 1. Remove Tabs (Single View Mode)
-            if (tabsContainer) {
-                tabsContainer.innerHTML = `
-            <div class="px-4 py-2 text-lg font-bold text-blue-600 border-b-2 border-blue-600">
-                📋 학생별 신청 현황 (명렬표)
-            </div>`;
-            }
-
-            // 2. Render Content (Always Roster)
-            container.innerHTML = '';
-            renderClassStatusList(container, students, grade, cls);
+        window.closeClassStats = () => {
+            document.getElementById('class-stats-dashboard-modal').classList.add('hidden');
         };
+
+        window.switchDashboardTab = (tabId) => {
+            window.currentDashboardTab = tabId;
+            renderClassStatsDashboard();
+        };
+
+        // Render Dashboard Content based on Mode
+        async function renderClassStatsDashboard() {
+            const container = document.getElementById('dashboard-content');
+            const tabContent = document.getElementById('dashboard-tab-content');
+            const tabsContainer = document.getElementById('dashboard-tabs');
+            const message = document.getElementById('dashboard-message');
+
+            // Show content
+            container.classList.remove('hidden');
+            message.classList.add('hidden');
+
+            // Get Current Filter State
+            const grade = document.getElementById('dashboard-select-grade').value;
+            const cls = document.getElementById('dashboard-select-class').value;
+
+            // Filter Students
+            let students = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
+
+            // --- VIEW MODE HANDLING ---
+            if (window.dashboardViewMode === 'roster') {
+                // ROSTER VIEW: No Tabs, Fixed Header, Save Image
+                tabsContainer.innerHTML = `
+                    <div class="flex justify-between items-center w-full">
+                        <div class="px-4 py-2 text-lg font-bold text-blue-600 border-b-2 border-blue-600">
+                             📋 ${grade}학년 ${cls}반 명렬표
+                        </div>
+                        <button onclick="downloadClassRosterImage()" class="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700">
+                            📷 이미지 저장
+                        </button>
+                    </div>
+                `;
+
+                // Content
+                renderClassStatusList(tabContent, students, grade, cls);
+
+            } else {
+                // STATS VIEW: Tabs (Class Subjects, Grade Subjects)
+                const tabs = [
+                    { id: 'class-subjects', label: '학급별 과목 신청' },
+                    { id: 'grade-subjects', label: '전체(학년) 과목 신청' }
+                ];
+
+                // Render Tabs
+                tabsContainer.innerHTML = tabs.map(t => `
+                    <button onclick="switchDashboardTab('${t.id}')" 
+                        class="px-4 py-2 font-medium transition-colors border-b-2 ${window.currentDashboardTab === t.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+                        ${t.label}
+                    </button>
+                `).join('');
+
+                // Render Content based on Active Tab
+                if (window.currentDashboardTab === 'class-subjects') {
+                    renderClassSubjectStats(tabContent, students);
+                } else if (window.currentDashboardTab === 'grade-subjects') {
+                    renderGradeSubjectStats(tabContent, allStudentData, grade);
+                }
+            }
+        }
 
         // New Feature: Class Status List (Roster)
         function renderClassStatusList(container, students, grade, cls) {
