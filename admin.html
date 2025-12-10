@@ -1696,7 +1696,7 @@
 
             // Recalculate Total from Stats to ensure match
             // totalCredits is now sum of (Required Base + Selected + Joint)
-            totalCredits = Object.values(creditStats).reduce((a, b) => a + b, 0);
+            let totalCredits = Object.values(creditStats).reduce((a, b) => a + b, 0);
 
             // Sort: Grade > Semester > Name
             courseList.sort((a, b) => {
@@ -1713,8 +1713,7 @@
             const recs = null; // Removed Mock Call
 
             // 3. Validation Detail (Replicating index.html logic)
-            // Calculate Stats for Validation
-            let totalCredits = 0;
+            // Calculate Stats for Validation (totalCredits는 이미 위에서 계산됨)
             let basicCredits = 0;
             let artCredits = 0;
             let electiveGroupCredits = 0; // 교양/제2외국어/정보
@@ -1731,7 +1730,7 @@
 
             courseList.forEach(c => {
                 const credits = parseInt(c.credit || 0);
-                totalCredits += credits;
+                // totalCredits는 이미 creditStats에서 계산되었으므로 여기서는 더하지 않음
 
                 // Determine Category
                 let cat = c.category;
