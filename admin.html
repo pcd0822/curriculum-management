@@ -1475,19 +1475,29 @@
 
             // 2. Filter by Number if specific one selected
             if (targetNum !== 'all') {
+                console.log(`[Debug] Looking for Student: Grade=${grade}, Class=${cls}, Num=${targetNum}`);
                 const selectedStudent = targetStudents.find(s => parseInt(s.Number) == targetNum);
+                console.log('[Debug] Selected Student (Registry/List):', selectedStudent);
 
                 // Detailed Report Mode logic remains similar but needs submission data
                 if (selectedStudent) {
                     // Find submission data for this student
+                    // Fix: Ensure loose comparison for Grade/Class/Number just in case of type mismatch
                     const submission = allStudentData.find(s =>
-                        s.Grade == selectedStudent.Grade &&
-                        s.Class == selectedStudent.Class &&
-                        s.Number == selectedStudent.Number
+                        String(s.Grade) == String(selectedStudent.Grade) &&
+                        String(s.Class) == String(selectedStudent.Class) &&
+                        parseInt(s.Number) == parseInt(selectedStudent.Number)
                     );
 
+                    console.log('[Debug] Submission Data Found:', submission);
+
                     if (submission) {
-                        renderDetailedStudentReport(submission);
+                        try {
+                            renderDetailedStudentReport(submission);
+                        } catch (e) {
+                            console.error('[Debug] renderDetailedStudentReport Failed:', e);
+                            alert('리포트 생성 중 오류 발생: ' + e.message);
+                        }
                     } else {
                         // Modified: Show basic info even if no submission
                         modalContent.innerHTML = `
