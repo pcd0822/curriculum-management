@@ -1585,136 +1585,216 @@
             const vBg = !isPass ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200';
 
             // 1. Course Processing: Exclude Required, Sort by Semester
-            const rawCourses = s.SelectedCourses ? s.SelectedCourses.split(',').map(c => c.trim()) : [];
-            const courseList = [];
-            const addedCourses = new Set(); // For deduplication
-
-            // Aggregate Credits for Chart
+            // 1. Stats Setup (5 Categories)
             const creditStats = {
-                '기초': 0, '탐구': 0, '체육·예술': 0, '생활·교양': 0
-            }
+                '기초': 0, '사회': 0, '과학': 0, '체육·예술': 0, '생활·교양': 0
+            };
 
-                ;
+            // 2. Base Credits from REQUIRED Courses
+            // Add required credits to stats ensure Chart matches Total
+            // Note: This logic assumes 'allCourseData' has 'required' and 'grade' fields
+            allCourseData.forEach(c => {
+                const isRequired = c.required === true || String(c.required).toLowerCase() === 'true';
+                // Loose check for grade match (e.g. if s.Grade is "2", match "2", "2-1", "2-2"?)
+                // Usually required courses are Grade specific. Simple equality check for now.
+                if (isRequired && (parseInt(c.grade) === parseInt(s.Grade))) {
+                    const cred = parseInt(c.credit || c.credits || 0);
+                    const cat = c.category || '기타';
 
-            rawCourses.forEach(cName => {
-                // Parse slug-grade-semester-credits format if present
-                let searchKey = cName;
-                if (cName.includes('-')) {
-                    searchKey = cName.split('-')[0]; // Extract slug
+                    if (cat.includes('기초') || cat.includes('국어') || cat.includes('영어') || cat.includes('수학') || cat.includes('한국사')) creditStats['기초'] += cred;
+                    else if (cat.includes('사회') || cat.includes('역사') || cat.includes('도덕')) creditStats['사회'] += cred;
+                    else if (cat.includes('과학')) creditStats['과학'] += cred;
+                    else if (cat.includes('체육') || cat.includes('예술')) creditStats['체육·예술'] += cred;
+                    else creditStats['생활·교양'] += cred;
+                }
+            });
+
+            // 3. Process Selected & Joint Courses
+            const selectedRaw = s.SelectedCourses ? s.SelectedCourses.split(',').map(c => c.trim()).filter(x => x) : [];
+            const jointRaw = s.JointCourses ? s.JointCourses.split(',').map(c => c.trim()).filter(x => x) : [];
+            const allRaw = [...selectedRaw, ...jointRaw]; // Process ALL courses
+
+            const courseList = [];
+            const addedCourses = new Set();
+            let calculatedTotal = 0; // For verification
+
+            allRaw.forEach(cName => {
+                // 1. Resolve Metadata
+                let meta = allCourseData.find(c => c.slug === cName || c.subjectName === cName);
+
+                // Fallback: check parts if hyphenated
+                if (!meta && cName.includes('-')) {
+                    const parts = cName.split('-');
+                    meta = allCourseData.find(c => c.slug === parts[0] || c.subjectName === parts[0]);
                 }
 
-                // Find course metadata: Try Slug match first, then Name match
-                // Logic update: Ensure we don't just pick the first one blindly if there are multiple same-named courses (but we have no other ID).
-                // Given the limitation, we find the first one but display logic handles duplicates if the Name is identical.
-                const meta = allCourseData.find(c => c.slug === searchKey || c.subjectName === searchKey || c.subjectName === cName);
-
-                // If meta found, use IT for the name display. If not, fallback to parsing the raw string.
+                let displayName = cName;
+                let displayCredit = 0;
+                let displayCat = '기타';
+                let displaySem = '??';
+                let displayGrade = 99;
 
                 if (meta) {
-                    const credits = parseInt(meta.credits || meta.credit || 0); // Fix for 'credits' typo
-                    const cat = meta.category || '기타';
+                    // FOUND: Use Korean Name and Correct Data
+                    displayName = meta.subjectName;
+                    displayCredit = parseInt(meta.credit || meta.credits || 0);
+                    displayCat = meta.category || '기타';
+                    displaySem = `${meta.grade}-${meta.semester}`;
+                    displayGrade = parseInt(meta.grade || 99);
 
-                    if (cat.includes('기초')) creditStats['기초'] += credits;
-                    else if (cat.includes('탐구')) creditStats['탐구'] += credits;
-                    else if (cat.includes('체육') || cat.includes('예술')) creditStats['체육·예술'] += credits;
-                    else creditStats['생활·교양'] += credits;
+                    // Add to Stats (Split Categories)
+                    if (displayCat.includes('기초') || displayCat.includes('국어') || displayCat.includes('영어') || displayCat.includes('수학') || displayCat.includes('한국사')) creditStats['기초'] += displayCredit;
+                    else if (displayCat.includes('사회') || displayCat.includes('역사') || displayCat.includes('도덕')) creditStats['사회'] += displayCredit;
+                    else if (displayCat.includes('과학')) creditStats['과학'] += displayCredit;
+                    else if (displayCat.includes('체육') || displayCat.includes('예술')) creditStats['체육·예술'] += displayCredit;
+                    else creditStats['생활·교양'] += displayCredit; // Includes Tech/Home/Language/Liberal
 
-                    // Add to list if NOT required
-                    if (meta.required !== true && String(meta.required).toLowerCase() !== 'true') {
+                } else {
+                    // NOT FOUND: Best Effort Parse
+                    // If name looks like "physics-2-1", grab "physics"
+                    if (displayName.includes('-')) {
+                        const p = displayName.split('-');
+                        if (p.length >= 3) displayName = p[0];
+                    }
+                    // Assume default credit/cat for unknown
+                    displayCat = '생활·교양';
 
-                        // Deduplication Key: Name + Semester (to avoid exact duplicates in list)
-                        const semDisplay = `${meta.grade}-${meta.semester}`;
-                        const uniqueKey = `${meta.subjectName}-${semDisplay}`;
+                    // Try parse credit from string if possible (name-grade-sem-credit)
+                    const p = cName.split('-');
+                    if (p.length >= 4) {
+                        displayCredit = parseInt(p[3]) || 0;
+                    }
 
-                        if (!addedCourses.has(uniqueKey)) {
-                            addedCourses.add(uniqueKey);
+                    creditStats['생활·교양'] += displayCredit;
+                }
 
-                            courseList.push({
-                                name: meta.subjectName, semester: semDisplay, credit: credits, category: cat
-                            });
+                // Add to Course List (Deduplicate)
+                const uniqueKey = `${displayName}-${displaySem}`;
+                if (!addedCourses.has(uniqueKey)) {
+                    addedCourses.add(uniqueKey);
+                    courseList.push({
+                        name: displayName,
+                        semester: displaySem,
+                        grade: displayGrade,
+                        credit: displayCredit,
+                        category: displayCat
+                    });
+                }
+            });
+
+            // Recalculate Total from Stats to ensure match
+            // totalCredits is now sum of (Required Base + Selected + Joint)
+            totalCredits = Object.values(creditStats).reduce((a, b) => a + b, 0);
+
+            // Sort: Grade > Semester > Name
+            courseList.sort((a, b) => {
+                const gA = parseInt(a.grade || 99);
+                const gB = parseInt(b.grade || 99);
+                if (gA !== gB) return gA - gB;
+
+                // Semester compare (handle "1" vs "2" or "1-1" vs "1-2")
+                // Simplistic check: If contains '-' split, else compare string
+                return a.semester.localeCompare(b.semester) || a.name.localeCompare(b.name);
+            });
+
+            // 2. AI Init (Placeholder)
+            const recs = null; // Removed Mock Call
+
+            // 3. Validation Detail (Replicating index.html logic)
+            // Calculate Stats for Validation
+            let totalCredits = 0;
+            let basicCredits = 0;
+            let artCredits = 0;
+            let electiveGroupCredits = 0; // 교양/제2외국어/정보
+
+            // Map for Joint Courses/etc.
+            const jointSubCategoryToCategoryMap = {
+                '국어': '기초교과', '영어': '기초교과', '수학': '기초교과', '한국사': '기초교과',
+                '사회(역사/도덕 포함)': '탐구교과', '과학': '탐구교과',
+                '체육': '예술교과', '예술': '예술교과',
+                '기술·가정': '교양교과', '제2외국어': '교양교과', '한문': '교양교과', '교양': '교양교과'
+            };
+
+            const selectedSlugs = new Set();
+
+            courseList.forEach(c => {
+                const credits = parseInt(c.credit || 0);
+                totalCredits += credits;
+
+                // Determine Category
+                let cat = c.category;
+                if (!cat || cat === '기타') {
+                    // Try to infer from name or use passed info
+                    const meta = allCourseData.find(m => m.subjectName === c.name);
+                    if (meta) cat = meta.category;
+                }
+
+                if (cat === '기초교과' || (cat && cat.includes('기초'))) basicCredits += credits;
+                if (cat === '체육교과' || cat === '예술교과' || (cat && (cat.includes('체육') || cat.includes('예술')))) artCredits += credits;
+                if (['교양교과', '제2외국어', '정보', '생활·교양'].includes(cat) || (cat && (cat.includes('교양') || cat.includes('외국어') || cat.includes('정보')))) electiveGroupCredits += credits;
+
+                // Add to slug set for prerequisites
+                // Try to find slug from meta first
+                const meta = allCourseData.find(m => m.subjectName === c.name);
+                if (meta) selectedSlugs.add(meta.slug);
+                else selectedSlugs.add(c.name); // Fallback: Name is slug
+            });
+
+            // Rules
+            const validationChecklist = [];
+
+            // 1) Total Credits (>= 174)
+            validationChecklist.push({
+                label: `총 이수학점 (174학점 이상)`,
+                status: totalCredits >= 174,
+                desc: `총 이수학점이 174학점 이상 충족했는지 검증합니다. (현재: ${totalCredits}학점)`
+            });
+
+            // 2) Foundation <= 50%
+            const foundationRatio = totalCredits > 0 ? (basicCredits / totalCredits) * 100 : 0;
+            validationChecklist.push({
+                label: `기초교과 50% 초과 여부`,
+                status: totalCredits === 0 || foundationRatio <= 50,
+                desc: `기초교과(국어, 영어, 수학, 한국사) 이수학점이 총 이수학점의 50%를 초과하였는지 검증합니다. (현재: ${foundationRatio.toFixed(1)}%)`
+            });
+
+            // 3) Subject Minimums (Simplified check: Art >= 10, Elective >= 16)
+            // Note: This matches index.html logic which checks these specific loose groups
+            const artPass = artCredits >= 10;
+            const electivePass = electiveGroupCredits >= 16;
+            validationChecklist.push({
+                label: `교과별 최소 이수학점 충족 여부`,
+                status: artPass && electivePass, // Combine them or list separate? Requirement implies single item or strict check. Listing as one for "Subject Minimums"
+                desc: `교과별 최소 이수학점이 충족되었는지 검증합니다. (예술 10학점, 생활·교양 16학점 등)`
+            });
+
+            // 4) Prerequisites
+            let prereqFailures = [];
+            courseList.forEach(c => {
+                const meta = allCourseData.find(m => m.subjectName === c.name);
+                if (meta && meta.prerequisites) {
+                    let reqs = [];
+                    if (typeof meta.prerequisites === 'string') reqs = meta.prerequisites.split(',').map(s => s.trim());
+                    else if (Array.isArray(meta.prerequisites)) reqs = meta.prerequisites;
+
+                    reqs.forEach(req => {
+                        if (req && !selectedSlugs.has(req)) {
+                            // Find name of missing prereq
+                            const reqMeta = allCourseData.find(m => m.slug === req);
+                            const reqName = reqMeta ? reqMeta.subjectName : req;
+                            prereqFailures.push(`${c.name} (선이수: ${reqName})`);
                         }
-                    }
-                }
-
-                else {
-                    // Unknown course - Try to parse info from the string if it matches format
-                    // format: slug-grade-semester-credit
-                    const parts = cName.split('-');
-                    let dispName = cName;
-                    let dispSem = '?';
-                    let dispCredit = 0;
-
-                    if (parts.length >= 4) {
-                        // Assuming the slug is the name or we can't find real name. Use slug.
-                        dispName = parts[0];
-                        dispSem = `${parts[1]}-${parts[2]}`;
-                        dispCredit = parseInt(parts[3]) || 0;
-                    }
-
-                    const uniqueKey = `${dispName}-${dispSem}`;
-
-                    if (!addedCourses.has(uniqueKey)) {
-                        addedCourses.add(uniqueKey);
-
-                        courseList.push({
-                            name: dispName, semester: dispSem, credit: dispCredit, category: '기타'
-                        });
-                    }
+                    });
                 }
             });
+            const uniquePrereqFailures = [...new Set(prereqFailures)];
 
-            // Sort: Semester Asc -> Name Asc
-            courseList.sort((a, b) => {
-                if (a.semester !== b.semester) return a.semester.localeCompare(b.semester); // String compare for '2-1' vs '2-2'
-                return a.name.localeCompare(b.name);
+            validationChecklist.push({
+                label: `위계에 따른 과목 이수 여부`,
+                status: uniquePrereqFailures.length === 0,
+                desc: `수학, 과학과목을 선택할 때 선이수과목에 맞춰서 이수했는지 검증합니다. ${uniquePrereqFailures.length > 0 ? '미이수: ' + uniquePrereqFailures.join(', ') : ''}`
             });
 
-            // Sort Fix: Override to ensure Grade > Semester > Name order
-            courseList.sort((a, b) => {
-                const getMeta = (name) => allCourseData.find(c => c.subjectName === name);
-                const metaA = getMeta(a.name);
-                const metaB = getMeta(b.name);
-
-                // 1. Grade (Int)
-                const gradeA = metaA ? parseInt(metaA.grade) : 99;
-                const gradeB = metaB ? parseInt(metaB.grade) : 99;
-                if (gradeA !== gradeB) return gradeA - gradeB;
-
-                // 2. Semester (Int)
-                const semA = metaA ? (parseInt(metaA.semester) || 99) : 99;
-                const semB = metaB ? (parseInt(metaB.semester) || 99) : 99;
-                if (semA !== semB) return semA - semB;
-
-                // 3. Name (Korean)
-                return a.name.localeCompare(b.name);
-            });
-
-            // 2. AI Recommendations (Mock)
-            const recs = getAiRecommendations(s.Major);
-
-            // 3. Validation Detail Mock
-            const validationChecklist = [{
-                label: '총 이수 학점 (28학점 이상)', status: parseInt(s.TotalCredits) >= 28
-            }
-
-                ,
-            {
-                label: '기초 교과 이수', status: true
-            }
-
-                ,
-            // Mock
-            {
-                label: '탐구 교과 밸런스', status: true
-            }
-
-                ,
-            // Mock
-            {
-                label: '필수 과목 포함 여부', status: isPass
-            }
-
-            ];
 
             const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full"><!-- Header --><div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-2 print:pb-2"><div><div class="flex items-center gap-2"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border print:bg-white print:text-black">${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}</span><h3 class="text-2xl font-bold theme-text print:text-black">${s.Name
                 }
@@ -1731,7 +1811,7 @@
     </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:block print:space-y-4"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-4"><h4 class="font-bold mb-2 theme-text print:text-black">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-40"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-4"><h4 class="font-bold mb-2 theme-text print:text-black">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2"><p class="font-bold text-center ${vColor} text-sm print:text-black">${isPass ? 'PASS (적합)' : '확인 필요'
                 }
 
-    </p></div><table class="w-full text-xs">${validationChecklist.map(v => ` <tr class="border-b last:border-0 border-gray-100" > <td class="py-2 text-gray-600 print:text-black" >${v.label
+    </p></div><table class="w-full text-xs">${validationChecklist.map(v => ` <tr class="border-b last:border-0 border-gray-100 cursor-help" title="${v.desc || ''}"> <td class="py-2 text-gray-600 print:text-black" >${v.label
                     }
 
             </td> <td class="py-2 text-right font-bold ${v.status ? 'text-blue-600' : 'text-red-500'}" > ${v.status ? '적합' : '미달/확인'
@@ -1754,19 +1834,7 @@
                 }).join('')
                 }
 
-    </tbody></table></div></div><!-- Right Bottom: AI Recommendations --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black">🤖 AI 진로 추천 가이드 </h4><div class="text-sm space-y-3"><div><span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">추천 탐구 과목 및 활동</span><ul class="list-disc pl-4 text-gray-700 dark:text-gray-300 space-y-1 print:text-black">${recs.subjects.map(s => `<li > ${s
-                    }
-
-            </li > `).join('')
-                }
-
-    </ul></div><div class="pt-2 border-t border-indigo-200"><span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">추천 생기부 키워드</span><div class="flex flex-wrap gap-1">${recs.keywords.map(k => `<span class="px-2 py-0.5 bg-white rounded border border-indigo-200 text-indigo-600 text-xs print:text-black print:border-gray-400" > ${k
-                    }
-
-            </span > `).join('')
-                }
-
-    </div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
+    </tbody></table></div></div><!-- Right Bottom: AI Recommendations --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black">🤖 AI 진로 추천 가이드 </h4><div id="ai-analysis-container" class="text-sm space-y-3"><div class="text-center py-4 print:hidden"><button onclick="fetchAiCareerAnalysis('${s.Major}', '${courseList.map(c => c.name).join(',')}')" class="px-4 py-2 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 transition flex items-center gap-2 mx-auto" ${!s.Major ? 'disabled' : ''}><span>✨</span> ${s.Major ? 'AI 진로/생기부 분석 실행' : '진로 희망 정보 없음'}</button><p class="text-xs text-indigo-400 mt-2">클릭 시 OpenAI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</p></div><div class="hidden print:block text-gray-400 text-center italic text-xs p-4">분석 결과가 여기에 표시됩니다. (화면에서 분석 실행 후 출력하세요)</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
     class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="window.print()"
     class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>이 학생 리포트 출력 </button><button onclick="downloadStudentReportImage('${s.Name}', '${s.Number}')" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow flex items-center gap-2"><span>💾</span>이미지 저장</button></div></div>`;
             modalContent.innerHTML = html;
@@ -1786,7 +1854,7 @@
                             datasets: [{
                                 label: '이수 학점',
                                 data: Object.values(creditStats),
-                                backgroundColor: ['#60A5FA', '#34D399', '#F472B6', '#A78BFA'],
+                                backgroundColor: ['#60A5FA', '#34D399', '#3B82F6', '#F472B6', '#A78BFA'], // Added Blue for Science
                                 borderRadius: 4
                             }
 
@@ -2677,6 +2745,107 @@
             });
         }
 
+        // AI Analysis Fetcher (Admin Mode)
+        async function fetchAiCareerAnalysis(major, userCourses) {
+            const container = document.getElementById('ai-analysis-container');
+            if (!container) return;
+
+            // Loading State
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-6 text-indigo-600">
+                    <svg class="animate-spin h-8 w-8 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-sm font-bold">오픈AI가 생활기록부와 진로를 분석 중입니다...</span>
+                    <span class="text-xs text-gray-400 mt-1 max-w-xs text-center">(약 10~20초 소요될 수 있습니다)</span>
+                </div>
+            `;
+
+            try {
+                // Determine Available Course Context
+                const availableCourses = userCourses && userCourses.length > 0 ? userCourses : "학교 전체 개설 과목";
+
+                const response = await fetch('/.netlify/functions/ai-recommendation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        major: major,
+                        availableCourses: availableCourses,
+                        mode: 'admin' // Enable JSON format
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error ? err.error.message : 'Analysis failed');
+                }
+
+                const result = await response.json();
+                let content = result.choices[0].message.content;
+                let data;
+
+                try {
+                    data = JSON.parse(content);
+                } catch (e) {
+                    console.error("JSON Parse Error, falling back to text", e);
+                    // Fallback: Try to clean code blocks if present (```json ... ```)
+                    if (content.includes('```')) {
+                        content = content.replace(/```json/g, '').replace(/```/g, '');
+                        try { data = JSON.parse(content); } catch (e2) { throw new Error('AI 응답 형식이 올바르지 않습니다.'); }
+                    } else {
+                        throw new Error('AI 응답을 처리할 수 없습니다.');
+                    }
+                }
+
+                // Render Results
+                const subjects = data.subjects || [];
+                const keywords = data.keywords || [];
+                const activities = data.activities || [];
+
+                container.innerHTML = `
+                    <div class="space-y-4">
+                        <!-- 1. Activities -->
+                        <div>
+                            <span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">🔍 추천 탐구 활동</span>
+                             <ul class="list-disc pl-4 text-gray-700 dark:text-gray-300 space-y-1 text-xs print:text-black leading-snug">
+                                ${activities.map(a => `<li>${a}</li>`).join('')}
+                             </ul>
+                        </div>
+                        
+                        <!-- 2. Subjects -->
+                        <div class="pt-2 border-t border-indigo-100">
+                            <span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">📚 추천 과목 및 이유</span>
+                            <ul class="list-disc pl-4 text-gray-700 dark:text-gray-300 space-y-1 text-xs print:text-black leading-snug">
+                                ${subjects.map(s => `<li>${s}</li>`).join('')}
+                            </ul>
+                        </div>
+
+                        <!-- 3. Keywords -->
+                        <div class="pt-2 border-t border-indigo-100">
+                            <span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">🔑 생기부 추천 키워드</span>
+                            <div class="flex flex-wrap gap-1">
+                                ${keywords.map(k => `<span class="px-2 py-0.5 bg-white rounded border border-indigo-200 text-indigo-600 text-[10px] font-bold shadow-sm print:text-black print:border-gray-400">${k}</span>`).join('')}
+                            </div>
+                        </div>
+                        
+                        <div class="text-right pt-2">
+                             <span class="text-[10px] text-gray-400">Analysis by OpenAI GPT-4o</span>
+                        </div>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error("AI Error:", error);
+                container.innerHTML = `
+                    <div class="text-center py-4 text-red-500 text-sm">
+                        <p class="font-bold">분석 중 오류가 발생했습니다.</p>
+                        <p class="text-xs mt-1">${error.message}</p>
+                        <button onclick="fetchAiCareerAnalysis('${major}', '${userCourses}')" class="mt-2 text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">다시 시도</button>
+                    </div>
+                `;
+            }
+        }
     </script>
 
     <!-- Class Stats Dashboard Modal -->
