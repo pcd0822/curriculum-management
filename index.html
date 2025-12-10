@@ -151,14 +151,21 @@
             <!-- Joint Course Input -->
             <div class="theme-card p-6 rounded-lg shadow-md">
                 <h2 class="text-lg font-semibold mb-4 theme-text">공동 교육과정 (외부 수강)</h2>
-                <div class="flex gap-2 mb-4">
-                    <input type="text" id="joint-course-name" class="flex-1 p-2 border rounded" placeholder="과목명">
-                    <select id="joint-course-credits" class="p-2 border rounded w-24">
+                <div class="flex gap-2 mb-4 flex-wrap">
+                    <select id="joint-course-sub-category" class="p-2 border rounded w-28 text-sm">
+                        <option value="기초">기초</option>
+                        <option value="탐구">탐구</option>
+                        <option value="체육·예술">체육·예술</option>
+                        <option value="생활·교양">생활·교양</option>
+                    </select>
+                    <input type="text" id="joint-course-name" class="flex-1 p-2 border rounded text-sm"
+                        placeholder="과목명">
+                    <select id="joint-course-credits" class="p-2 border rounded w-20 text-sm">
                         <option value="2">2학점</option>
                         <option value="3">3학점</option>
                         <option value="4">4학점</option>
                     </select>
-                    <select id="joint-course-category" class="p-2 border rounded w-32">
+                    <select id="joint-course-semester" class="p-2 border rounded w-32 text-sm">
                         <option value="1-1">1학년 1학기</option>
                         <option value="1-2">1학년 2학기</option>
                         <option value="2-1">2학년 1학기</option>
@@ -166,7 +173,7 @@
                         <option value="3-1">3학년 1학기</option>
                     </select>
                     <button id="add-joint-btn"
-                        class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">추가</button>
+                        class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">추가</button>
                 </div>
                 <ul id="joint-course-list" class="space-y-2 text-sm theme-text">
                     <!-- Added joint courses will appear here -->
@@ -1231,20 +1238,32 @@
 
         // Joint Courses
         function initJointCourses() {
+            // Get new elements dynamically or assume they exist
+            const jointSubCategoryEl = document.getElementById('joint-course-sub-category');
+            const jointSemesterEl = document.getElementById('joint-course-semester'); // Was joint-course-category
+
             addJointBtn.addEventListener('click', () => {
                 const name = jointNameEl.value.trim();
                 const credits = parseInt(jointCreditsEl.value);
-                const category = jointCategoryEl.value;
+                const semester = jointSemesterEl.value; // "1-1", etc
+                const subCategory = jointSubCategoryEl.value; // "기초", etc
 
                 if (!name) return alert('과목명을 입력해주세요.');
+
+                // Check duplicates (by Name)
+                if (jointCourses.some(c => c.subjectName === name)) {
+                    return alert('이미 추가된 과목입니다.');
+                }
 
                 jointCourses.push({
                     id: 'joint-' + Date.now(),
                     subjectName: name,
+                    slug: name, // Important: Name acts as Slug
                     credits: credits,
-                    category: category,
-                    grade: category.split('-')[0],
-                    semester: category.split('-')[1],
+                    category: subCategory, // e.g. "기초"
+                    subCategory: subCategory,
+                    grade: semester.split('-')[0],
+                    semester: semester.split('-')[1],
                     required: false
                 });
 
