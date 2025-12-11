@@ -1791,7 +1791,7 @@
             renderIndividualStatsTable();
         };
 
-        function renderDetailedStudentReport(s) {
+        async function renderDetailedStudentReport(s) {
             const modalContent = document.getElementById('class-stats-content');
 
             const vRes = s.ValidationResult || '특이사항 없음';
@@ -1813,7 +1813,7 @@
                 '제2외국어': '교양교과', '정보': '교양교과', '교양': '교양교과'
             };
 
-            // 2. Base Credits from REQUIRED Courses
+            // 2. Base Credits from REQUIRED Courses (index.html과 동일한 로직)
             // Add required credits to stats ensure Chart matches Total
             // Note: This logic assumes 'allCourseData' has 'required' and 'grade' fields
             allCourseData.forEach(c => {
@@ -1821,11 +1821,34 @@
                 // Loose check for grade match (e.g. if s.Grade is "2", match "2", "2-1", "2-2"?)
                 // Usually required courses are Grade specific. Simple equality check for now.
                 if (isRequired && (parseInt(c.grade) === parseInt(s.Grade))) {
+                    const subjectName = c.subjectName || c.name || '';
+                    
+                    // 복수편제과목 중복 계산 방지 (index.html과 동일)
+                    const isMultiSemester = (multiSemesterRules[subjectName] && multiSemesterRules[subjectName].length > 0) ||
+                        (coursesByName[subjectName] && coursesByName[subjectName].length > 1);
+
+                    if (isMultiSemester && countedMultiSemesterNames.has(subjectName)) {
+                        return; // 이미 계산된 복수편제과목은 건너뛰기
+                    }
+
+                    const slug = c.slug || c.id || '';
+                    let shouldCount = !duplicateCourseSlugs.includes(slug) || !countedCourseSlugs.has(slug);
+
+                    if (!shouldCount) {
+                        return; // 중복된 과목은 건너뛰기
+                    }
+
+                    if (duplicateCourseSlugs.includes(slug)) {
+                        countedCourseSlugs.add(slug);
+                    }
+                    if (isMultiSemester) {
+                        countedMultiSemesterNames.add(subjectName);
+                    }
+                    
                     const cred = parseInt(c.credit || c.credits || 0);
                     const cat = c.category || '기타';
-                    const subCat = c.subCategory || '';
 
-                    // Check category and subCategory for proper classification (index.html과 동일)
+                    // Check category for proper classification (index.html과 동일 - category 직접 사용)
                     if (cat === '기초교과') {
                         creditStats['기초교과'] += cred;
                     } else if (cat === '탐구교과') {
@@ -1843,13 +1866,42 @@
             // 3. Process Selected & Joint Courses
             const selectedRaw = s.SelectedCourses ? s.SelectedCourses.split(',').map(c => c.trim()).filter(x => x) : [];
             const jointRaw = s.JointCourses ? s.JointCourses.split(',').map(c => c.trim()).filter(x => x) : [];
-            const allRaw = [...selectedRaw, ...jointRaw]; // Process ALL courses
+            
+            // 복수편제과목 중복 계산 방지 (index.html과 동일)
+            const countedCourseSlugs = new Set();
+            const countedMultiSemesterNames = new Set();
+            
+            // Identify Multi-Semester Courses for duplicate prevention
+            const coursesByName = {};
+            allCourseData.forEach(c => {
+                const name = c.subjectName || c.name || '';
+                if (name && !coursesByName[name]) coursesByName[name] = [];
+                if (name) coursesByName[name].push(c);
+            });
+            
+            // Get multiSemesterRules and duplicateCourseSlugs from settings if available
+            let multiSemesterRules = {};
+            let duplicateCourseSlugs = [];
+            try {
+                const settings = await DB.fetchSettings();
+                if (settings) {
+                    if (settings.multiSemesterRules) {
+                        multiSemesterRules = settings.multiSemesterRules;
+                    }
+                    if (settings.duplicateCourseSlugs) {
+                        duplicateCourseSlugs = settings.duplicateCourseSlugs;
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not fetch settings:', e);
+            }
 
             const courseList = [];
             const addedCourses = new Set();
             let calculatedTotal = 0; // For verification
 
-            allRaw.forEach(cName => {
+            // Process Selected Courses
+            selectedRaw.forEach(cName => {
                 // Skip joint courses (joint-### format) - they should not appear in the course list
                 // but their credits are already counted in creditStats via JointCourses processing
                 if (cName.startsWith('joint-')) {
@@ -1916,21 +1968,38 @@
                     displayGrade = parseInt(meta.grade || 99);
                     isRequired = meta.required === true || String(meta.required).toLowerCase() === 'true';
 
-                    // Add to Stats (index.html과 동일한 로직)
-                    let cat = displayCat;
-                    if (meta.subCategory && jointSubCategoryToCategoryMap[meta.subCategory]) {
-                        cat = jointSubCategoryToCategoryMap[meta.subCategory];
+                    // 복수편제과목 중복 계산 방지 (index.html과 동일)
+                    const isMultiSemester = (multiSemesterRules[displayName] && multiSemesterRules[displayName].length > 0) ||
+                        (coursesByName[displayName] && coursesByName[displayName].length > 1);
+
+                    if (isMultiSemester && countedMultiSemesterNames.has(displayName)) {
+                        return; // 이미 계산된 복수편제과목은 건너뛰기
                     }
-                    
-                    if (cat === '기초교과') {
+
+                    let shouldCount = !duplicateCourseSlugs.includes(meta.slug || meta.id || '') || 
+                                     !countedCourseSlugs.has(meta.slug || meta.id || '');
+
+                    if (!shouldCount) {
+                        return; // 중복된 과목은 건너뛰기
+                    }
+
+                    if (duplicateCourseSlugs.includes(meta.slug || meta.id || '')) {
+                        countedCourseSlugs.add(meta.slug || meta.id || '');
+                    }
+                    if (isMultiSemester) {
+                        countedMultiSemesterNames.add(displayName);
+                    }
+
+                    // Add to Stats (index.html과 동일한 로직 - category 직접 사용)
+                    if (displayCat === '기초교과') {
                         creditStats['기초교과'] += displayCredit;
-                    } else if (cat === '탐구교과') {
+                    } else if (displayCat === '탐구교과') {
                         creditStats['사회 및 과학'] += displayCredit;
-                    } else if (cat === '예술교과') {
+                    } else if (displayCat === '예술교과') {
                         creditStats['예술교과'] += displayCredit;
-                    } else if (cat === '체육교과') {
+                    } else if (displayCat === '체육교과') {
                         creditStats['체육교과'] += displayCredit;
-                    } else if (['교양교과', '제2외국어', '정보'].includes(cat)) {
+                    } else if (['교양교과', '제2외국어', '정보'].includes(displayCat)) {
                         creditStats['교양,제2외국어,정보'] += displayCredit;
                     }
 
@@ -1955,17 +2024,17 @@
 
                 // Add to Course List (Deduplicate) - Only add non-required courses
                 if (!isRequired) {
-                    const uniqueKey = `${displayName}-${displaySem}`;
-                    if (!addedCourses.has(uniqueKey)) {
-                        addedCourses.add(uniqueKey);
-                        courseList.push({
-                            name: displayName,
-                            semester: displaySem,
-                            grade: displayGrade,
-                            credit: displayCredit,
+                const uniqueKey = `${displayName}-${displaySem}`;
+                if (!addedCourses.has(uniqueKey)) {
+                    addedCourses.add(uniqueKey);
+                    courseList.push({
+                        name: displayName,
+                        semester: displaySem,
+                        grade: displayGrade,
+                        credit: displayCredit,
                             category: displayCat,
                             required: isRequired
-                        });
+                    });
                     }
                 }
             });
@@ -1994,7 +2063,7 @@
             let basicCredits = creditStats['기초교과'] || 0;
             let artCredits = 0;
             let electiveGroupCredits = 0; // 교양/제2외국어/정보
-            
+
             // 교과별 필수 이수학점 계산
             let koreanCredits = 0; // 국어
             let mathCredits = 0; // 수학
@@ -2279,7 +2348,7 @@
         </p > ` : ''
                 }
 
-    </div></div></div><!-- Bottom Row: Course List and AI Recommendations --><div class="grid grid-cols-1 lg:grid-cols-3 print:grid-cols-2 print:gap-1.5 print:mb-1.5"><!-- Left Bottom: Selected Course List (same width as Chart in print) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 lg:col-span-2 print:col-span-1"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📚 선택 과목 목록 (${courseList.length
+    </div></div></div><!-- Bottom Row: Course List and AI Recommendations --><div class="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-2 print:gap-1.5 print:mb-1.5 mt-6 print:mt-1.5"><!-- Left Bottom: Selected Course List (same width as Chart in print) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 lg:col-span-2 print:col-span-1"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📚 선택 과목 목록 (${courseList.length
 
                 })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none print:flex-1"><table class="w-full text-xs text-left print:text-[8pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학기</th><th class="p-2 print:p-0.5 print:text-[9pt]" style="width: 50% !important;">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
                     const [grade, sem] = c.semester.includes('-') ? c.semester.split('-') : ['?', '?'];
@@ -2317,7 +2386,7 @@
                             }]
                         },
                         options: {
-                            indexAxis: window.matchMedia('print').matches ? 'x' : 'y', // Print: vertical bars, Screen: horizontal bars
+                            indexAxis: 'x', // Always vertical bars for consistency
                             responsive: true,
                             maintainAspectRatio: false,
                             plugins: {
