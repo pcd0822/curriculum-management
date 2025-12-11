@@ -84,8 +84,8 @@
 
     @media print {
         @page {
-            size: A4 portrait;
-            margin: 3mm;
+            size: auto;
+            margin: 5mm;
         }
 
         body {
@@ -122,62 +122,67 @@
             margin: 0 !important;
         }
 
-        /* Report Card Optimization - Fit on one page with good readability */
+        /* Report Card Optimization - Fit on one page with good readability, any paper size */
         #student-report-card {
             border: none !important;
             box-shadow: none !important;
-            padding: 3mm !important;
+            padding: 2mm !important;
             margin: 0 !important;
-            font-size: 8pt !important;
+            font-size: 9pt !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            page-break-inside: avoid !important;
         }
         
-        /* Header */
+        /* Header - more compact */
         #student-report-card > div:first-child {
-            margin-bottom: 2mm !important;
-            padding-bottom: 2mm !important;
+            margin-bottom: 1.5mm !important;
+            padding-bottom: 1.5mm !important;
         }
         
         #student-report-card h3 {
-            font-size: 14pt !important;
+            font-size: 12pt !important;
             margin: 0 !important;
-            line-height: 1.3 !important;
+            line-height: 1.2 !important;
         }
         
         #student-report-card .text-2xl {
-            font-size: 16pt !important;
+            font-size: 14pt !important;
         }
         
-        /* Grid layout */
+        /* Grid layout - more compact */
         #student-report-card .grid {
-            gap: 2mm !important;
+            gap: 1.5mm !important;
         }
         
-        /* Cards */
+        /* Cards - more compact */
         #student-report-card .theme-card {
-            padding: 2mm !important;
-            margin-bottom: 2mm !important;
+            padding: 1.5mm !important;
+            margin-bottom: 1.5mm !important;
+            page-break-inside: avoid !important;
         }
         
         #student-report-card h4 {
-            font-size: 9pt !important;
-            margin-bottom: 1mm !important;
-            line-height: 1.3 !important;
+            font-size: 8pt !important;
+            margin-bottom: 0.75mm !important;
+            line-height: 1.2 !important;
         }
         
-        /* Chart */
+        /* Chart - smaller */
         #student-report-card canvas {
-            height: 80px !important;
+            height: 60px !important;
         }
         
-        /* Tables */
+        /* Tables - optimized */
         #student-report-card table {
             font-size: 7pt !important;
+            width: 100% !important;
         }
         
         #student-report-card table th,
         #student-report-card table td {
-            padding: 1mm 0.5mm !important;
-            line-height: 1.3 !important;
+            padding: 0.75mm 0.5mm !important;
+            line-height: 1.2 !important;
         }
         
         /* Validation table */
@@ -190,27 +195,28 @@
             display: block !important;
             background: white !important;
             border: 1px solid #e5e7eb !important;
+            page-break-inside: avoid !important;
         }
         
-        /* Spacing */
+        /* Spacing - more compact */
         #student-report-card .space-y-4 > * + * {
-            margin-top: 2mm !important;
+            margin-top: 1.5mm !important;
         }
         
         #student-report-card .gap-6 {
-            gap: 2mm !important;
+            gap: 1.5mm !important;
         }
         
         #student-report-card .mb-6 {
-            margin-bottom: 2mm !important;
-        }
-        
-        #student-report-card .mb-4 {
             margin-bottom: 1.5mm !important;
         }
         
-        #student-report-card .mb-2 {
+        #student-report-card .mb-4 {
             margin-bottom: 1mm !important;
+        }
+        
+        #student-report-card .mb-2 {
+            margin-bottom: 0.75mm !important;
         }
         
         /* Hide dropdown area in print */
@@ -222,7 +228,7 @@
         
         /* Table rows */
         #student-report-card table tr {
-            line-height: 1.3 !important;
+            line-height: 1.2 !important;
         }
         
         /* Course list table */
@@ -232,7 +238,7 @@
         
         /* Spacing in all sections */
         #student-report-card * {
-            line-height: 1.3 !important;
+            line-height: 1.2 !important;
         }
         
         /* Border spacing */
@@ -243,11 +249,35 @@
         /* AI section styling for print */
         #student-report-card .bg-indigo-50 h4 {
             color: black !important;
+            font-size: 8pt !important;
         }
         
         #student-report-card .text-indigo-400,
         #student-report-card .text-indigo-800 {
             color: black !important;
+        }
+        
+        /* Force single page */
+        #student-report-card {
+            height: auto !important;
+            min-height: auto !important;
+            max-height: 100vh !important;
+        }
+        
+        /* Optimize grid for print */
+        #student-report-card .grid.print\:grid-cols-2 {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 1.5mm !important;
+        }
+        
+        /* Compact course list */
+        #student-report-card .overflow-y-auto table {
+            font-size: 6.5pt !important;
+        }
+        
+        #student-report-card .overflow-y-auto table th,
+        #student-report-card .overflow-y-auto table td {
+            padding: 0.5mm 0.25mm !important;
         }
 
         /* Hide UI controls */
@@ -2158,7 +2188,7 @@
     </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-0.5 print:mb-0"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-[35px]"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-0.25 print:p-0.25"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[5pt]">${isPass ? 'PASS' : '확인 필요'
                 }
 
-    </p></div><table class="w-full text-xs print:text-[7pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-1 print:text-[7pt]">항목</th><th class="text-right print:p-1 print:text-[7pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
+    </p></div><table class="w-full text-xs print:text-[7pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.75 print:text-[7pt]">항목</th><th class="text-right print:p-0.75 print:text-[7pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
                     // Escape HTML in description for tooltip
                     const escapedDesc = (v.desc || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, ' ');
                     const toggleId = 'validation-toggle-' + idx;
@@ -2178,7 +2208,7 @@
                         rowHtml += '<tr id="' + toggleId + '" class="hidden print:table-row"><td colspan="2" class="py-0.5 px-2 bg-gray-50 print:bg-white print:py-0.5"><table class="w-full text-xs print:text-[6pt]">';
                         v.details.forEach(d => {
                             const detailEscaped = (d.desc || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, ' ');
-                            rowHtml += '<tr class="border-b last:border-0 border-gray-200 cursor-help" title="' + detailEscaped + '"><td class="py-0.5 pl-2 text-gray-500 print:text-black print:py-0.5 print:pl-1">' + d.label + '</td><td class="py-0.5 text-right font-bold ' + (d.status ? 'text-blue-600' : 'text-red-500') + ' print:text-black print:py-0.5">' + (d.status ? '✓' : '✗') + '</td></tr>';
+                            rowHtml += '<tr class="border-b last:border-0 border-gray-200 cursor-help" title="' + detailEscaped + '"><td class="py-0.5 pl-2 text-gray-500 print:text-black print:py-0.25 print:pl-1">' + d.label + '</td><td class="py-0.5 text-right font-bold ' + (d.status ? 'text-blue-600' : 'text-red-500') + ' print:text-black print:py-0.25">' + (d.status ? '✓' : '✗') + '</td></tr>';
                         });
                         rowHtml += '</table></td></tr>';
                     }
@@ -2187,17 +2217,17 @@
                 }).join('')
                 }
 
-    </tbody></table>${!isPass ? `<p class="mt-2 text-xs text-red-500 font-medium bg-white p-1 rounded border border-red-100 print:text-red-600 print:mt-0.25 print:p-0.25 print:text-[4pt]" > ${vRes
+    </tbody></table>${!isPass ? `<p class="mt-2 text-xs text-red-500 font-medium bg-white p-1 rounded border border-red-100 print:text-red-600 print:mt-1 print:p-1 print:text-[6pt]" > ${vRes
                     }
 
         </p > ` : ''
                 }
 
-    </div><!-- Left Bottom: Selected Course List (Sorted) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5 print:col-span-2"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">📚 선택 과목 목록 (${courseList.length
+    </div><!-- Left Bottom: Selected Course List (Sorted) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 print:col-span-2"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📚 선택 과목 목록 (${courseList.length
 
-                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left print:text-[7pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-1 print:text-[7pt]">학년</th><th class="p-2 w-10 text-center print:p-1 print:text-[7pt]">학기</th><th class="p-2 print:p-1 print:text-[7pt]">과목명</th><th class="p-2 w-10 text-center print:p-1 print:text-[7pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
+                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left print:text-[6.5pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[6.5pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[6.5pt]">학기</th><th class="p-2 print:p-0.5 print:text-[6.5pt]">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[6.5pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
                     const [grade, sem] = c.semester.includes('-') ? c.semester.split('-') : ['?', '?'];
-                    return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-1 print:text-[7pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-1 print:text-[7pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-1 print:text-[7pt]" >${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-1 print:text-[7pt]" >${c.credit}</td> </tr> `;
+                    return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[6.5pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[6.5pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-0.5 print:text-[6.5pt]" >${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-0.5 print:text-[6.5pt]" >${c.credit}</td> </tr> `;
                 }).join('')
                 }
 
