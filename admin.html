@@ -2165,6 +2165,8 @@
             // index.html에서는 courseList(selected)와 required courses를 모두 포함하여 계산
             let artCredits = creditStats['예술교과'] || 0;
             let electiveGroupCredits = creditStats['교양,제2외국어,정보'] || 0;
+            // 체육교과도 creditStats에서 직접 가져와서 막대그래프와 일치시킴
+            let physicalCredits = creditStats['체육교과'] || 0;
 
             // 교과별 필수 이수학점 계산
             let koreanCredits = 0; // 국어
@@ -2174,7 +2176,7 @@
             let koreanHistory2 = false; // 한국사2
             let socialCredits = 0; // 사회
             let scienceCredits = 0; // 과학
-            let physicalCredits = 0; // 체육
+            // physicalCredits는 위에서 creditStats['체육교과']로 이미 초기화됨 (막대그래프와 일치)
 
             // Map for Joint Courses/etc. (index.html과 동일)
             const jointSubCategoryToCategoryMapForValidation = {
@@ -2215,10 +2217,8 @@
                 if (subCat === '영어') englishCredits += credits;
                 if (subCat === '사회') socialCredits += credits;
                 if (subCat === '과학') scienceCredits += credits;
-                // 체육: index.html과 동일하게 subCategory만 확인
-                if (subCat === '체육') {
-                    physicalCredits += credits;
-                }
+                // 체육: creditStats에서 이미 계산되었으므로 여기서는 계산하지 않음 (막대그래프와 일치)
+                // physicalCredits는 creditStats['체육교과']를 사용
                 
                 // 한국사1, 한국사2 확인
                 const subjectName = (c.name || '').toLowerCase();
@@ -2251,10 +2251,8 @@
                     if (subCat === '영어') englishCredits += cred;
                     if (subCat === '사회') socialCredits += cred;
                     if (subCat === '과학') scienceCredits += cred;
-                    // 체육: index.html과 동일하게 subCategory만 확인
-                    if (subCat === '체육') {
-                        physicalCredits += cred;
-                    }
+                    // 체육: creditStats에서 이미 계산되었으므로 여기서는 계산하지 않음 (막대그래프와 일치)
+                    // physicalCredits는 creditStats['체육교과']를 사용
                     
                     // 한국사1, 한국사2 확인
                     const subjectName = (c.subjectName || '').toLowerCase();
