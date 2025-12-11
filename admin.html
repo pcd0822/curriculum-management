@@ -2968,11 +2968,36 @@
                 el.style.marginBottom = '0.75mm';
             });
 
-            // AI section
+            // AI section - apply print styles
             const aiSections = clone.querySelectorAll('.bg-indigo-50');
             aiSections.forEach(section => {
                 section.style.backgroundColor = '#ffffff';
                 section.style.border = '1px solid #e5e7eb';
+                section.style.display = 'block';
+            });
+
+            // Hide print:hidden elements (buttons, etc.)
+            const printHiddenElements = clone.querySelectorAll('[class*="print:hidden"]');
+            printHiddenElements.forEach(el => {
+                el.style.display = 'none';
+            });
+
+            // Show print:block elements
+            const printBlockElements = clone.querySelectorAll('[class*="print:block"]');
+            printBlockElements.forEach(el => {
+                el.style.display = 'block';
+            });
+
+            // Apply print text colors
+            const printTextElements = clone.querySelectorAll('[class*="print:text-black"]');
+            printTextElements.forEach(el => {
+                el.style.color = '#000000';
+            });
+
+            // Apply print background colors
+            const printBgElements = clone.querySelectorAll('[class*="print:bg-white"]');
+            printBgElements.forEach(el => {
+                el.style.backgroundColor = '#ffffff';
             });
 
             // Manually copy Canvas content (Chart.js)
@@ -2981,6 +3006,29 @@
             if (originalCanvas && clonedCanvas) {
                 const ctx = clonedCanvas.getContext('2d');
                 ctx.drawImage(originalCanvas, 0, 0);
+            }
+
+            // Copy AI analysis content if it exists (ensure it's included in image)
+            const originalAiContainer = element.querySelector('#ai-analysis-container');
+            const clonedAiContainer = clone.querySelector('#ai-analysis-container');
+            if (originalAiContainer && clonedAiContainer) {
+                clonedAiContainer.innerHTML = originalAiContainer.innerHTML;
+                // Ensure AI container is visible in print style
+                clonedAiContainer.style.display = 'block';
+                clonedAiContainer.style.visibility = 'visible';
+                clonedAiContainer.style.opacity = '1';
+                clonedAiContainer.style.overflow = 'visible';
+                clonedAiContainer.style.maxHeight = 'none';
+                // Hide loading spinner if present
+                const loadingSpinner = clonedAiContainer.querySelector('.animate-spin');
+                if (loadingSpinner) {
+                    loadingSpinner.style.display = 'none';
+                }
+                // Show print:block content
+                const printBlockContent = clonedAiContainer.querySelector('[class*="print:block"]');
+                if (printBlockContent) {
+                    printBlockContent.style.display = 'block';
+                }
             }
 
             // Ensure full content is visible before capture
@@ -3007,8 +3055,42 @@
             // Force layout recalculation
             void container.offsetHeight;
             
-            // Wait a bit for styles to apply and layout to settle
-            setTimeout(() => {
+            // Wait for AI analysis if still loading, then proceed with image capture
+            const waitForAiAndCapture = async () => {
+                // Wait for AI analysis to complete if it's still loading
+                const aiContainer = element.querySelector('#ai-analysis-container');
+                if (aiContainer) {
+                    const loadingSpinner = aiContainer.querySelector('.animate-spin');
+                    if (loadingSpinner) {
+                        // Wait for AI analysis to complete
+                        let aiComplete = false;
+                        let attempts = 0;
+                        const maxAttempts = 60; // 30 seconds max wait
+                        
+                        while (!aiComplete && attempts < maxAttempts) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            const spinner = aiContainer.querySelector('.animate-spin');
+                            const errorMsg = aiContainer.querySelector('.text-red-500');
+                            const hasContent = aiContainer.innerHTML && 
+                                !aiContainer.innerHTML.includes('오픈AI가 생활기록부와 진로를 분석 중입니다') &&
+                                !aiContainer.innerHTML.includes('AI 분석 결과가 여기에 표시됩니다');
+                            if ((!spinner || errorMsg) && hasContent) {
+                                aiComplete = true;
+                            }
+                            attempts++;
+                        }
+                        
+                        // Update cloned AI container with latest content
+                        const clonedAiContainer = clone.querySelector('#ai-analysis-container');
+                        if (clonedAiContainer && aiContainer) {
+                            clonedAiContainer.innerHTML = aiContainer.innerHTML;
+                        }
+                        
+                        // Additional wait to ensure content is fully rendered
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+
                 // Force a reflow to ensure all styles are applied
                 clone.style.display = 'block';
                 void clone.offsetHeight;
@@ -3033,11 +3115,11 @@
                     actualHeight: actualHeight
                 });
 
-                // Use html2canvas without explicit height to capture full content
+                // Use html2canvas to capture full content
                 html2canvas(container, {
-                    scale: 2,
-                    backgroundColor: '#ffffff',
-                    useCORS: true,
+                scale: 2,
+                backgroundColor: '#ffffff',
+                useCORS: true,
                     logging: true, // Enable logging to debug
                     width: container.offsetWidth,
                     height: actualHeight + 40, // Add padding for margins
@@ -3047,8 +3129,8 @@
                     scrollY: 0,
                     allowTaint: true,
                     removeContainer: false,
-                    ignoreElements: (element) => {
-                        return element.tagName === 'BUTTON';
+                ignoreElements: (element) => {
+                    return element.tagName === 'BUTTON';
                     },
                     onclone: (clonedDoc) => {
                         // Ensure all elements are visible in the cloned document
@@ -3065,28 +3147,31 @@
                             clonedClone.style.maxHeight = 'none';
                             clonedClone.style.overflow = 'visible';
                         }
-                    }
-                }).then(canvas => {
+                }
+            }).then(canvas => {
                     console.log('Canvas created successfully, size:', canvas.width, 'x', canvas.height);
-                    const link = document.createElement('a');
+                const link = document.createElement('a');
                     const fileName = `${String(studentNumber).padStart(2, '0')}_${studentName}_리포트.png`;
                     link.download = fileName;
-                    link.href = canvas.toDataURL('image/png');
+                link.href = canvas.toDataURL('image/png');
                     document.body.appendChild(link);
-                    link.click();
+                link.click();
                     setTimeout(() => {
                         document.body.removeChild(link);
                     }, 100);
                     console.log('Image download triggered:', fileName);
-                }).catch(err => {
-                    console.error('이미지 저장 실패:', err);
+            }).catch(err => {
+                console.error('이미지 저장 실패:', err);
                     alert('이미지 저장 중 오류가 발생했습니다: ' + (err.message || err));
-                }).finally(() => {
+            }).finally(() => {
                     if (container && container.parentNode) {
-                        document.body.removeChild(container);
+                document.body.removeChild(container);
                     }
-                });
-            }, 100); // Wait 100ms for styles to apply
+            });
+            };
+
+            // Start the async process
+            waitForAiAndCapture();
         };
 
         // Close Individual Stats Modal
@@ -3238,6 +3323,34 @@
                         // Wait for chart to render
                         await new Promise(resolve => setTimeout(resolve, 1500));
                         
+                        // Wait for AI analysis to complete if major is available
+                        if (submission.Major) {
+                            const aiContainer = document.getElementById('ai-analysis-container');
+                            if (aiContainer) {
+                                // Wait for AI analysis to complete (check if loading spinner is gone)
+                                let aiComplete = false;
+                                let attempts = 0;
+                                const maxAttempts = 60; // 30 seconds max wait
+                                
+                                while (!aiComplete && attempts < maxAttempts) {
+                                    await new Promise(resolve => setTimeout(resolve, 500));
+                                    const loadingSpinner = aiContainer.querySelector('.animate-spin');
+                                    const errorMsg = aiContainer.querySelector('.text-red-500');
+                                    const hasContent = aiContainer.innerHTML && 
+                                        !aiContainer.innerHTML.includes('오픈AI가 생활기록부와 진로를 분석 중입니다') &&
+                                        !aiContainer.innerHTML.includes('AI 분석 결과가 여기에 표시됩니다');
+                                    // AI is complete if there's no loading spinner and content is loaded
+                                    if ((!loadingSpinner || errorMsg) && hasContent) {
+                                        aiComplete = true;
+                                    }
+                                    attempts++;
+                                }
+                                
+                                // Additional wait to ensure content is fully rendered
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                            }
+                        }
+                        
                         // Get the rendered report card
                         const reportCard = document.getElementById('student-report-card');
                         if (reportCard) {
@@ -3256,6 +3369,13 @@
                             if (originalCanvas && clonedCanvas) {
                                 const ctx = clonedCanvas.getContext('2d');
                                 ctx.drawImage(originalCanvas, 0, 0);
+                            }
+                            
+                            // Copy AI analysis content if it exists
+                            const originalAiContainer = reportCard.querySelector('#ai-analysis-container');
+                            const clonedAiContainer = clonedCard.querySelector('#ai-analysis-container');
+                            if (originalAiContainer && clonedAiContainer) {
+                                clonedAiContainer.innerHTML = originalAiContainer.innerHTML;
                             }
                             
                             // Add to print container
