@@ -250,13 +250,28 @@
         /* Course list table - optimize column widths for print */
         #student-report-card .overflow-y-auto table th:nth-child(3),
         #student-report-card .overflow-y-auto table td:nth-child(3) {
-            width: 33.33% !important;
-            max-width: 33.33% !important;
+            width: 50% !important;
+            max-width: 50% !important;
         }
         
         /* Increase font size for course name column in print */
         #student-report-card .overflow-y-auto table td:nth-child(3) {
             font-size: 9pt !important;
+        }
+        
+        /* Adjust grid columns for print - wider course list, wider AI section */
+        #student-report-card .print\:grid-cols-3 {
+            grid-template-columns: 60% 40% !important;
+        }
+        
+        /* Course list takes 60% */
+        #student-report-card .lg\:col-span-2.print\:col-span-2 {
+            grid-column: span 1 !important;
+        }
+        
+        /* AI section takes 40% */
+        #student-report-card .lg\:col-span-1.print\:col-span-1 {
+            grid-column: span 1 !important;
         }
         
         /* AI section - match height with course list */
@@ -282,6 +297,12 @@
         #student-report-card .overflow-y-auto {
             flex: 1 !important;
             min-height: 0 !important;
+        }
+        
+        /* Ensure header is visible in print */
+        #student-report-card > div:first-child {
+            display: block !important;
+            visibility: visible !important;
         }
         
         /* Border spacing */
@@ -2266,15 +2287,15 @@
         </p > ` : ''
                 }
 
-    </div><!-- Bottom: Selected Course List and AI Recommendations side by side --><div class="grid grid-cols-1 lg:grid-cols-3 print:grid-cols-3 print:gap-1.5 print:mb-1.5"><!-- Left: Selected Course List (2/3 width) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 lg:col-span-2 print:col-span-2"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📚 선택 과목 목록 (${courseList.length
+    </div><!-- Bottom: Selected Course List and AI Recommendations side by side --><div class="grid grid-cols-1 lg:grid-cols-3 print:grid-cols-2 print:gap-1.5 print:mb-1.5"><!-- Left: Selected Course List (60% width in print) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 lg:col-span-2 print:col-span-1"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📚 선택 과목 목록 (${courseList.length
 
-                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none print:flex-1"><table class="w-full text-xs text-left print:text-[8pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학기</th><th class="p-2 print:p-0.5 print:text-[9pt]" style="width: 33.33% !important;">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
+                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none print:flex-1"><table class="w-full text-xs text-left print:text-[8pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학기</th><th class="p-2 print:p-0.5 print:text-[9pt]" style="width: 50% !important;">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
                     const [grade, sem] = c.semester.includes('-') ? c.semester.split('-') : ['?', '?'];
-                    return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[8pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[8pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-0.5 print:text-[9pt]" style="width: 33.33% !important; word-break: break-word;">${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-0.5 print:text-[8pt]" >${c.credit}</td> </tr> `;
+                    return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[8pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[8pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-0.5 print:text-[9pt]" style="width: 50% !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-0.5 print:text-[8pt]" >${c.credit}</td> </tr> `;
                 }).join('')
                 }
 
-    </tbody></table></div></div><!-- Right: AI Recommendations (1/3 width, same height) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 print:flex print:flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="text-sm space-y-3 print:flex-1 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
+    </tbody></table></div></div><!-- Right: AI Recommendations (40% width in print, same height) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 print:flex print:flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="text-sm space-y-3 print:flex-1 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
     class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="window.print()"
     class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>이 학생 리포트 출력 </button><button onclick="downloadStudentReportImage('${s.Name}', '${s.Number}')" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow flex items-center gap-2"><span>💾</span>이미지 저장</button></div></div>`;
             modalContent.innerHTML = html;
@@ -2406,11 +2427,32 @@
                 }
             });
             
-            // Ensure header is visible
+            // Ensure header is visible and all content is shown
             const header = clone.querySelector('div:first-child');
             if (header) {
                 header.style.display = 'block';
                 header.style.visibility = 'visible';
+                header.style.opacity = '1';
+            }
+            
+            // Ensure all sections are visible
+            const allSections = clone.querySelectorAll('.theme-card, .grid, div');
+            allSections.forEach(section => {
+                section.style.display = '';
+                section.style.visibility = 'visible';
+                section.style.opacity = '1';
+            });
+            
+            // Force show header info (학번, 이름, 진로희망사항, 선택과목, 총 학점)
+            const headerInfo = clone.querySelector('div:first-child');
+            if (headerInfo) {
+                headerInfo.style.display = 'block';
+                headerInfo.style.visibility = 'visible';
+                const headerChildren = headerInfo.querySelectorAll('*');
+                headerChildren.forEach(child => {
+                    child.style.display = '';
+                    child.style.visibility = 'visible';
+                });
             }
 
             // Manually copy Canvas content (Chart.js)
@@ -2428,6 +2470,7 @@
             container.style.left = '-9999px';
             container.style.background = '#ffffff';
             container.style.padding = '20px'; // Add some padding for white border
+            container.style.width = (element.scrollWidth + 40) + 'px';
             container.appendChild(clone);
             document.body.appendChild(container);
 
