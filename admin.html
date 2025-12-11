@@ -1813,6 +1813,35 @@
                 '제2외국어': '교양교과', '정보': '교양교과', '교양': '교양교과'
             };
 
+            // 복수편제과목 중복 계산 방지 변수 초기화 (Required courses 처리 전에 선언)
+            const countedCourseSlugs = new Set();
+            const countedMultiSemesterNames = new Set();
+            
+            // Identify Multi-Semester Courses for duplicate prevention
+            const coursesByName = {};
+            allCourseData.forEach(c => {
+                const name = c.subjectName || c.name || '';
+                if (name && !coursesByName[name]) coursesByName[name] = [];
+                if (name) coursesByName[name].push(c);
+            });
+            
+            // Get multiSemesterRules and duplicateCourseSlugs from settings if available
+            let multiSemesterRules = {};
+            let duplicateCourseSlugs = [];
+            try {
+                const settings = await DB.fetchSettings();
+                if (settings) {
+                    if (settings.multiSemesterRules) {
+                        multiSemesterRules = settings.multiSemesterRules;
+                    }
+                    if (settings.duplicateCourseSlugs) {
+                        duplicateCourseSlugs = settings.duplicateCourseSlugs;
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not fetch settings:', e);
+            }
+
             // 2. Base Credits from REQUIRED Courses (index.html과 동일한 로직)
             // Add required credits to stats ensure Chart matches Total
             // Note: This logic assumes 'allCourseData' has 'required' and 'grade' fields
@@ -1866,35 +1895,6 @@
             // 3. Process Selected & Joint Courses
             const selectedRaw = s.SelectedCourses ? s.SelectedCourses.split(',').map(c => c.trim()).filter(x => x) : [];
             const jointRaw = s.JointCourses ? s.JointCourses.split(',').map(c => c.trim()).filter(x => x) : [];
-            
-            // 복수편제과목 중복 계산 방지 (index.html과 동일)
-            const countedCourseSlugs = new Set();
-            const countedMultiSemesterNames = new Set();
-            
-            // Identify Multi-Semester Courses for duplicate prevention
-            const coursesByName = {};
-            allCourseData.forEach(c => {
-                const name = c.subjectName || c.name || '';
-                if (name && !coursesByName[name]) coursesByName[name] = [];
-                if (name) coursesByName[name].push(c);
-            });
-            
-            // Get multiSemesterRules and duplicateCourseSlugs from settings if available
-            let multiSemesterRules = {};
-            let duplicateCourseSlugs = [];
-            try {
-                const settings = await DB.fetchSettings();
-                if (settings) {
-                    if (settings.multiSemesterRules) {
-                        multiSemesterRules = settings.multiSemesterRules;
-                    }
-                    if (settings.duplicateCourseSlugs) {
-                        duplicateCourseSlugs = settings.duplicateCourseSlugs;
-                    }
-                }
-            } catch (e) {
-                console.warn('Could not fetch settings:', e);
-            }
 
             const courseList = [];
             const addedCourses = new Set();
