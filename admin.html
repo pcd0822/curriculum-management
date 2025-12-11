@@ -2869,23 +2869,37 @@
                 section.style.overflow = 'visible';
             });
 
-            // Apply print styles to grid and cards
+            // Apply all print CSS styles to match output exactly
+            // Base styles
+            clone.style.fontSize = '9pt';
+            clone.style.padding = '2mm';
+            clone.style.margin = '0';
+            clone.style.width = '100%';
+            clone.style.maxWidth = '100%';
+            clone.style.backgroundColor = '#ffffff';
+
+            // Grid styles
             const grids = clone.querySelectorAll('.grid');
             grids.forEach(grid => {
                 grid.style.gap = '1mm';
                 grid.style.marginBottom = '1mm';
             });
 
+            // Card styles
             const cards = clone.querySelectorAll('.theme-card');
             cards.forEach(card => {
                 card.style.padding = '1mm';
                 card.style.marginBottom = '1mm';
+                card.style.border = '1px solid #e5e7eb';
+                card.style.backgroundColor = '#ffffff';
             });
 
+            // Heading styles
             const h4s = clone.querySelectorAll('h4');
             h4s.forEach(h4 => {
                 h4.style.fontSize = '7pt';
                 h4.style.marginBottom = '0.5mm';
+                h4.style.lineHeight = '1.1';
             });
 
             // Chart container - apply print styles
@@ -2893,6 +2907,56 @@
             chartContainers.forEach(container => {
                 container.style.minHeight = '100px';
                 container.style.maxHeight = '140px';
+                container.style.width = '100%';
+                container.style.height = '100%';
+            });
+
+            // Table styles
+            const tables = clone.querySelectorAll('table');
+            tables.forEach(table => {
+                table.style.fontSize = '7pt';
+                table.style.width = '100%';
+            });
+
+            const tableCells = clone.querySelectorAll('table th, table td');
+            tableCells.forEach(cell => {
+                cell.style.padding = '0.75mm 0.5mm';
+                cell.style.lineHeight = '1.2';
+            });
+
+            // Course name column
+            const courseNameCells = clone.querySelectorAll('table td:nth-child(3)');
+            courseNameCells.forEach(cell => {
+                cell.style.fontSize = '9pt';
+            });
+
+            // Text sizes
+            const textXs = clone.querySelectorAll('.text-xs');
+            textXs.forEach(el => {
+                el.style.fontSize = '7pt';
+            });
+
+            // Spacing adjustments
+            const mb6 = clone.querySelectorAll('.mb-6');
+            mb6.forEach(el => {
+                el.style.marginBottom = '1.5mm';
+            });
+
+            const mb4 = clone.querySelectorAll('.mb-4');
+            mb4.forEach(el => {
+                el.style.marginBottom = '1mm';
+            });
+
+            const mb2 = clone.querySelectorAll('.mb-2');
+            mb2.forEach(el => {
+                el.style.marginBottom = '0.75mm';
+            });
+
+            // AI section
+            const aiSections = clone.querySelectorAll('.bg-indigo-50');
+            aiSections.forEach(section => {
+                section.style.backgroundColor = '#ffffff';
+                section.style.border = '1px solid #e5e7eb';
             });
 
             // Manually copy Canvas content (Chart.js)
@@ -3016,7 +3080,7 @@
             window.print();
         };
 
-        // Print class roster - Save all individual reports as images sequentially
+        // Print class roster - Print all individual reports as PDF sequentially
         window.printClassRoster = async () => {
             closePrintOptions();
             
@@ -3028,115 +3092,89 @@
                 return;
             }
 
-            // Show progress modal
-            const progressModal = document.createElement('div');
-            progressModal.id = 'batch-save-progress-modal';
-            progressModal.className = 'fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50';
-            progressModal.innerHTML = `
-                <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-2xl">
-                    <h3 class="text-xl font-bold theme-text mb-4">학급 전체 리포트 저장 중...</h3>
-                    <div class="mb-4">
-                        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                            <div id="batch-save-progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
-                        </div>
-                        <p id="batch-save-status" class="text-sm theme-text-muted text-center">준비 중...</p>
-                    </div>
-                    <button onclick="closeBatchSaveProgress()" class="w-full px-6 py-3 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">
-                        취소
-                    </button>
-                </div>
-            `;
-            document.body.appendChild(progressModal);
-            progressModal.classList.remove('hidden');
+            // Get all students for this class
+            let targetStudents = [];
+            
+            if (registryData && registryData.length > 0) {
+                targetStudents = registryData.filter(r => {
+                    const sNum = String(r['학번'] || r.studentId || '');
+                    const rGrade = sNum.substring(0, 1);
+                    const rClass = parseInt(sNum.substring(1, 3));
+                    return rGrade == grade && rClass == cls;
+                }).map(r => {
+                    const num = parseInt(String(r['학번']).substring(3, 5));
+                    return {
+                        Grade: grade,
+                        Class: cls,
+                        Number: num,
+                        Name: r['이름'] || r.name,
+                        isRegistry: true
+                    };
+                }).sort((a, b) => parseInt(a.Number) - parseInt(b.Number));
+            } else {
+                targetStudents = allStudentData
+                    .filter(s => s.Grade == grade && s.Class == cls)
+                    .sort((a, b) => parseInt(a.Number) - parseInt(b.Number));
+            }
 
-            try {
-                // Get all students for this class
-                let targetStudents = [];
-                
-                if (registryData && registryData.length > 0) {
-                    targetStudents = registryData.filter(r => {
-                        const sNum = String(r['학번'] || r.studentId || '');
-                        const rGrade = sNum.substring(0, 1);
-                        const rClass = parseInt(sNum.substring(1, 3));
-                        return rGrade == grade && rClass == cls;
-                    }).map(r => {
-                        const num = parseInt(String(r['학번']).substring(3, 5));
-                        return {
-                            Grade: grade,
-                            Class: cls,
-                            Number: num,
-                            Name: r['이름'] || r.name,
-                            isRegistry: true
-                        };
-                    }).sort((a, b) => parseInt(a.Number) - parseInt(b.Number));
-                } else {
-                    targetStudents = allStudentData
-                        .filter(s => s.Grade == grade && s.Class == cls)
-                        .sort((a, b) => parseInt(a.Number) - parseInt(b.Number));
-                }
+            if (targetStudents.length === 0) {
+                alert('해당 학급에 학생이 없습니다.');
+                return;
+            }
 
-                if (targetStudents.length === 0) {
-                    alert('해당 학급에 학생이 없습니다.');
-                    closeBatchSaveProgress();
-                    return;
-                }
+            // Filter only students with submission data
+            const studentsWithData = targetStudents.filter(student => {
+                return allStudentData.find(s => 
+                    s.Grade == student.Grade && 
+                    s.Class == student.Class && 
+                    parseInt(s.Number) == parseInt(student.Number)
+                );
+            });
 
-                const total = targetStudents.length;
-                let saved = 0;
+            if (studentsWithData.length === 0) {
+                alert('제출된 데이터가 있는 학생이 없습니다.');
+                return;
+            }
 
-                // Process each student sequentially
-                for (let i = 0; i < targetStudents.length; i++) {
-                    const student = targetStudents[i];
+            // Confirm before printing
+            const confirmMsg = `${studentsWithData.length}명의 학생 리포트를 PDF로 출력하시겠습니까?\n\n각 학생 리포트가 순차적으로 출력됩니다.`;
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            // Print each student report sequentially
+            for (let i = 0; i < studentsWithData.length; i++) {
+                const student = studentsWithData[i];
+                const submission = allStudentData.find(s => 
+                    s.Grade == student.Grade && 
+                    s.Class == student.Class && 
+                    parseInt(s.Number) == parseInt(student.Number)
+                );
+
+                if (submission) {
+                    // Render the report
+                    renderDetailedStudentReport(submission);
                     
-                    // Update progress
-                    const progressBar = document.getElementById('batch-save-progress-bar');
-                    const statusText = document.getElementById('batch-save-status');
-                    const progress = ((i + 1) / total) * 100;
-                    if (progressBar) progressBar.style.width = progress + '%';
-                    if (statusText) statusText.textContent = `${i + 1}/${total} - ${student.Name} (${student.Number}번) 저장 중...`;
-
-                    // Find submission data for this student
-                    const submission = allStudentData.find(s => 
-                        s.Grade == student.Grade && 
-                        s.Class == student.Class && 
-                        parseInt(s.Number) == parseInt(student.Number)
-                    );
-
-                    if (submission) {
-                        // Render the report
-                        await new Promise((resolve) => {
-                            renderDetailedStudentReport(submission);
-                            // Wait for chart to render
-                            setTimeout(() => {
-                                // Save as image
-                                downloadStudentReportImageForBatch(submission.Name, submission.Number, () => {
-                                    saved++;
-                                    resolve();
-                                });
-                            }, 1000); // Wait 1 second for chart rendering
-                        });
+                    // Wait for chart to render
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    
+                    // Print this student's report
+                    if (i === 0) {
+                        // First student - show print dialog
+                        window.print();
                     } else {
-                        // No submission data, skip
-                        saved++;
+                        // Subsequent students - wait for user to continue
+                        const continuePrint = confirm(
+                            `${i + 1}/${studentsWithData.length} - ${student.Name} (${student.Number}번) 리포트를 출력하시겠습니까?\n\n이전 리포트 출력을 완료한 후 확인을 눌러주세요.`
+                        );
+                        if (continuePrint) {
+                            window.print();
+                        } else {
+                            alert('출력이 취소되었습니다.');
+                            break;
+                        }
                     }
-
-                    // Small delay between saves to prevent browser blocking
-                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
-
-                // Complete
-                const statusText = document.getElementById('batch-save-status');
-                if (statusText) statusText.textContent = `완료! ${saved}개 리포트 저장됨`;
-                
-                setTimeout(() => {
-                    closeBatchSaveProgress();
-                    alert(`${saved}개의 개인별 통계자료가 저장되었습니다.`);
-                }, 1000);
-
-            } catch (error) {
-                console.error('Batch save error:', error);
-                alert('저장 중 오류가 발생했습니다: ' + error.message);
-                closeBatchSaveProgress();
             }
         };
 
