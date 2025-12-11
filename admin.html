@@ -2682,7 +2682,7 @@
 
     </tbody></table></div></div><!-- Right Bottom: AI Recommendations (same width as Validation in print) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="flex-1 text-sm space-y-3 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
     class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="showPrintOptions()"
-    class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>출력</button><button onclick="downloadStudentReportImage('${s.Name}', '${s.Number}')" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow flex items-center gap-2"><span>💾</span>이미지 저장</button></div></div>`;
+    class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>출력</button></div></div>`;
             modalContent.innerHTML = html;
 
             // Auto-fetch AI analysis if major is available
@@ -3116,7 +3116,7 @@
                 });
 
                 // Use html2canvas to capture full content
-                html2canvas(container, {
+            html2canvas(container, {
                 scale: 2,
                 backgroundColor: '#ffffff',
                 useCORS: true,
