@@ -2779,10 +2779,23 @@
 
         // NEW: Download Individual Student Report (Full Capture) - Print style
         window.downloadStudentReportImage = (studentName, studentNumber) => {
+            // Check if html2canvas is available
+            if (typeof html2canvas === 'undefined') {
+                alert('이미지 저장 기능을 사용할 수 없습니다. html2canvas 라이브러리가 로드되지 않았습니다.');
+                console.error('html2canvas is not defined');
+                return;
+            }
+
             // Target the actual Report Card Div
             const element = document.getElementById('student-report-card');
 
-            if (!element) return alert('리포트 데이터를 찾을 수 없습니다.');
+            if (!element) {
+                alert('리포트 데이터를 찾을 수 없습니다.');
+                console.error('student-report-card element not found');
+                return;
+            }
+
+            console.log('Starting image download for:', studentName, studentNumber);
 
             // Clone to detach from DOM constraints
             const clone = element.cloneNode(true);
@@ -2891,6 +2904,7 @@
             }
 
             // Ensure full content is visible before capture
+            const allCards = clone.querySelectorAll('.theme-card');
             allCards.forEach(card => {
                 card.style.pageBreakInside = 'avoid';
                 card.style.breakInside = 'avoid';
@@ -2930,15 +2944,24 @@
                     return element.tagName === 'BUTTON';
                 }
             }).then(canvas => {
+                console.log('Canvas created successfully, size:', canvas.width, 'x', canvas.height);
                 const link = document.createElement('a');
-                link.download = `${studentNumber}_${studentName}_리포트.png`;
+                const fileName = `${String(studentNumber).padStart(2, '0')}_${studentName}_리포트.png`;
+                link.download = fileName;
                 link.href = canvas.toDataURL('image/png');
+                document.body.appendChild(link);
                 link.click();
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                }, 100);
+                console.log('Image download triggered:', fileName);
             }).catch(err => {
                 console.error('이미지 저장 실패:', err);
-                alert('이미지 저장 중 오류가 발생했습니다.');
+                alert('이미지 저장 중 오류가 발생했습니다: ' + (err.message || err));
             }).finally(() => {
-                document.body.removeChild(container);
+                if (container && container.parentNode) {
+                    document.body.removeChild(container);
+                }
             });
         };
 
@@ -2993,25 +3016,306 @@
             window.print();
         };
 
-        // Print class roster
-        window.printClassRoster = () => {
+        // Print class roster - Save all individual reports as images sequentially
+        window.printClassRoster = async () => {
             closePrintOptions();
-            // Check if class roster is visible
-            const classStatsContent = document.getElementById('class-stats-content');
-            const studentReportCard = document.getElementById('student-report-card');
             
-            if (studentReportCard && studentReportCard.parentElement === classStatsContent) {
-                // If individual report is showing, go back to class list
-                document.getElementById('modal-select-number').value = 'all';
-                renderIndividualStatsTable();
-                // Wait a bit for rendering, then print
-                setTimeout(() => {
-                    window.print();
-                }, 500);
-            } else {
-                // Class roster is already showing
-                window.print();
+            const grade = document.getElementById('modal-select-grade').value;
+            const cls = document.getElementById('modal-select-class').value;
+            
+            if (!grade || !cls) {
+                alert('학년과 반을 선택해주세요.');
+                return;
             }
+
+            // Show progress modal
+            const progressModal = document.createElement('div');
+            progressModal.id = 'batch-save-progress-modal';
+            progressModal.className = 'fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50';
+            progressModal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-2xl">
+                    <h3 class="text-xl font-bold theme-text mb-4">학급 전체 리포트 저장 중...</h3>
+                    <div class="mb-4">
+                        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                            <div id="batch-save-progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <p id="batch-save-status" class="text-sm theme-text-muted text-center">준비 중...</p>
+                    </div>
+                    <button onclick="closeBatchSaveProgress()" class="w-full px-6 py-3 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">
+                        취소
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(progressModal);
+            progressModal.classList.remove('hidden');
+
+            try {
+                // Get all students for this class
+                let targetStudents = [];
+                
+                if (registryData && registryData.length > 0) {
+                    targetStudents = registryData.filter(r => {
+                        const sNum = String(r['학번'] || r.studentId || '');
+                        const rGrade = sNum.substring(0, 1);
+                        const rClass = parseInt(sNum.substring(1, 3));
+                        return rGrade == grade && rClass == cls;
+                    }).map(r => {
+                        const num = parseInt(String(r['학번']).substring(3, 5));
+                        return {
+                            Grade: grade,
+                            Class: cls,
+                            Number: num,
+                            Name: r['이름'] || r.name,
+                            isRegistry: true
+                        };
+                    }).sort((a, b) => parseInt(a.Number) - parseInt(b.Number));
+                } else {
+                    targetStudents = allStudentData
+                        .filter(s => s.Grade == grade && s.Class == cls)
+                        .sort((a, b) => parseInt(a.Number) - parseInt(b.Number));
+                }
+
+                if (targetStudents.length === 0) {
+                    alert('해당 학급에 학생이 없습니다.');
+                    closeBatchSaveProgress();
+                    return;
+                }
+
+                const total = targetStudents.length;
+                let saved = 0;
+
+                // Process each student sequentially
+                for (let i = 0; i < targetStudents.length; i++) {
+                    const student = targetStudents[i];
+                    
+                    // Update progress
+                    const progressBar = document.getElementById('batch-save-progress-bar');
+                    const statusText = document.getElementById('batch-save-status');
+                    const progress = ((i + 1) / total) * 100;
+                    if (progressBar) progressBar.style.width = progress + '%';
+                    if (statusText) statusText.textContent = `${i + 1}/${total} - ${student.Name} (${student.Number}번) 저장 중...`;
+
+                    // Find submission data for this student
+                    const submission = allStudentData.find(s => 
+                        s.Grade == student.Grade && 
+                        s.Class == student.Class && 
+                        parseInt(s.Number) == parseInt(student.Number)
+                    );
+
+                    if (submission) {
+                        // Render the report
+                        await new Promise((resolve) => {
+                            renderDetailedStudentReport(submission);
+                            // Wait for chart to render
+                            setTimeout(() => {
+                                // Save as image
+                                downloadStudentReportImageForBatch(submission.Name, submission.Number, () => {
+                                    saved++;
+                                    resolve();
+                                });
+                            }, 1000); // Wait 1 second for chart rendering
+                        });
+                    } else {
+                        // No submission data, skip
+                        saved++;
+                    }
+
+                    // Small delay between saves to prevent browser blocking
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                // Complete
+                const statusText = document.getElementById('batch-save-status');
+                if (statusText) statusText.textContent = `완료! ${saved}개 리포트 저장됨`;
+                
+                setTimeout(() => {
+                    closeBatchSaveProgress();
+                    alert(`${saved}개의 개인별 통계자료가 저장되었습니다.`);
+                }, 1000);
+
+            } catch (error) {
+                console.error('Batch save error:', error);
+                alert('저장 중 오류가 발생했습니다: ' + error.message);
+                closeBatchSaveProgress();
+            }
+        };
+
+        // Close batch save progress modal
+        window.closeBatchSaveProgress = () => {
+            const modal = document.getElementById('batch-save-progress-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                setTimeout(() => {
+                    document.body.removeChild(modal);
+                }, 300);
+            }
+        };
+
+        // Download student report image for batch processing (with callback)
+        window.downloadStudentReportImageForBatch = (studentName, studentNumber, callback) => {
+            const element = document.getElementById('student-report-card');
+            if (!element) {
+                if (callback) callback();
+                return;
+            }
+
+            // Clone to detach from DOM constraints
+            const clone = element.cloneNode(true);
+            clone.style.width = element.offsetWidth + 'px';
+            clone.style.height = 'auto';
+            clone.style.maxHeight = 'none';
+            clone.style.overflow = 'visible';
+            clone.style.overflowY = 'visible';
+            clone.style.overflowX = 'visible';
+            clone.style.transform = 'none';
+            
+            // Apply print styles to clone (output style)
+            clone.classList.add('print-mode');
+            
+            // Remove scroll from all child elements
+            const allElements = clone.querySelectorAll('*');
+            allElements.forEach(el => {
+                el.style.overflow = 'visible';
+                el.style.overflowY = 'visible';
+                el.style.overflowX = 'visible';
+                el.style.maxHeight = 'none';
+                if (el.classList) {
+                    el.classList.remove('overflow-y-auto', 'overflow-x-auto', 'custom-scrollbar');
+                }
+            });
+            
+            // Ensure header is visible
+            const header = clone.querySelector('div:first-child');
+            if (header) {
+                header.style.display = 'flex';
+                header.style.flexDirection = 'row';
+                header.style.visibility = 'visible';
+                header.style.opacity = '1';
+                header.style.height = 'auto';
+                header.style.minHeight = 'auto';
+                header.style.maxHeight = 'none';
+                header.style.overflow = 'visible';
+                header.style.position = 'relative';
+                header.style.zIndex = '10';
+                header.style.marginBottom = '2mm';
+                header.style.paddingBottom = '1.5mm';
+                header.style.borderBottom = '1px solid #000';
+                header.style.backgroundColor = '#ffffff';
+                header.style.width = '100%';
+                header.style.alignItems = 'center';
+                header.style.justifyContent = 'space-between';
+                
+                const headerChildren = header.querySelectorAll('*');
+                headerChildren.forEach(child => {
+                    child.style.display = '';
+                    child.style.visibility = 'visible';
+                    child.style.opacity = '1';
+                    child.style.height = 'auto';
+                    child.style.maxHeight = 'none';
+                    child.style.overflow = 'visible';
+                    if (child.tagName === 'H3' || child.tagName === 'SPAN' || child.tagName === 'P') {
+                        child.style.color = '#000000';
+                    }
+                });
+            }
+            
+            // Apply print styles
+            const allSections = clone.querySelectorAll('.theme-card, .grid, div');
+            allSections.forEach(section => {
+                section.style.display = '';
+                section.style.visibility = 'visible';
+                section.style.opacity = '1';
+                section.style.overflow = 'visible';
+            });
+
+            const grids = clone.querySelectorAll('.grid');
+            grids.forEach(grid => {
+                grid.style.gap = '1mm';
+                grid.style.marginBottom = '1mm';
+            });
+
+            const cards = clone.querySelectorAll('.theme-card');
+            cards.forEach(card => {
+                card.style.padding = '1mm';
+                card.style.marginBottom = '1mm';
+            });
+
+            const h4s = clone.querySelectorAll('h4');
+            h4s.forEach(h4 => {
+                h4.style.fontSize = '7pt';
+                h4.style.marginBottom = '0.5mm';
+            });
+
+            const chartContainers = clone.querySelectorAll('.theme-card.flex.flex-col > div.flex-1.flex');
+            chartContainers.forEach(container => {
+                container.style.minHeight = '100px';
+                container.style.maxHeight = '140px';
+            });
+
+            // Manually copy Canvas content (Chart.js)
+            const originalCanvas = element.querySelector('canvas');
+            const clonedCanvas = clone.querySelector('canvas');
+            if (originalCanvas && clonedCanvas) {
+                const ctx = clonedCanvas.getContext('2d');
+                ctx.drawImage(originalCanvas, 0, 0);
+            }
+
+            const allCards = clone.querySelectorAll('.theme-card');
+            allCards.forEach(card => {
+                card.style.pageBreakInside = 'avoid';
+                card.style.breakInside = 'avoid';
+            });
+            
+            // Add to temp container
+            const container = document.createElement('div');
+            container.style.position = 'absolute';
+            container.style.top = '-9999px';
+            container.style.left = '-9999px';
+            container.style.background = '#ffffff';
+            container.style.padding = '30px';
+            container.style.width = (element.scrollWidth + 60) + 'px';
+            container.appendChild(clone);
+            document.body.appendChild(container);
+
+            const fullHeight = Math.max(
+                clone.scrollHeight,
+                clone.offsetHeight,
+                element.scrollHeight
+            );
+
+            html2canvas(container, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                logging: false,
+                width: element.scrollWidth + 60,
+                height: fullHeight + 60,
+                windowWidth: element.scrollWidth + 60,
+                windowHeight: fullHeight + 60,
+                scrollX: 0,
+                scrollY: 0,
+                allowTaint: true,
+                ignoreElements: (element) => {
+                    return element.tagName === 'BUTTON';
+                }
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `${String(studentNumber).padStart(2, '0')}_${studentName}_리포트.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+                // Clean up
+                document.body.removeChild(container);
+                
+                // Call callback after a short delay
+                if (callback) {
+                    setTimeout(callback, 300);
+                }
+            }).catch(err => {
+                console.error('이미지 저장 실패:', err);
+                document.body.removeChild(container);
+                if (callback) callback();
+            });
         };
 
         // Helper to capture class roster
