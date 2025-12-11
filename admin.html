@@ -55,20 +55,32 @@
         overflow-y: auto;
     }
 
-    /* Chart container - flexible height */
+    /* Chart container - flexible height, fill section */
     #student-report-card .theme-card.flex.flex-col > div.flex-1.flex {
-        flex: 1;
+        flex: 1 1 auto;
         min-height: 0;
         width: 100%;
         height: 100%;
+        display: flex;
+        align-items: stretch;
     }
 
-    /* Chart canvas - fill container */
+    /* Chart canvas - fill container completely */
     #student-report-card #individualCreditChart {
         width: 100% !important;
         height: 100% !important;
-        max-width: 100%;
-        max-height: 100%;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        flex: 1 1 auto;
+    }
+
+    /* Chart wrapper div - fill container */
+    #student-report-card .theme-card.flex.flex-col > div.flex-1.flex > div {
+        width: 100% !important;
+        height: 100% !important;
+        flex: 1 1 auto;
+        display: flex;
+        align-items: stretch;
     }
 
     /* Chart wrapper div - fill container */
@@ -855,9 +867,7 @@
                     <option value="all">전체</option>
                     <!-- Options populated by JS -->
                 </select><button onclick="renderIndividualStatsTable()"
-                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">조회</button><button
-                    onclick="downloadClassImage()"
-                    class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 ml-auto">이미지 저장</button>
+                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">조회</button>
             </div>
             <div id="class-stats-content"
                 class="bg-white p-4 rounded border min-h-[300px] overflow-auto dark:text-black">
@@ -2608,7 +2618,7 @@
     </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${s.TotalCredits
                 }
 
-    </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1.5 print:mb-1.5 items-stretch"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📊 교과 영역별 이수 현황</h4><div class="flex-1 flex items-center justify-center min-h-[192px] print:h-[120px] print:min-h-[120px]"><div class="w-full h-full relative"><canvas id="individualCreditChart"></canvas></div></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
+    </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1 print:mb-1 items-stretch"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📊 교과 영역별 이수 현황</h4><div class="flex-1 flex items-stretch justify-stretch min-h-[192px] print:h-[100px] print:min-h-[100px] print:max-h-[140px]"><div class="w-full h-full relative flex-1"><canvas id="individualCreditChart"></canvas></div></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
                 }
 
     </p></div><div class="flex-1 overflow-y-auto"><table class="w-full text-xs print:text-[7pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.75 print:text-[7pt]">항목</th><th class="text-right print:p-0.75 print:text-[7pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
@@ -2655,8 +2665,8 @@
                 }
 
     </tbody></table></div></div><!-- Right Bottom: AI Recommendations (same width as Validation in print) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="flex-1 text-sm space-y-3 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
-    class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="window.print()"
-    class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>이 학생 리포트 출력 </button><button onclick="downloadStudentReportImage('${s.Name}', '${s.Number}')" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow flex items-center gap-2"><span>💾</span>이미지 저장</button></div></div>`;
+    class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="showPrintOptions()"
+    class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>출력</button><button onclick="downloadStudentReportImage('${s.Name}', '${s.Number}')" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow flex items-center gap-2"><span>💾</span>이미지 저장</button></div></div>`;
             modalContent.innerHTML = html;
 
             // Auto-fetch AI analysis if major is available
@@ -2689,10 +2699,10 @@
                             maintainAspectRatio: false,
                             layout: {
                                 padding: {
-                                    left: 0,
-                                    right: 0,
-                                    top: 0,
-                                    bottom: 0
+                                    left: 5,
+                                    right: 5,
+                                    top: 5,
+                                    bottom: 5
                                 }
                             },
                             plugins: {
@@ -2708,8 +2718,10 @@
                                     },
                                     ticks: {
                                         font: {
-                                            size: window.matchMedia('print').matches ? 7 : 12
-                                        }
+                                            size: window.matchMedia('print').matches ? 7 : 11
+                                        },
+                                        maxRotation: 0,
+                                        minRotation: 0
                                     }
                                 },
                                 y: {
@@ -2719,7 +2731,7 @@
                                     },
                                     ticks: {
                                         font: {
-                                            size: window.matchMedia('print').matches ? 7 : 12
+                                            size: window.matchMedia('print').matches ? 7 : 11
                                         }
                                     }
                                 }
@@ -2765,15 +2777,12 @@
             return db[key];
         }
 
-        // NEW: Download Individual Student Report (Full Capture)
+        // NEW: Download Individual Student Report (Full Capture) - Print style
         window.downloadStudentReportImage = (studentName, studentNumber) => {
             // Target the actual Report Card Div
             const element = document.getElementById('student-report-card');
 
             if (!element) return alert('리포트 데이터를 찾을 수 없습니다.');
-
-            // Use formatting similar to class roster to ensure full height capture even if inside scroll
-            // Note: student-report-card is likely inside a scrollable modal.
 
             // Clone to detach from DOM constraints
             const clone = element.cloneNode(true);
@@ -2783,7 +2792,10 @@
             clone.style.overflow = 'visible';
             clone.style.overflowY = 'visible';
             clone.style.overflowX = 'visible';
-            clone.style.transform = 'none'; // Clear any potential transforms
+            clone.style.transform = 'none';
+            
+            // Apply print styles to clone (output style)
+            clone.classList.add('print-mode');
             
             // Remove scroll from all child elements
             const allElements = clone.querySelectorAll('*');
@@ -2801,7 +2813,8 @@
             // Ensure header is visible and all content is shown (학번, 이름, 진로희망사항 포함)
             const header = clone.querySelector('div:first-child');
             if (header) {
-                header.style.display = 'block';
+                header.style.display = 'flex';
+                header.style.flexDirection = 'row';
                 header.style.visibility = 'visible';
                 header.style.opacity = '1';
                 header.style.height = 'auto';
@@ -2810,10 +2823,13 @@
                 header.style.overflow = 'visible';
                 header.style.position = 'relative';
                 header.style.zIndex = '10';
-                header.style.marginBottom = '8px';
-                header.style.paddingBottom = '8px';
+                header.style.marginBottom = '2mm';
+                header.style.paddingBottom = '1.5mm';
                 header.style.borderBottom = '1px solid #000';
                 header.style.backgroundColor = '#ffffff';
+                header.style.width = '100%';
+                header.style.alignItems = 'center';
+                header.style.justifyContent = 'space-between';
                 
                 // Force show all header children (학번, 이름, 진로희망사항, 선택과목, 총 학점)
                 const headerChildren = header.querySelectorAll('*');
@@ -2827,18 +2843,43 @@
                     // Ensure text is black and visible
                     if (child.tagName === 'H3' || child.tagName === 'SPAN' || child.tagName === 'P') {
                         child.style.color = '#000000';
-                        child.style.fontSize = '';
                     }
                 });
             }
             
-            // Ensure all sections are visible
+            // Apply print styles to all sections (compact layout)
             const allSections = clone.querySelectorAll('.theme-card, .grid, div');
             allSections.forEach(section => {
                 section.style.display = '';
                 section.style.visibility = 'visible';
                 section.style.opacity = '1';
                 section.style.overflow = 'visible';
+            });
+
+            // Apply print styles to grid and cards
+            const grids = clone.querySelectorAll('.grid');
+            grids.forEach(grid => {
+                grid.style.gap = '1mm';
+                grid.style.marginBottom = '1mm';
+            });
+
+            const cards = clone.querySelectorAll('.theme-card');
+            cards.forEach(card => {
+                card.style.padding = '1mm';
+                card.style.marginBottom = '1mm';
+            });
+
+            const h4s = clone.querySelectorAll('h4');
+            h4s.forEach(h4 => {
+                h4.style.fontSize = '7pt';
+                h4.style.marginBottom = '0.5mm';
+            });
+
+            // Chart container - apply print styles
+            const chartContainers = clone.querySelectorAll('.theme-card.flex.flex-col > div.flex-1.flex');
+            chartContainers.forEach(container => {
+                container.style.minHeight = '100px';
+                container.style.maxHeight = '140px';
             });
 
             // Manually copy Canvas content (Chart.js)
@@ -2850,7 +2891,6 @@
             }
 
             // Ensure full content is visible before capture
-            const allCards = clone.querySelectorAll('.theme-card');
             allCards.forEach(card => {
                 card.style.pageBreakInside = 'avoid';
                 card.style.breakInside = 'avoid';
@@ -2862,7 +2902,7 @@
             container.style.top = '-9999px';
             container.style.left = '-9999px';
             container.style.background = '#ffffff';
-            container.style.padding = '30px'; // Increased padding for better margins
+            container.style.padding = '30px';
             container.style.width = (element.scrollWidth + 60) + 'px';
             container.appendChild(clone);
             document.body.appendChild(container);
@@ -2879,8 +2919,8 @@
                 backgroundColor: '#ffffff',
                 useCORS: true,
                 logging: false,
-                width: element.scrollWidth + 60, // +padding
-                height: fullHeight + 60, // +padding for bottom
+                width: element.scrollWidth + 60,
+                height: fullHeight + 60,
                 windowWidth: element.scrollWidth + 60,
                 windowHeight: fullHeight + 60,
                 scrollX: 0,
@@ -2905,6 +2945,73 @@
         // Close Individual Stats Modal
         window.closeIndividualStats = () => {
             document.getElementById('class-lookup-modal').classList.add('hidden');
+        };
+
+        // Show print options modal
+        window.showPrintOptions = () => {
+            const modal = document.getElementById('print-options-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+            } else {
+                // Create modal if it doesn't exist
+                const printModal = document.createElement('div');
+                printModal.id = 'print-options-modal';
+                printModal.className = 'fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50';
+                printModal.innerHTML = `
+                    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-2xl">
+                        <h3 class="text-xl font-bold theme-text mb-4">출력 옵션 선택</h3>
+                        <p class="text-sm theme-text-muted mb-6">출력할 내용을 선택하세요.</p>
+                        <div class="flex flex-col gap-3">
+                            <button onclick="printIndividualReport()" class="w-full px-6 py-3 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center justify-center gap-2">
+                                <span>📄</span> 개인 통계자료 출력
+                            </button>
+                            <button onclick="printClassRoster()" class="w-full px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shadow flex items-center justify-center gap-2">
+                                <span>📋</span> 학급 전체 학생 통계자료 출력
+                            </button>
+                            <button onclick="closePrintOptions()" class="w-full px-6 py-3 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">
+                                취소
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(printModal);
+                printModal.classList.remove('hidden');
+            }
+        };
+
+        // Close print options modal
+        window.closePrintOptions = () => {
+            const modal = document.getElementById('print-options-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        };
+
+        // Print individual report
+        window.printIndividualReport = () => {
+            closePrintOptions();
+            window.print();
+        };
+
+        // Print class roster
+        window.printClassRoster = () => {
+            closePrintOptions();
+            // Check if class roster is visible
+            const classStatsContent = document.getElementById('class-stats-content');
+            const studentReportCard = document.getElementById('student-report-card');
+            
+            if (studentReportCard && studentReportCard.parentElement === classStatsContent) {
+                // If individual report is showing, go back to class list
+                document.getElementById('modal-select-number').value = 'all';
+                renderIndividualStatsTable();
+                // Wait a bit for rendering, then print
+                setTimeout(() => {
+                    window.print();
+                }, 500);
+            } else {
+                // Class roster is already showing
+                window.print();
+            }
         };
 
         // Helper to capture class roster
