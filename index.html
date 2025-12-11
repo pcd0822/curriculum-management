@@ -595,7 +595,11 @@
                     totalCredits += credits;
 
                     // Category Sums for required courses
-                    if (course.category === '기초교과') {
+                    // 한국사1, 한국사2는 기초교과로 계산 (기초교과 50% 초과 계산에 포함)
+                    const subjectName = (course.subjectName || '').toLowerCase();
+                    const isKoreanHistory = subjectName.includes('한국사');
+                    
+                    if (course.category === '기초교과' || isKoreanHistory) {
                         basicCredits += credits;
                         requiredBasicCredits += credits;
                     }
@@ -618,8 +622,7 @@
                     if (subCat === '체육') physicalCredits += credits;
                     
                     // 한국사1, 한국사2 확인
-                    const subjectName = (course.subjectName || '').toLowerCase();
-                    if (subjectName.includes('한국사')) {
+                    if (isKoreanHistory) {
                         if (subjectName.includes('1') || course.semester === '1') koreanHistory1 = true;
                         if (subjectName.includes('2') || course.semester === '2') koreanHistory2 = true;
                     }
@@ -657,7 +660,11 @@
                     totalCredits += credits;
 
                     // Category Sums
-                    if (course.category === '기초교과') basicCredits += credits;
+                    // 한국사1, 한국사2는 기초교과로 계산 (기초교과 50% 초과 계산에 포함)
+                    const subjectName = (course.subjectName || '').toLowerCase();
+                    const isKoreanHistory = subjectName.includes('한국사');
+                    
+                    if (course.category === '기초교과' || isKoreanHistory) basicCredits += credits;
                     if (course.category === '예술교과') artCredits += credits;
                     if (['교양교과', '제2외국어', '정보'].includes(course.category)) electiveGroupCredits += credits;
                     
@@ -671,8 +678,7 @@
                     if (subCat === '체육') physicalCredits += credits;
                     
                     // 한국사1, 한국사2 확인
-                    const subjectName = (course.subjectName || '').toLowerCase();
-                    if (subjectName.includes('한국사')) {
+                    if (isKoreanHistory) {
                         if (subjectName.includes('1') || course.semester === '1') koreanHistory1 = true;
                         if (subjectName.includes('2') || course.semester === '2') koreanHistory2 = true;
                     }
@@ -1141,7 +1147,14 @@
 
                 // Category Grouping
                 let cat = c.category;
-                if (c.subCategory && jointSubCategoryToCategoryMap[c.subCategory]) {
+                
+                // 한국사1, 한국사2는 기초교과로 분류 (기초교과 50% 초과 계산에 포함)
+                const subjectName = (c.subjectName || '').toLowerCase();
+                const isKoreanHistory = subjectName.includes('한국사');
+                
+                if (isKoreanHistory) {
+                    cat = '기초교과';
+                } else if (c.subCategory && jointSubCategoryToCategoryMap[c.subCategory]) {
                     cat = jointSubCategoryToCategoryMap[c.subCategory];
                 }
 
