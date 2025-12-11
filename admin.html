@@ -1915,23 +1915,23 @@
                     return; // Skip joint courses from course list
                 }
 
-                // 1. Resolve Metadata - Check id, slug, and subjectName
-                let meta = allCourseData.find(c => c.id === cName || c.slug === cName || c.subjectName === cName);
+                // 1. Resolve Metadata - Priority: slug > id > subjectName (slug가 가장 정확한 매칭)
+                let meta = allCourseData.find(c => c.slug === cName || c.id === cName || c.subjectName === cName);
 
                 // Fallback: check parts if hyphenated
-                // Handle format: slug-grade-semester-numbering (e.g., "dokseotorongwa-geulssgi-3-1-57")
+                // Handle format: slug-grade-semester or slug-grade-semester-numbering
+                // (e.g., "dokseotorongwa-geulssgi-3-1" or "dokseotorongwa-geulssgi-3-1-57")
                 if (!meta && cName.includes('-')) {
                     const parts = cName.split('-');
                     
-                    // Try multiple patterns to find the slug
                     // Pattern 1: Check if last 2 parts are numbers (grade-semester)
+                    // This is the most common format: slug-grade-semester
                     if (parts.length >= 3) {
                         const lastTwo = parts.slice(-2);
                         const isGradeSemester = lastTwo.every(p => /^\d+$/.test(p));
                         
                         if (isGradeSemester) {
-                            // Pattern: slug-grade-semester or slug-grade-semester-numbering
-                            // Remove last 2 (or 3 if last is also number) parts to get slug
+                            // Remove last 2 parts to get slug
                             let slugParts = parts.slice(0, -2);
                             
                             // If there's a 3rd number at the end (numbering), remove it too
@@ -1940,21 +1940,36 @@
                             }
                             
                             const slug = slugParts.join('-');
-                            meta = allCourseData.find(c => c.id === slug || c.slug === slug || c.subjectName === slug);
+                            // Priority: slug로 먼저 찾기 (가장 정확)
+                            meta = allCourseData.find(c => c.slug === slug);
+                            if (!meta) {
+                                // Fallback: id나 subjectName으로 찾기
+                                meta = allCourseData.find(c => c.id === slug || c.subjectName === slug);
+                            }
                         }
                     }
                     
-                    // Pattern 2: If still not found, try first part only (original behavior)
-                    if (!meta && parts.length > 0) {
-                        meta = allCourseData.find(c => c.id === parts[0] || c.slug === parts[0] || c.subjectName === parts[0]);
-                    }
-                    
-                    // Pattern 3: Try progressively removing last parts
+                    // Pattern 2: If still not found, try progressively removing last parts
+                    // This handles edge cases where format might be different
                     if (!meta && parts.length > 2) {
                         for (let i = parts.length - 2; i >= 1; i--) {
                             const slug = parts.slice(0, i).join('-');
-                            meta = allCourseData.find(c => c.id === slug || c.slug === slug || c.subjectName === slug);
+                            // Priority: slug로 먼저 찾기
+                            meta = allCourseData.find(c => c.slug === slug);
+                            if (!meta) {
+                                meta = allCourseData.find(c => c.id === slug || c.subjectName === slug);
+                            }
                             if (meta) break;
+                        }
+                    }
+                    
+                    // Pattern 3: Last resort - try first part only
+                    if (!meta && parts.length > 0) {
+                        const firstPart = parts[0];
+                        // Priority: slug로 먼저 찾기
+                        meta = allCourseData.find(c => c.slug === firstPart);
+                        if (!meta) {
+                            meta = allCourseData.find(c => c.id === firstPart || c.subjectName === firstPart);
                         }
                     }
                 }
@@ -2011,22 +2026,85 @@
                     }
 
                 } else {
-                    // NOT FOUND: Best Effort Parse
-                    // If name looks like "physics-2-1", grab "physics"
-                    if (displayName.includes('-')) {
-                        const p = displayName.split('-');
-                        if (p.length >= 3) displayName = p[0];
+                    // NOT FOUND: Log warning and try to extract slug more carefully
+                    console.warn(`[Admin] Course metadata not found for: ${cName}`);
+                    
+                    // Try to extract slug from format: slug-grade-semester
+                    if (cName.includes('-')) {
+                        const parts = cName.split('-');
+                        
+                        // If last 2 parts are numbers (grade-semester), use everything before as slug
+                        if (parts.length >= 3) {
+                            const lastTwo = parts.slice(-2);
+                            const isGradeSemester = lastTwo.every(p => /^\d+$/.test(p));
+                            
+                            if (isGradeSemester) {
+                                // Remove last 2 parts to get slug
+                                let slugParts = parts.slice(0, -2);
+                                
+                                // If there's a 3rd number at the end (numbering), remove it too
+                                if (parts.length >= 4 && /^\d+$/.test(parts[parts.length - 3])) {
+                                    slugParts = parts.slice(0, -3);
+                                }
+                                
+                                const slug = slugParts.join('-');
+                                console.warn(`[Admin] Extracted slug: ${slug} from ${cName}`);
+                                
+                                // Try one more time with extracted slug
+                                meta = allCourseData.find(c => c.slug === slug);
+                                if (!meta) {
+                                    meta = allCourseData.find(c => c.id === slug || c.subjectName === slug);
+                                }
+                                
+                                if (meta) {
+                                    // Found! Use the metadata
+                                    displayName = meta.subjectName || meta.name || slug;
+                                    displayCredit = parseInt(meta.credit || meta.credits || 0);
+                                    displayCat = meta.category || '기타';
+                                    displaySem = `${meta.grade || '?'}-${meta.semester || '?'}`;
+                                    displayGrade = parseInt(meta.grade || 99);
+                                    isRequired = meta.required === true || String(meta.required).toLowerCase() === 'true';
+                                    
+                                    // Add to Stats with correct category
+                                    if (displayCat === '기초교과') {
+                                        creditStats['기초교과'] += displayCredit;
+                                    } else if (displayCat === '탐구교과') {
+                                        creditStats['사회 및 과학'] += displayCredit;
+                                    } else if (displayCat === '예술교과') {
+                                        creditStats['예술교과'] += displayCredit;
+                                    } else if (displayCat === '체육교과') {
+                                        creditStats['체육교과'] += displayCredit;
+                                    } else if (['교양교과', '제2외국어', '정보'].includes(displayCat)) {
+                                        creditStats['교양,제2외국어,정보'] += displayCredit;
+                                    } else {
+                                        // Unknown category, default to 교양
+                                        creditStats['교양,제2외국어,정보'] += displayCredit;
+                                    }
+                                } else {
+                                    // Still not found - use default
+                                    console.error(`[Admin] Still cannot find metadata for slug: ${slug}`);
+                                    displayCat = '교양교과';
+                                    displayCredit = 0;
+                                    creditStats['교양,제2외국어,정보'] += displayCredit;
+                                }
+                            } else {
+                                // Doesn't match slug-grade-semester format
+                                displayCat = '교양교과';
+                                displayCredit = 0;
+                                creditStats['교양,제2외국어,정보'] += displayCredit;
+                            }
+                        } else {
+                            // Not enough parts
+                            displayCat = '교양교과';
+                            displayCredit = 0;
+                            creditStats['교양,제2외국어,정보'] += displayCredit;
+                        }
+                    } else {
+                        // No hyphen - use as-is
+                        displayCat = '교양교과';
+                        displayCredit = 0;
+                        creditStats['교양,제2외국어,정보'] += displayCredit;
                     }
-                    // Assume default credit/cat for unknown
-                    displayCat = '교양교과';
-
-                    // Try parse credit from string if possible (name-grade-sem-credit)
-                    const p = cName.split('-');
-                    if (p.length >= 4) {
-                        displayCredit = parseInt(p[3]) || 0;
-                    }
-
-                    creditStats['교양,제2외국어,정보'] += displayCredit;
                 }
 
                 // Add to Course List (Deduplicate) - Only add non-required courses
