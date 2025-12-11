@@ -176,9 +176,25 @@
             print-color-adjust: exact !important;
         }
 
-        /* Hide everything except the modal */
-        body>*:not(#class-lookup-modal) {
+        /* Hide everything except the modal and batch print container */
+        body>*:not(#class-lookup-modal):not(#batch-print-container) {
             display: none !important;
+        }
+
+        /* Show batch print container in print */
+        #batch-print-container {
+            display: block !important;
+            position: relative !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            background: white !important;
+        }
+
+        /* Each report card in batch print should start on a new page (except first) */
+        #batch-print-container > div:not(:first-child) {
+            page-break-before: always !important;
+            break-before: page !important;
         }
 
         /* Modal styling */
@@ -2978,55 +2994,99 @@
             const container = document.createElement('div');
             container.style.position = 'absolute';
             container.style.top = '-9999px';
-            container.style.left = '-9999px';
+            container.style.left = '0';
             container.style.background = '#ffffff';
-            container.style.padding = '30px';
-            container.style.width = (element.scrollWidth + 60) + 'px';
+            container.style.padding = '5mm';
+            container.style.width = '210mm'; // A4 width
+            container.style.minHeight = 'auto';
+            container.style.height = 'auto';
+            container.style.overflow = 'visible';
             container.appendChild(clone);
             document.body.appendChild(container);
 
-            // Calculate full height including all content
-            const fullHeight = Math.max(
-                clone.scrollHeight,
-                clone.offsetHeight,
-                element.scrollHeight
-            );
+            // Force layout recalculation
+            void container.offsetHeight;
+            
+            // Wait a bit for styles to apply and layout to settle
+            setTimeout(() => {
+                // Force a reflow to ensure all styles are applied
+                clone.style.display = 'block';
+                void clone.offsetHeight;
+                
+                // Calculate full height including all content after styles are applied
+                // Get the actual rendered height from the clone
+                const cloneRect = clone.getBoundingClientRect();
+                const actualHeight = Math.max(
+                    clone.scrollHeight,
+                    clone.offsetHeight,
+                    cloneRect.height,
+                    container.scrollHeight - 10, // Subtract container padding
+                    element.scrollHeight
+                );
 
-            html2canvas(container, {
-                scale: 2,
-                backgroundColor: '#ffffff',
-                useCORS: true,
-                logging: false,
-                width: element.scrollWidth + 60,
-                height: fullHeight + 60,
-                windowWidth: element.scrollWidth + 60,
-                windowHeight: fullHeight + 60,
-                scrollX: 0,
-                scrollY: 0,
-                allowTaint: true,
-                ignoreElements: (element) => {
-                    return element.tagName === 'BUTTON';
-                }
-            }).then(canvas => {
-                console.log('Canvas created successfully, size:', canvas.width, 'x', canvas.height);
-                const link = document.createElement('a');
-                const fileName = `${String(studentNumber).padStart(2, '0')}_${studentName}_리포트.png`;
-                link.download = fileName;
-                link.href = canvas.toDataURL('image/png');
-                document.body.appendChild(link);
-                link.click();
-                setTimeout(() => {
-                    document.body.removeChild(link);
-                }, 100);
-                console.log('Image download triggered:', fileName);
-            }).catch(err => {
-                console.error('이미지 저장 실패:', err);
-                alert('이미지 저장 중 오류가 발생했습니다: ' + (err.message || err));
-            }).finally(() => {
-                if (container && container.parentNode) {
-                    document.body.removeChild(container);
-                }
-            });
+                console.log('Height calculation:', {
+                    cloneScrollHeight: clone.scrollHeight,
+                    cloneOffsetHeight: clone.offsetHeight,
+                    cloneRectHeight: cloneRect.height,
+                    containerScrollHeight: container.scrollHeight,
+                    elementScrollHeight: element.scrollHeight,
+                    actualHeight: actualHeight
+                });
+
+                // Use html2canvas without explicit height to capture full content
+                html2canvas(container, {
+                    scale: 2,
+                    backgroundColor: '#ffffff',
+                    useCORS: true,
+                    logging: true, // Enable logging to debug
+                    width: container.offsetWidth,
+                    height: actualHeight + 40, // Add padding for margins
+                    windowWidth: container.offsetWidth,
+                    windowHeight: actualHeight + 40,
+                    scrollX: 0,
+                    scrollY: 0,
+                    allowTaint: true,
+                    removeContainer: false,
+                    ignoreElements: (element) => {
+                        return element.tagName === 'BUTTON';
+                    },
+                    onclone: (clonedDoc) => {
+                        // Ensure all elements are visible in the cloned document
+                        const clonedContainer = clonedDoc.querySelector('div');
+                        if (clonedContainer) {
+                            clonedContainer.style.overflow = 'visible';
+                            clonedContainer.style.height = 'auto';
+                            clonedContainer.style.maxHeight = 'none';
+                        }
+                        // Ensure clone is fully visible
+                        const clonedClone = clonedDoc.querySelector('#student-report-card') || clonedDoc.querySelector('[id^="student-report"]');
+                        if (clonedClone) {
+                            clonedClone.style.height = 'auto';
+                            clonedClone.style.maxHeight = 'none';
+                            clonedClone.style.overflow = 'visible';
+                        }
+                    }
+                }).then(canvas => {
+                    console.log('Canvas created successfully, size:', canvas.width, 'x', canvas.height);
+                    const link = document.createElement('a');
+                    const fileName = `${String(studentNumber).padStart(2, '0')}_${studentName}_리포트.png`;
+                    link.download = fileName;
+                    link.href = canvas.toDataURL('image/png');
+                    document.body.appendChild(link);
+                    link.click();
+                    setTimeout(() => {
+                        document.body.removeChild(link);
+                    }, 100);
+                    console.log('Image download triggered:', fileName);
+                }).catch(err => {
+                    console.error('이미지 저장 실패:', err);
+                    alert('이미지 저장 중 오류가 발생했습니다: ' + (err.message || err));
+                }).finally(() => {
+                    if (container && container.parentNode) {
+                        document.body.removeChild(container);
+                    }
+                });
+            }, 100); // Wait 100ms for styles to apply
         };
 
         // Close Individual Stats Modal
@@ -3080,7 +3140,7 @@
             window.print();
         };
 
-        // Print class roster - Print all individual reports as PDF sequentially
+        // Print class roster - Print all individual reports as one PDF
         window.printClassRoster = async () => {
             closePrintOptions();
             
@@ -3137,44 +3197,101 @@
             }
 
             // Confirm before printing
-            const confirmMsg = `${studentsWithData.length}명의 학생 리포트를 PDF로 출력하시겠습니까?\n\n각 학생 리포트가 순차적으로 출력됩니다.`;
+            const confirmMsg = `${studentsWithData.length}명의 학생 리포트를 하나의 PDF 파일로 출력하시겠습니까?`;
             if (!confirm(confirmMsg)) {
                 return;
             }
 
-            // Print each student report sequentially
-            for (let i = 0; i < studentsWithData.length; i++) {
-                const student = studentsWithData[i];
-                const submission = allStudentData.find(s => 
-                    s.Grade == student.Grade && 
-                    s.Class == student.Class && 
-                    parseInt(s.Number) == parseInt(student.Number)
-                );
+            // Show loading
+            const modalContent = document.getElementById('class-stats-content');
+            modalContent.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-20">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                    <p class="text-gray-600 text-lg font-medium">리포트 생성 중... (${studentsWithData.length}명)</p>
+                </div>
+            `;
 
-                if (submission) {
-                    // Render the report
-                    renderDetailedStudentReport(submission);
-                    
-                    // Wait for chart to render
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                    
-                    // Print this student's report
-                    if (i === 0) {
-                        // First student - show print dialog
-                        window.print();
-                    } else {
-                        // Subsequent students - wait for user to continue
-                        const continuePrint = confirm(
-                            `${i + 1}/${studentsWithData.length} - ${student.Name} (${student.Number}번) 리포트를 출력하시겠습니까?\n\n이전 리포트 출력을 완료한 후 확인을 눌러주세요.`
-                        );
-                        if (continuePrint) {
-                            window.print();
-                        } else {
-                            alert('출력이 취소되었습니다.');
-                            break;
+            // Create a container for all reports
+            const printContainer = document.createElement('div');
+            printContainer.id = 'batch-print-container';
+            printContainer.style.position = 'absolute';
+            printContainer.style.top = '-9999px';
+            printContainer.style.left = '0';
+            printContainer.style.width = '100%';
+            printContainer.style.background = '#ffffff';
+            document.body.appendChild(printContainer);
+
+            try {
+                // Render each student report and collect HTML
+                for (let i = 0; i < studentsWithData.length; i++) {
+                    const student = studentsWithData[i];
+                    const submission = allStudentData.find(s => 
+                        s.Grade == student.Grade && 
+                        s.Class == student.Class && 
+                        parseInt(s.Number) == parseInt(student.Number)
+                    );
+
+                    if (submission) {
+                        // Render the report in modal (hidden)
+                        await renderDetailedStudentReport(submission);
+                        
+                        // Wait for chart to render
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        
+                        // Get the rendered report card
+                        const reportCard = document.getElementById('student-report-card');
+                        if (reportCard) {
+                            // Clone the report card
+                            const clonedCard = reportCard.cloneNode(true);
+                            
+                            // Add page break after each report (except the last one)
+                            if (i < studentsWithData.length - 1) {
+                                clonedCard.style.pageBreakAfter = 'always';
+                                clonedCard.style.breakAfter = 'page';
+                            }
+                            
+                            // Ensure chart is copied
+                            const originalCanvas = reportCard.querySelector('canvas');
+                            const clonedCanvas = clonedCard.querySelector('canvas');
+                            if (originalCanvas && clonedCanvas) {
+                                const ctx = clonedCanvas.getContext('2d');
+                                ctx.drawImage(originalCanvas, 0, 0);
+                            }
+                            
+                            // Add to print container
+                            printContainer.appendChild(clonedCard);
                         }
                     }
                 }
+
+                // Hide modal and show print container
+                document.getElementById('class-lookup-modal').classList.add('hidden');
+                printContainer.style.position = 'relative';
+                printContainer.style.top = '0';
+                
+                // Wait a bit for layout to settle
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Print
+                window.print();
+                
+                // Clean up after print
+                setTimeout(() => {
+                    document.body.removeChild(printContainer);
+                    // Restore modal
+                    document.getElementById('class-lookup-modal').classList.remove('hidden');
+                    // Reset to class list view
+                    document.getElementById('modal-select-number').value = 'all';
+                    renderIndividualStatsTable();
+                }, 1000);
+
+            } catch (error) {
+                console.error('Batch print error:', error);
+                alert('출력 중 오류가 발생했습니다: ' + error.message);
+                if (printContainer && printContainer.parentNode) {
+                    document.body.removeChild(printContainer);
+                }
+                document.getElementById('class-lookup-modal').classList.remove('hidden');
             }
         };
 
