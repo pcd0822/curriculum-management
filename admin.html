@@ -38,6 +38,42 @@
         border: 1px solid var(--border-color);
     }
 
+    /* Dynamic height adjustment for modal sections */
+    #student-report-card .grid.items-stretch {
+        align-items: stretch;
+    }
+
+    #student-report-card .theme-card.flex.flex-col {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Validation detail table container - flexible height */
+    #student-report-card .theme-card.flex.flex-col > div.flex-1 {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
+    /* Chart container - flexible height */
+    #student-report-card .theme-card.flex.flex-col > div.flex-1.flex {
+        flex: 1;
+        min-height: 0;
+    }
+
+    /* Course list table container - flexible height */
+    #student-report-card .theme-card.flex.flex-col > div.flex-1.overflow-y-auto {
+        flex: 1;
+        min-height: 0;
+    }
+
+    /* AI analysis container - flexible height */
+    #student-report-card #ai-analysis-container.flex-1 {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+    }
+
     .theme-text {
         color: var(--text-color);
     }
@@ -2404,10 +2440,10 @@
     </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[16pt]">${s.TotalCredits
                 }
 
-    </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1.5 print:mb-1.5"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-[120px] print:min-h-[120px]"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
+    </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1.5 print:mb-1.5 items-stretch"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📊 교과 영역별 이수 현황</h4><div class="flex-1 flex items-center justify-center min-h-[192px] print:h-[120px] print:min-h-[120px]"><div class="w-full h-full relative"><canvas id="individualCreditChart"></canvas></div></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
                 }
 
-    </p></div><table class="w-full text-xs print:text-[7pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.75 print:text-[7pt]">항목</th><th class="text-right print:p-0.75 print:text-[7pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
+    </p></div><div class="flex-1 overflow-y-auto"><table class="w-full text-xs print:text-[7pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.75 print:text-[7pt]">항목</th><th class="text-right print:p-0.75 print:text-[7pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
                     // Escape HTML in description for tooltip
                     const escapedDesc = (v.desc || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\n/g, ' ');
                     const toggleId = 'validation-toggle-' + idx;
@@ -2436,21 +2472,21 @@
                 }).join('')
                 }
 
-    </tbody></table>${!isPass ? `<p class="mt-2 text-xs text-red-500 font-medium bg-white p-1 rounded border border-red-100 print:text-red-600 print:mt-1 print:p-1 print:text-[6pt]" > ${vRes
+    </tbody></table></div>${!isPass ? `<p class="mt-2 text-xs text-red-500 font-medium bg-white p-1 rounded border border-red-100 print:text-red-600 print:mt-1 print:p-1 print:text-[6pt]" > ${vRes
                     }
 
         </p > ` : ''
                 }
 
-    </div></div></div><!-- Bottom Row: Course List and AI Recommendations --><div class="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-2 print:gap-1.5 print:mb-1.5 mt-6 print:mt-1.5"><!-- Left Bottom: Selected Course List (same width as Chart in print) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 lg:col-span-2 print:col-span-1"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📚 선택 과목 목록 (${courseList.length
+    </div></div></div><!-- Bottom Row: Course List and AI Recommendations --><div class="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-2 print:gap-1.5 print:mb-1.5 mt-6 print:mt-1.5 items-stretch"><!-- Left Bottom: Selected Course List (same width as Chart in print) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 lg:col-span-2 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📚 선택 과목 목록 (${courseList.length
 
-                })</h4><div class="overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none print:flex-1"><table class="w-full text-xs text-left print:text-[8pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학기</th><th class="p-2 print:p-0.5 print:text-[9pt]" style="width: 50% !important;">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
+                })</h4><div class="flex-1 overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left print:text-[8pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학기</th><th class="p-2 print:p-0.5 print:text-[9pt]" style="width: 50% !important;">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
                     const [grade, sem] = c.semester.includes('-') ? c.semester.split('-') : ['?', '?'];
                     return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[8pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[8pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-0.5 print:text-[9pt]" style="width: 50% !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-0.5 print:text-[8pt]" >${c.credit}</td> </tr> `;
                 }).join('')
                 }
 
-    </tbody></table></div></div><!-- Right Bottom: AI Recommendations (same width as Validation in print) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 print:flex print:flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="text-sm space-y-3 print:flex-1 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
+    </tbody></table></div></div><!-- Right Bottom: AI Recommendations (same width as Validation in print) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="flex-1 text-sm space-y-3 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
     class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="window.print()"
     class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>이 학생 리포트 출력 </button><button onclick="downloadStudentReportImage('${s.Name}', '${s.Number}')" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow flex items-center gap-2"><span>💾</span>이미지 저장</button></div></div>`;
             modalContent.innerHTML = html;
