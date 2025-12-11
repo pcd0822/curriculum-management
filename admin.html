@@ -59,12 +59,44 @@
     #student-report-card .theme-card.flex.flex-col > div.flex-1.flex {
         flex: 1;
         min-height: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    /* Chart canvas - fill container */
+    #student-report-card #individualCreditChart {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 100%;
+        max-height: 100%;
+    }
+
+    /* Chart wrapper div - fill container */
+    #student-report-card .theme-card.flex.flex-col > div.flex-1.flex > div {
+        width: 100% !important;
+        height: 100% !important;
     }
 
     /* Course list table container - flexible height */
     #student-report-card .theme-card.flex.flex-col > div.flex-1.overflow-y-auto {
         flex: 1;
         min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Ensure course list and AI section cards match height */
+    #student-report-card .grid.items-stretch > .theme-card.flex.flex-col {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Course list table wrapper - ensure it fills available space */
+    #student-report-card .theme-card.flex.flex-col > div.flex-1.overflow-y-auto.min-h-0 {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
     }
 
     /* AI analysis container - flexible height */
@@ -204,15 +236,30 @@
             line-height: 1.2 !important;
         }
         
-        /* Chart - taller for better readability in print */
+        /* Chart - fill container in print */
         #student-report-card canvas {
-            height: 120px !important;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+        }
+        
+        /* Chart container - fill available space */
+        #student-report-card .theme-card.flex.flex-col > div.flex-1.flex {
+            width: 100% !important;
+            height: 100% !important;
             min-height: 120px !important;
+        }
+
+        /* Chart wrapper div - fill container */
+        #student-report-card .theme-card.flex.flex-col > div.flex-1.flex > div {
+            width: 100% !important;
+            height: 100% !important;
         }
         
         /* Ensure chart container has proper height */
         #student-report-card .h-48 {
-            height: 120px !important;
+            height: 100% !important;
             min-height: 120px !important;
         }
         
@@ -338,6 +385,29 @@
         #student-report-card > div:first-child {
             display: block !important;
             visibility: visible !important;
+            opacity: 1 !important;
+            position: relative !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+            margin-bottom: 3mm !important;
+            padding-bottom: 2mm !important;
+            border-bottom: 1px solid #000 !important;
+        }
+
+        /* Ensure all header content is visible */
+        #student-report-card > div:first-child * {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        /* Header text styling for print */
+        #student-report-card > div:first-child h3,
+        #student-report-card > div:first-child span,
+        #student-report-card > div:first-child p {
+            color: black !important;
+            font-size: 12pt !important;
+            line-height: 1.5 !important;
         }
         
         /* Border spacing */
@@ -2480,7 +2550,7 @@
 
     </div></div></div><!-- Bottom Row: Course List and AI Recommendations --><div class="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-2 print:gap-1.5 print:mb-1.5 mt-6 print:mt-1.5 items-stretch"><!-- Left Bottom: Selected Course List (same width as Chart in print) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 lg:col-span-2 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📚 선택 과목 목록 (${courseList.length
 
-                })</h4><div class="flex-1 overflow-y-auto max-h-[300px] custom-scrollbar print:overflow-visible print:max-h-none"><table class="w-full text-xs text-left print:text-[8pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학기</th><th class="p-2 print:p-0.5 print:text-[9pt]" style="width: 50% !important;">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
+                })</h4><div class="flex-1 overflow-y-auto custom-scrollbar print:overflow-visible print:max-h-none min-h-0"><table class="w-full text-xs text-left print:text-[8pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학기</th><th class="p-2 print:p-0.5 print:text-[9pt]" style="width: 50% !important;">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
                     const [grade, sem] = c.semester.includes('-') ? c.semester.split('-') : ['?', '?'];
                     return ` <tr class="hover:bg-gray-50 print:border-b print:border-gray-200"> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[8pt]" >${grade}</td> <td class="p-2 text-center text-gray-500 print:text-black font-mono print:p-0.5 print:text-[8pt]" >${sem}</td> <td class="p-2 font-medium theme-text print:text-black print:p-0.5 print:text-[9pt]" style="width: 50% !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.name}</td> <td class="p-2 text-center text-gray-500 print:text-black print:p-0.5 print:text-[8pt]" >${c.credit}</td> </tr> `;
                 }).join('')
@@ -2519,6 +2589,14 @@
                             indexAxis: 'x', // Always vertical bars for consistency
                             responsive: true,
                             maintainAspectRatio: false,
+                            layout: {
+                                padding: {
+                                    left: 0,
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0
+                                }
+                            },
                             plugins: {
                                 legend: {
                                     display: false
@@ -2537,6 +2615,10 @@
                                     }
                                 },
                                 y: {
+                                    beginAtZero: true,
+                                    grid: {
+                                        display: false
+                                    },
                                     ticks: {
                                         font: {
                                             size: window.matchMedia('print').matches ? 7 : 12
@@ -2628,9 +2710,12 @@
                 header.style.minHeight = 'auto';
                 header.style.maxHeight = 'none';
                 header.style.overflow = 'visible';
-                // Ensure header is not clipped
                 header.style.position = 'relative';
-                header.style.zIndex = '1';
+                header.style.zIndex = '10';
+                header.style.marginBottom = '8px';
+                header.style.paddingBottom = '8px';
+                header.style.borderBottom = '1px solid #000';
+                header.style.backgroundColor = '#ffffff';
                 
                 // Force show all header children (학번, 이름, 진로희망사항, 선택과목, 총 학점)
                 const headerChildren = header.querySelectorAll('*');
@@ -2641,6 +2726,11 @@
                     child.style.height = 'auto';
                     child.style.maxHeight = 'none';
                     child.style.overflow = 'visible';
+                    // Ensure text is black and visible
+                    if (child.tagName === 'H3' || child.tagName === 'SPAN' || child.tagName === 'P') {
+                        child.style.color = '#000000';
+                        child.style.fontSize = '';
+                    }
                 });
             }
             
