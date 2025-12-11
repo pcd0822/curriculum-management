@@ -168,9 +168,16 @@
             line-height: 1.2 !important;
         }
         
-        /* Chart - smaller */
+        /* Chart - taller for better readability in print */
         #student-report-card canvas {
-            height: 60px !important;
+            height: 120px !important;
+            min-height: 120px !important;
+        }
+        
+        /* Ensure chart container has proper height */
+        #student-report-card .h-48 {
+            height: 120px !important;
+            min-height: 120px !important;
         }
         
         /* Tables - optimized */
@@ -2061,8 +2068,10 @@
             // Calculate Stats for Validation (totalCredits는 이미 위에서 계산됨)
             // basicCredits는 creditStats['기초교과']를 사용 (required + selected 모두 포함)
             let basicCredits = creditStats['기초교과'] || 0;
-            let artCredits = 0;
-            let electiveGroupCredits = 0; // 교양/제2외국어/정보
+            // artCredits와 electiveGroupCredits는 creditStats에서 가져오되, required courses도 포함해야 함
+            // index.html에서는 courseList(selected)와 required courses를 모두 포함하여 계산
+            let artCredits = creditStats['예술교과'] || 0;
+            let electiveGroupCredits = creditStats['교양,제2외국어,정보'] || 0;
 
             // 교과별 필수 이수학점 계산
             let koreanCredits = 0; // 국어
@@ -2104,9 +2113,8 @@
                     if (meta) subCat = meta.subCategory || '';
                 }
 
-                // Category sums (index.html과 동일)
-                if (cat === '예술교과') artCredits += credits;
-                if (['교양교과', '제2외국어', '정보'].includes(cat)) electiveGroupCredits += credits;
+                // Category sums는 creditStats에서 이미 계산되었으므로 여기서는 계산하지 않음
+                // artCredits와 electiveGroupCredits는 creditStats에서 가져옴
 
                 // 교과별 필수 이수학점 계산
                 if (subCat === '국어') koreanCredits += credits;
@@ -2114,10 +2122,8 @@
                 if (subCat === '영어') englishCredits += credits;
                 if (subCat === '사회') socialCredits += credits;
                 if (subCat === '과학') scienceCredits += credits;
-                // 체육: subCategory가 있으면 우선, 없으면 category 확인 (중복 방지)
+                // 체육: index.html과 동일하게 subCategory만 확인
                 if (subCat === '체육') {
-                    physicalCredits += credits;
-                } else if ((cat === '체육교과' || (cat && cat.includes('체육'))) && subCat !== '체육') {
                     physicalCredits += credits;
                 }
                 
@@ -2143,9 +2149,8 @@
                     const subCat = c.subCategory || '';
                     const cat = c.category || '';
                     
-                    // Category sums (index.html과 동일)
-                    if (cat === '예술교과') artCredits += cred;
-                    if (['교양교과', '제2외국어', '정보'].includes(cat)) electiveGroupCredits += cred;
+                    // Category sums는 creditStats에서 이미 계산되었으므로 여기서는 계산하지 않음
+                    // artCredits와 electiveGroupCredits는 creditStats에서 가져옴
                     
                     // subCategory로 확인
                     if (subCat === '국어') koreanCredits += cred;
@@ -2153,10 +2158,8 @@
                     if (subCat === '영어') englishCredits += cred;
                     if (subCat === '사회') socialCredits += cred;
                     if (subCat === '과학') scienceCredits += cred;
-                    // 체육: subCategory가 있으면 우선, 없으면 category 확인 (중복 방지)
+                    // 체육: index.html과 동일하게 subCategory만 확인
                     if (subCat === '체육') {
-                        physicalCredits += cred;
-                    } else if ((cat === '체육교과' || (cat && cat.includes('체육'))) && subCat !== '체육') {
                         physicalCredits += cred;
                     }
                     
@@ -2310,7 +2313,7 @@
     </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[16pt]">${s.TotalCredits
                 }
 
-    </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-0.5 print:mb-0"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-[35px]"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-0.5 print:p-0.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[6pt] print:mb-0.25">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-0.25 print:p-0.25"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[5pt]">${isPass ? 'PASS' : '확인 필요'
+    </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1.5 print:mb-1.5"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📊 교과 영역별 이수 현황</h4><div class="h-48 relative print:h-[120px] print:min-h-[120px]"><canvas id="individualCreditChart"></canvas></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
                 }
 
     </p></div><table class="w-full text-xs print:text-[7pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.75 print:text-[7pt]">항목</th><th class="text-right print:p-0.75 print:text-[7pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
@@ -2488,12 +2491,30 @@
                 }
             });
             
-            // Ensure header is visible and all content is shown
+            // Ensure header is visible and all content is shown (학번, 이름, 진로희망사항 포함)
             const header = clone.querySelector('div:first-child');
             if (header) {
                 header.style.display = 'block';
                 header.style.visibility = 'visible';
                 header.style.opacity = '1';
+                header.style.height = 'auto';
+                header.style.minHeight = 'auto';
+                header.style.maxHeight = 'none';
+                header.style.overflow = 'visible';
+                // Ensure header is not clipped
+                header.style.position = 'relative';
+                header.style.zIndex = '1';
+                
+                // Force show all header children (학번, 이름, 진로희망사항, 선택과목, 총 학점)
+                const headerChildren = header.querySelectorAll('*');
+                headerChildren.forEach(child => {
+                    child.style.display = '';
+                    child.style.visibility = 'visible';
+                    child.style.opacity = '1';
+                    child.style.height = 'auto';
+                    child.style.maxHeight = 'none';
+                    child.style.overflow = 'visible';
+                });
             }
             
             // Ensure all sections are visible
@@ -2502,23 +2523,8 @@
                 section.style.display = '';
                 section.style.visibility = 'visible';
                 section.style.opacity = '1';
+                section.style.overflow = 'visible';
             });
-            
-            // Force show header info (학번, 이름, 진로희망사항, 선택과목, 총 학점)
-            const headerInfo = clone.querySelector('div:first-child');
-            if (headerInfo) {
-                headerInfo.style.display = 'block';
-                headerInfo.style.visibility = 'visible';
-                headerInfo.style.opacity = '1';
-                headerInfo.style.height = 'auto';
-                headerInfo.style.minHeight = 'auto';
-                const headerChildren = headerInfo.querySelectorAll('*');
-                headerChildren.forEach(child => {
-                    child.style.display = '';
-                    child.style.visibility = 'visible';
-                    child.style.opacity = '1';
-                });
-            }
 
             // Manually copy Canvas content (Chart.js)
             const originalCanvas = element.querySelector('canvas');
@@ -2528,28 +2534,43 @@
                 ctx.drawImage(originalCanvas, 0, 0);
             }
 
-            // Add to temp container
+            // Ensure full content is visible before capture
+            const allCards = clone.querySelectorAll('.theme-card');
+            allCards.forEach(card => {
+                card.style.pageBreakInside = 'avoid';
+                card.style.breakInside = 'avoid';
+            });
+            
+            // Add to temp container with extra padding to prevent clipping
             const container = document.createElement('div');
             container.style.position = 'absolute';
             container.style.top = '-9999px';
             container.style.left = '-9999px';
             container.style.background = '#ffffff';
-            container.style.padding = '20px'; // Add some padding for white border
-            container.style.width = (element.scrollWidth + 40) + 'px';
+            container.style.padding = '30px'; // Increased padding for better margins
+            container.style.width = (element.scrollWidth + 60) + 'px';
             container.appendChild(clone);
             document.body.appendChild(container);
+
+            // Calculate full height including all content
+            const fullHeight = Math.max(
+                clone.scrollHeight,
+                clone.offsetHeight,
+                element.scrollHeight
+            );
 
             html2canvas(container, {
                 scale: 2,
                 backgroundColor: '#ffffff',
                 useCORS: true,
                 logging: false,
-                width: element.scrollWidth + 40, // +padding
-                height: element.scrollHeight + 40, // +padding
-                windowWidth: element.scrollWidth + 40,
-                windowHeight: element.scrollHeight + 40,
+                width: element.scrollWidth + 60, // +padding
+                height: fullHeight + 60, // +padding for bottom
+                windowWidth: element.scrollWidth + 60,
+                windowHeight: fullHeight + 60,
                 scrollX: 0,
                 scrollY: 0,
+                allowTaint: true,
                 ignoreElements: (element) => {
                     return element.tagName === 'BUTTON';
                 }
