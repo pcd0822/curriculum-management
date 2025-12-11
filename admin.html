@@ -2013,16 +2013,19 @@
                     }
 
                     // Add to Stats (index.html과 동일한 로직 - category 직접 사용)
-                    if (displayCat === '기초교과') {
-                        creditStats['기초교과'] += displayCredit;
-                    } else if (displayCat === '탐구교과') {
-                        creditStats['사회 및 과학'] += displayCredit;
-                    } else if (displayCat === '예술교과') {
-                        creditStats['예술교과'] += displayCredit;
-                    } else if (displayCat === '체육교과') {
-                        creditStats['체육교과'] += displayCredit;
-                    } else if (['교양교과', '제2외국어', '정보'].includes(displayCat)) {
-                        creditStats['교양,제2외국어,정보'] += displayCredit;
+                    // 학교지정 과목은 Required courses 처리에서 이미 추가되었으므로 여기서는 추가하지 않음
+                    if (!isRequired) {
+                        if (displayCat === '기초교과') {
+                            creditStats['기초교과'] += displayCredit;
+                        } else if (displayCat === '탐구교과') {
+                            creditStats['사회 및 과학'] += displayCredit;
+                        } else if (displayCat === '예술교과') {
+                            creditStats['예술교과'] += displayCredit;
+                        } else if (displayCat === '체육교과') {
+                            creditStats['체육교과'] += displayCredit;
+                        } else if (['교양교과', '제2외국어', '정보'].includes(displayCat)) {
+                            creditStats['교양,제2외국어,정보'] += displayCredit;
+                        }
                     }
 
                 } else {
@@ -2066,19 +2069,23 @@
                                     isRequired = meta.required === true || String(meta.required).toLowerCase() === 'true';
                                     
                                     // Add to Stats with correct category
-                                    if (displayCat === '기초교과') {
-                                        creditStats['기초교과'] += displayCredit;
-                                    } else if (displayCat === '탐구교과') {
-                                        creditStats['사회 및 과학'] += displayCredit;
-                                    } else if (displayCat === '예술교과') {
-                                        creditStats['예술교과'] += displayCredit;
-                                    } else if (displayCat === '체육교과') {
-                                        creditStats['체육교과'] += displayCredit;
-                                    } else if (['교양교과', '제2외국어', '정보'].includes(displayCat)) {
-                                        creditStats['교양,제2외국어,정보'] += displayCredit;
-                                    } else {
-                                        // Unknown category, default to 교양
-                                        creditStats['교양,제2외국어,정보'] += displayCredit;
+                                    // 학교지정 과목은 Required courses 처리에서 이미 추가되었으므로 여기서는 추가하지 않음
+                                    if (!isRequired) {
+                                        if (displayCat === '기초교과') {
+                                            creditStats['기초교과'] += displayCredit;
+                                        } else if (displayCat === '탐구교과') {
+                                            creditStats['사회 및 과학'] += displayCredit;
+                                        } else if (displayCat === '예술교과') {
+                                            creditStats['예술교과'] += displayCredit;
+                                        } else if (displayCat === '체육교과') {
+                                            creditStats['체육교과'] += displayCredit;
+                                        } else if (['교양교과', '제2외국어', '정보'].includes(displayCat)) {
+                                            creditStats['교양,제2외국어,정보'] += displayCredit;
+                                        } else {
+                                            // Unknown category, default to 교양
+                                            console.warn(`[Admin] Unknown category "${displayCat}" for course: ${displayName}, defaulting to 교양`);
+                                            creditStats['교양,제2외국어,정보'] += displayCredit;
+                                        }
                                     }
                                 } else {
                                     // Still not found - use default
