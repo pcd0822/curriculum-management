@@ -405,22 +405,35 @@
         
         /* Ensure header is visible in print */
         #student-report-card > div:first-child {
-            display: block !important;
+            display: flex !important;
+            flex-direction: row !important;
             visibility: visible !important;
             opacity: 1 !important;
             position: relative !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
-            margin-bottom: 3mm !important;
-            padding-bottom: 2mm !important;
+            margin-bottom: 2mm !important;
+            padding-bottom: 1.5mm !important;
             border-bottom: 1px solid #000 !important;
+            width: 100% !important;
+            align-items: center !important;
+            justify-content: space-between !important;
         }
 
         /* Ensure all header content is visible */
-        #student-report-card > div:first-child * {
-            display: block !important;
+        #student-report-card > div:first-child > * {
+            display: flex !important;
             visibility: visible !important;
             opacity: 1 !important;
+        }
+
+        /* Header left section - 학번, 이름, 진로희망사항 */
+        #student-report-card > div:first-child > div:first-child {
+            display: flex !important;
+            flex-direction: column !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            flex: 1 !important;
         }
 
         /* Header inline elements - ensure they're visible */
@@ -438,6 +451,16 @@
             visibility: visible !important;
             opacity: 1 !important;
             color: black !important;
+            margin: 0 !important;
+        }
+
+        /* Header right section - 선택 과목, 총 학점 */
+        #student-report-card > div:first-child > div:last-child {
+            display: flex !important;
+            flex-direction: row !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            gap: 1rem !important;
         }
 
         /* Header text styling for print */
@@ -2573,16 +2596,16 @@
             });
 
 
-            const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full print:p-0"><!-- Header - Always visible in print --><div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-2 print:pb-2 print:flex-row print:items-center print:block"><div class="print:flex-1 print:mb-2"><div class="flex items-center gap-2 print:gap-2 print:mb-1"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border print:bg-white print:text-black print:px-2 print:py-1 print:text-[8pt]">학번: ${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}</span><h3 class="text-2xl font-bold theme-text print:text-black print:text-[14pt] print:m-0 print:inline-block print:ml-2">이름: ${s.Name
+            const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full print:p-0"><!-- Header - Always visible in print --><div class="flex flex-row justify-between items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-2 print:pb-2 print:flex-row print:items-center"><div class="flex-1 print:flex-1"><div class="flex items-center gap-3 print:gap-3 print:mb-1"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border print:bg-white print:text-black print:px-2 print:py-1 print:text-[9pt] print:font-bold">학번: ${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}</span><h3 class="text-2xl font-bold theme-text print:text-black print:text-[12pt] print:m-0 print:inline-block print:ml-2 print:font-bold">이름: ${s.Name
                 }
 
-    </h3></div><p class="text-gray-500 mt-1 flex items-center gap-2 print:text-xs print:mt-1 print:text-[8pt] print:block"><span class="font-bold text-gray-400 print:text-black">진로희망사항: </span><span class="font-medium text-blue-600 text-lg print:text-black print:text-[9pt]">${s.Major || '-'
+    </h3></div><p class="text-gray-500 mt-1 flex items-center gap-2 print:text-xs print:mt-1 print:text-[9pt] print:block print:mt-0.5"><span class="font-bold text-gray-400 print:text-black print:font-bold">진로희망사항: </span><span class="font-medium text-blue-600 text-lg print:text-black print:text-[9pt]">${s.Major || '-'
                 }
 
-    </span></p></div><div class="flex gap-4 text-center bg-gray-50 dark:bg-gray-700 p-3 rounded-lg print:bg-white print:border print:text-black print:gap-2 print:p-2 print:flex-shrink-0"><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">선택 과목</div><div class="text-2xl font-bold theme-text print:text-black print:text-[16pt]">${courseList.length
+    </span></p></div><div class="flex flex-row gap-4 text-center bg-gray-50 dark:bg-gray-700 p-3 rounded-lg print:bg-white print:border print:text-black print:gap-3 print:p-2 print:flex-shrink-0"><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">선택 과목</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${courseList.length
                 }
 
-    </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[16pt]">${s.TotalCredits
+    </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${s.TotalCredits
                 }
 
     </div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1.5 print:mb-1.5 items-stretch"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">📊 교과 영역별 이수 현황</h4><div class="flex-1 flex items-center justify-center min-h-[192px] print:h-[120px] print:min-h-[120px]"><div class="w-full h-full relative"><canvas id="individualCreditChart"></canvas></div></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
