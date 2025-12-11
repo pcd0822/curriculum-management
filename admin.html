@@ -1851,12 +1851,12 @@
 
             // 2. Base Credits from REQUIRED Courses (index.html과 동일한 로직)
             // Add required credits to stats ensure Chart matches Total
-            // Note: This logic assumes 'allCourseData' has 'required' and 'grade' fields
+            // Note: index.html에서는 모든 학년의 required courses를 포함하므로, 여기서도 모든 학년 포함
             allCourseData.forEach(c => {
                 const isRequired = c.required === true || String(c.required).toLowerCase() === 'true';
-                // Loose check for grade match (e.g. if s.Grade is "2", match "2", "2-1", "2-2"?)
-                // Usually required courses are Grade specific. Simple equality check for now.
-                if (isRequired && (parseInt(c.grade) === parseInt(s.Grade))) {
+                // index.html과 동일하게 모든 학년의 required courses 포함 (1학년 포함)
+                // 단, 학생이 선택한 과목 목록에 포함된 required courses만 계산
+                if (isRequired) {
                     const subjectName = c.subjectName || c.name || '';
                     
                     // 복수편제과목 중복 계산 방지 (index.html과 동일)
@@ -1883,11 +1883,13 @@
                     
                     const cred = parseInt(c.credit || c.credits || 0);
                     const cat = c.category || '기타';
+                    const subCat = c.subCategory || '';
 
-                    // Check category for proper classification (index.html과 동일 - category 직접 사용)
+                    // Check category for proper classification (index.html과 동일)
+                    // 탐구교과는 category가 '탐구교과'이거나 subCategory가 '사회'/'과학'인 경우
                     if (cat === '기초교과') {
                         creditStats['기초교과'] += cred;
-                    } else if (cat === '탐구교과') {
+                    } else if (cat === '탐구교과' || subCat === '사회' || subCat === '과학') {
                         creditStats['사회 및 과학'] += cred;
                     } else if (cat === '예술교과') {
                         creditStats['예술교과'] += cred;
@@ -2012,12 +2014,15 @@
                         countedMultiSemesterNames.add(displayName);
                     }
 
-                    // Add to Stats (index.html과 동일한 로직 - category 직접 사용)
+                    // Add to Stats (index.html과 동일한 로직)
                     // 학교지정 과목은 Required courses 처리에서 이미 추가되었으므로 여기서는 추가하지 않음
                     if (!isRequired) {
+                        // subCategory도 확인 (탐구교과는 subCategory로도 분류 가능)
+                        const displaySubCat = meta.subCategory || '';
+                        
                         if (displayCat === '기초교과') {
                             creditStats['기초교과'] += displayCredit;
-                        } else if (displayCat === '탐구교과') {
+                        } else if (displayCat === '탐구교과' || displaySubCat === '사회' || displaySubCat === '과학') {
                             creditStats['사회 및 과학'] += displayCredit;
                         } else if (displayCat === '예술교과') {
                             creditStats['예술교과'] += displayCredit;
@@ -2071,9 +2076,12 @@
                                     // Add to Stats with correct category
                                     // 학교지정 과목은 Required courses 처리에서 이미 추가되었으므로 여기서는 추가하지 않음
                                     if (!isRequired) {
+                                        // subCategory도 확인 (탐구교과는 subCategory로도 분류 가능)
+                                        const displaySubCat = meta.subCategory || '';
+                                        
                                         if (displayCat === '기초교과') {
                                             creditStats['기초교과'] += displayCredit;
-                                        } else if (displayCat === '탐구교과') {
+                                        } else if (displayCat === '탐구교과' || displaySubCat === '사회' || displaySubCat === '과학') {
                                             creditStats['사회 및 과학'] += displayCredit;
                                         } else if (displayCat === '예술교과') {
                                             creditStats['예술교과'] += displayCredit;
