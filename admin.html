@@ -3908,10 +3908,12 @@
                 <div class="mb-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                     <div class="flex gap-2 items-center bg-gray-50 p-3 rounded border border-gray-200">
                      <span class="font-bold text-gray-700">🔍 필터: </span>
-                     <select id="stats-filter-grade" onchange="window.dashboardGradeFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm bg-white">
-                        <option value="all" ${window.dashboardGradeFilter === 'all' ? 'selected' : ''}>전체 학년 과목</option>
-                        <option value="2" ${window.dashboardGradeFilter === '2' ? 'selected' : ''}>2학년 과목</option>
-                        <option value="3" ${window.dashboardGradeFilter === '3' ? 'selected' : ''}>3학년 과목</option>
+                     <select id="stats-filter-grade-semester" onchange="window.dashboardGradeSemesterFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm bg-white">
+                        <option value="all" ${(!window.dashboardGradeSemesterFilter || window.dashboardGradeSemesterFilter === 'all') ? 'selected' : ''}>전체</option>
+                        <option value="2-1" ${window.dashboardGradeSemesterFilter === '2-1' ? 'selected' : ''}>2학년 1학기</option>
+                        <option value="2-2" ${window.dashboardGradeSemesterFilter === '2-2' ? 'selected' : ''}>2학년 2학기</option>
+                        <option value="3-1" ${window.dashboardGradeSemesterFilter === '3-1' ? 'selected' : ''}>3학년 1학기</option>
+                        <option value="3-2" ${window.dashboardGradeSemesterFilter === '3-2' ? 'selected' : ''}>3학년 2학기</option>
                      </select>
                     </div>
                 </div>
@@ -3938,31 +3940,71 @@
             `;
             container.innerHTML = html;
 
-            // Process Data & Fix Parsing Logic
+            // Process Data & Fix Parsing Logic - 선택과목만 포함 (학교과목 제외)
             const subjectCounts = {};
+            const filterValue = window.dashboardGradeSemesterFilter || 'all';
+            const [filterGrade, filterSemester] = filterValue !== 'all' ? filterValue.split('-') : [null, null];
+
             students.forEach(s => {
                 if (!s.SelectedCourses) return;
                 s.SelectedCourses.split(',').forEach(cName => {
-                    let searchKey = cName.trim();
+                    const originalName = cName.trim();
+                    if (!originalName) return;
+
+                    let searchKey = originalName;
                     if (searchKey.includes('-')) {
-                        searchKey = searchKey.split('-')[0];
+                        searchKey = searchKey.split('-')[0].trim();
                     }
 
-                    // Strict matching logic reuse
-                    const meta = allCourseData.find(c => c.slug === searchKey || c.subjectName === searchKey || c.subjectName === cName.trim());
-                    const finalName = meta ? meta.subjectName : (cName.includes('-') ? cName.split('-')[0] : cName.trim());
+                    // 더 정확한 매칭: slug, subjectName, 그리고 부분 일치도 시도
+                    const meta = allCourseData.find(c => {
+                        // 정확한 매칭
+                        if (c.slug === searchKey || c.subjectName === searchKey || c.subjectName === originalName) {
+                            return true;
+                        }
+                        // 부분 일치 (slug나 subjectName이 searchKey를 포함하거나 그 반대)
+                        if (c.slug && c.slug.includes(searchKey)) return true;
+                        if (c.subjectName && c.subjectName.includes(searchKey)) return true;
+                        if (searchKey && c.slug && searchKey.includes(c.slug)) return true;
+                        if (searchKey && c.subjectName && searchKey.includes(c.subjectName)) return true;
+                        return false;
+                    });
+                    
+                    // 학교과목(required) 제외 - 선택과목만 통계에 포함
+                    if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) {
+                        return; // 학교과목은 제외
+                    }
+
+                    // 필터 적용 (학년-학기)
+                    if (filterValue !== 'all' && meta) {
+                        if (String(meta.grade) !== filterGrade || String(meta.semester) !== filterSemester) {
+                            return; // 필터 조건에 맞지 않으면 제외
+                        }
+                    }
+
+                    // meta가 있으면 정확한 subjectName 사용, 없으면 원본 이름 사용
+                    const finalName = meta ? meta.subjectName : originalName;
 
                     if (finalName) {
+                        // 기존 카운트에 추가 (같은 과목이 여러 번 나올 수 있으므로)
                         subjectCounts[finalName] = (subjectCounts[finalName] || 0) + 1;
                     }
                 });
             });
 
-            // Prepare Table List
+            // Prepare Table List - 선택과목만, 필터 적용
+            const filterValueForTable = window.dashboardGradeSemesterFilter || 'all';
+            const [filterGradeForTable, filterSemesterForTable] = filterValueForTable !== 'all' ? filterValueForTable.split('-') : [null, null];
+            
             let displayList = allCourseData.filter(c => {
+                // 학교과목 제외
                 if (c.required === true || String(c.required).toLowerCase() === 'true') return false;
-                if (window.dashboardGradeFilter !== 'all' && String(c.grade) !== String(window.dashboardGradeFilter)) return false;
-                if (c.grade == 1) return false; // Exclude Grade 1
+                // 1학년 제외
+                if (c.grade == 1) return false;
+                // 필터 적용 (학년-학기)
+                if (filterValueForTable !== 'all') {
+                    if (String(c.grade) !== filterGradeForTable || String(c.semester) !== filterSemesterForTable) return false;
+                }
                 return true;
             });
 
@@ -3977,6 +4019,20 @@
             const sortedForChart = Object.entries(subjectCounts)
                 .sort(([, a], [, b]) => b - a)
                 .slice(0, 10);
+
+            // 파스텔톤 색상 팔레트
+            const pastelColors = [
+                'rgba(255, 182, 193, 0.8)', // 파스텔 핑크
+                'rgba(173, 216, 230, 0.8)', // 파스텔 블루
+                'rgba(221, 160, 221, 0.8)', // 파스텔 퍼플
+                'rgba(255, 218, 185, 0.8)', // 파스텔 피치
+                'rgba(152, 251, 152, 0.8)', // 파스텔 그린
+                'rgba(255, 228, 196, 0.8)', // 파스텔 오렌지
+                'rgba(176, 224, 230, 0.8)', // 파스텔 시안
+                'rgba(255, 192, 203, 0.8)', // 파스텔 로즈
+                'rgba(230, 230, 250, 0.8)', // 라벤더
+                'rgba(255, 250, 205, 0.8)'  // 레몬 크림
+            ];
 
             // Render Charts Delayed
             setTimeout(() => {
@@ -3994,7 +4050,7 @@
                             datasets: [{
                                 label: '신청 학생 수',
                                 data: sortedForChart.map(([, count]) => count),
-                                backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                                backgroundColor: sortedForChart.map((_, index) => pastelColors[index % pastelColors.length]),
                                 borderRadius: 4
                             }]
                         },
@@ -4015,20 +4071,79 @@
             }, 100);
 
             // Render Table (HTML string build)
+            // 테이블에는 실제로 신청된 선택과목만 표시 (신청 인원이 0인 과목도 포함하되, 선택과목만)
+            // subjectCounts에 있는 과목들을 기준으로 테이블 생성
+            const tableSubjects = [];
+            
+            // subjectCounts에 있는 과목들을 allCourseData에서 찾아서 정보 추가
+            Object.keys(subjectCounts).forEach(subjectName => {
+                const course = allCourseData.find(c => {
+                    // 정확한 매칭
+                    if (c.subjectName === subjectName) return true;
+                    // 부분 일치도 확인
+                    if (c.subjectName && c.subjectName.includes(subjectName)) return true;
+                    if (subjectName && subjectName.includes(c.subjectName)) return true;
+                    return false;
+                });
+                
+                if (course) {
+                    // 선택과목만 포함 (학교과목 제외)
+                    if (course.required !== true && String(course.required).toLowerCase() !== 'true') {
+                        // 필터 적용
+                        if (filterValue === 'all' || 
+                            (String(course.grade) === filterGrade && String(course.semester) === filterSemester)) {
+                            // 1학년 제외
+                            if (course.grade != 1) {
+                                tableSubjects.push({
+                                    grade: course.grade,
+                                    semester: course.semester,
+                                    subjectName: course.subjectName,
+                                    count: subjectCounts[subjectName]
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    // allCourseData에 없는 경우 (예: 공동교육과정 등) - 기본 정보로 추가
+                    if (filterValue === 'all') {
+                        tableSubjects.push({
+                            grade: '?',
+                            semester: '?',
+                            subjectName: subjectName,
+                            count: subjectCounts[subjectName]
+                        });
+                    }
+                }
+            });
+
+            // 학년, 학기, 과목명 순으로 정렬
+            tableSubjects.sort((a, b) => {
+                if (a.grade !== b.grade) {
+                    if (a.grade === '?') return 1;
+                    if (b.grade === '?') return -1;
+                    return a.grade - b.grade;
+                }
+                if (a.semester !== b.semester) {
+                    if (a.semester === '?') return 1;
+                    if (b.semester === '?') return -1;
+                    return String(a.semester).localeCompare(String(b.semester));
+                }
+                return a.subjectName.localeCompare(b.subjectName);
+            });
+
             let tableHtml = `<table class="w-full text-sm border-collapse text-left"><thead class="bg-gray-100"><tr class="theme-text"><th class="border p-2 text-center w-16">학년</th><th class="border p-2 text-center w-16">학기</th><th class="border p-2">과목명</th><th class="border p-2 text-center w-24">신청 인원</th></tr></thead><tbody>`;
 
-            if (displayList.length === 0) {
+            if (tableSubjects.length === 0) {
                 tableHtml += `<tr><td colspan="4" class="p-4 text-center text-gray-500">표시할 과목이 없습니다.</td></tr>`;
             } else {
-                displayList.forEach(c => {
-                    const count = subjectCounts[c.subjectName] || 0;
-                    const isZero = count === 0;
+                tableSubjects.forEach(item => {
+                    const isZero = item.count === 0;
                     tableHtml += `
                                 <tr class="hover:bg-gray-50 ${isZero ? 'opacity-50' : ''}">
-                                    <td class="border p-2 text-center text-gray-500">${c.grade}</td>
-                                    <td class="border p-2 text-center text-gray-500">${c.semester}</td>
-                                    <td class="border p-2 font-medium text-gray-800">${c.subjectName}</td>
-                                    <td class="border p-2 text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}">${count}명</td>
+                                    <td class="border p-2 text-center text-gray-500">${item.grade}</td>
+                                    <td class="border p-2 text-center text-gray-500">${item.semester}</td>
+                                    <td class="border p-2 font-medium text-gray-800">${item.subjectName}</td>
+                                    <td class="border p-2 text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}">${item.count}명</td>
                                 </tr>
                              `;
                 });
@@ -4038,6 +4153,248 @@
             document.getElementById('class-subject-table-container').innerHTML = tableHtml;
         }
 
+        // Analyze Class Career Suitability
+        async function analyzeClassCareerSuitability(students) {
+            const ctx = document.getElementById('classCareerChart');
+            if (!ctx) return;
+
+            // 로딩 상태 표시
+            if (window.dashboardCharts && window.dashboardCharts.classCareer) {
+                window.dashboardCharts.classCareer.destroy();
+            }
+            window.dashboardCharts = window.dashboardCharts || {};
+            window.dashboardCharts.classCareer = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['분석 중...'],
+                    datasets: [{
+                        label: '진로 적합성',
+                        data: [0],
+                        backgroundColor: 'rgba(200, 200, 200, 0.5)'
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, max: 100, grid: { display: false } } }
+                }
+            });
+
+            // 1. 수집: 학생들의 진로 희망 사항과 신청 과목
+            const studentsWithData = students.filter(s => s.Major && s.SelectedCourses);
+            if (studentsWithData.length === 0) {
+                window.dashboardCharts.classCareer.destroy();
+                window.dashboardCharts.classCareer = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['데이터 없음'],
+                        datasets: [{
+                            label: '진로 적합성',
+                            data: [0],
+                            backgroundColor: 'rgba(200, 200, 200, 0.5)'
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { display: false },
+                            title: {
+                                display: true,
+                                text: '진로 희망 정보가 없습니다'
+                            }
+                        },
+                        scales: { x: { beginAtZero: true, max: 100, grid: { display: false } } }
+                    }
+                });
+                return;
+            }
+
+            // 2. 진로별 그룹화
+            const careerGroups = {};
+            studentsWithData.forEach((student) => {
+                const major = student.Major.trim();
+                if (!careerGroups[major]) {
+                    careerGroups[major] = {
+                        students: [],
+                        totalSuitability: 0,
+                        count: 0,
+                        recommendedSubjects: null // AI 추천 과목 캐시
+                    };
+                }
+                careerGroups[major].students.push(student);
+            });
+
+            // 3. 각 진로별로 AI 추천 과목을 가져오고, 학생들의 신청 과목과 비교하여 적합성 계산
+            for (const [major, group] of Object.entries(careerGroups)) {
+                try {
+                    // 진로별 추천 과목 목록 가져오기 (한 번만 호출)
+                    const allSelectedCourses = new Set();
+                    group.students.forEach(s => {
+                        s.SelectedCourses.split(',').forEach(c => {
+                            const courseName = c.trim();
+                            if (courseName) allSelectedCourses.add(courseName);
+                        });
+                    });
+
+                    const courseListStr = Array.from(allSelectedCourses).join(', ');
+                    
+                    // AI API 호출하여 추천 과목 목록 가져오기
+                    const recommendedSubjects = await getRecommendedSubjectsForCareer(major, courseListStr);
+                    group.recommendedSubjects = recommendedSubjects;
+
+                    // 각 학생의 신청 과목과 추천 과목을 비교하여 적합성 계산
+                    for (const student of group.students) {
+                        const selectedCourses = student.SelectedCourses.split(',').map(c => c.trim()).filter(c => c);
+                        if (selectedCourses.length === 0) continue;
+
+                        const suitability = calculateSuitabilityScore(selectedCourses, recommendedSubjects);
+                        group.totalSuitability += suitability;
+                        group.count++;
+                    }
+                } catch (error) {
+                    console.error(`Error processing career ${major}:`, error);
+                    // 오류 시 기본값 50%로 설정
+                    group.totalSuitability += 50 * group.students.length;
+                    group.count += group.students.length;
+                }
+            }
+
+            // 4. 진로별 평균 적합성 계산
+            const careerData = Object.entries(careerGroups)
+                .map(([major, group]) => ({
+                    major: major,
+                    avgSuitability: group.count > 0 ? Math.round(group.totalSuitability / group.count) : 0,
+                    studentCount: group.students.length
+                }))
+                .sort((a, b) => b.avgSuitability - a.avgSuitability);
+
+            // 5. 막대그래프 렌더링
+            window.dashboardCharts.classCareer.destroy();
+
+            const pastelColors = [
+                'rgba(255, 182, 193, 0.8)', // 파스텔 핑크
+                'rgba(173, 216, 230, 0.8)', // 파스텔 블루
+                'rgba(221, 160, 221, 0.8)', // 파스텔 퍼플
+                'rgba(255, 218, 185, 0.8)', // 파스텔 피치
+                'rgba(152, 251, 152, 0.8)', // 파스텔 그린
+                'rgba(255, 228, 196, 0.8)', // 파스텔 오렌지
+                'rgba(176, 224, 230, 0.8)', // 파스텔 시안
+                'rgba(255, 192, 203, 0.8)', // 파스텔 로즈
+                'rgba(230, 230, 250, 0.8)', // 라벤더
+                'rgba(255, 250, 205, 0.8)'  // 레몬 크림
+            ];
+
+            window.dashboardCharts.classCareer = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: careerData.map(d => `${d.major} (${d.studentCount}명)`),
+                    datasets: [{
+                        label: '진로 적합성 (%)',
+                        data: careerData.map(d => d.avgSuitability),
+                        backgroundColor: careerData.map((_, index) => pastelColors[index % pastelColors.length]),
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `적합성: ${context.parsed.x}%`;
+                                }
+                            }
+                        }
+                    },
+                    scales: { 
+                        x: { 
+                            beginAtZero: true, 
+                            max: 100,
+                            grid: { display: false },
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        } 
+                    }
+                }
+            });
+        }
+
+        // AI를 활용하여 진로별 추천 과목 목록 가져오기
+        async function getRecommendedSubjectsForCareer(major, availableCourses) {
+            try {
+                const response = await fetch('/.netlify/functions/ai-recommendation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        major: major,
+                        availableCourses: availableCourses || "학교 전체 개설 과목",
+                        mode: 'admin' // JSON 형식으로 반환
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('AI API 호출 실패');
+                }
+
+                const result = await response.json();
+                let content = result.choices[0].message.content;
+
+                try {
+                    const data = JSON.parse(content);
+                    const subjects = data.subjects || [];
+                    // 과목명만 추출 (예: "과목명: 이유" 형식에서 과목명만)
+                    return subjects.map(s => {
+                        const match = s.match(/^([^:：]+)/);
+                        return match ? match[1].trim() : s.trim();
+                    });
+                } catch (e) {
+                    // JSON 파싱 실패 시 텍스트에서 과목명 추출 시도
+                    console.warn('JSON parse failed, trying text extraction');
+                    return [];
+                }
+            } catch (error) {
+                console.error('Error fetching recommended subjects:', error);
+                return [];
+            }
+        }
+
+        // 신청 과목과 추천 과목을 비교하여 적합성 점수 계산 (0-100%)
+        function calculateSuitabilityScore(selectedCourses, recommendedSubjects) {
+            if (!recommendedSubjects || recommendedSubjects.length === 0) {
+                return 50; // 추천 과목이 없으면 기본값
+            }
+
+            // 과목명 매칭 (부분 일치 허용)
+            let matchCount = 0;
+            selectedCourses.forEach(selected => {
+                const selectedLower = selected.toLowerCase();
+                const matched = recommendedSubjects.some(recommended => {
+                    const recommendedLower = recommended.toLowerCase();
+                    return selectedLower.includes(recommendedLower) || recommendedLower.includes(selectedLower);
+                });
+                if (matched) matchCount++;
+            });
+
+            // 적합성 = (일치하는 과목 수 / 신청한 과목 수) * 100
+            // 최소 30%, 최대 100%로 제한
+            if (selectedCourses.length === 0) return 0;
+            
+            const baseScore = (matchCount / selectedCourses.length) * 100;
+            // 추천 과목이 많을수록 가중치 추가 (추천 과목 중 일부라도 선택하면 좋음)
+            const bonus = Math.min(20, (matchCount / recommendedSubjects.length) * 20);
+            
+            return Math.min(100, Math.max(30, Math.round(baseScore + bonus)));
+        }
 
         // Tab 3: Validation Stats
         function renderValidationStats(container, students, grade, cls) {
@@ -4142,81 +4499,209 @@
             container.innerHTML = html;
         }
 
-        // Tab 4: Grade Subject Stats (Rank Estimation)
         // Tab 4: Grade Subject Stats (Entire Grade)
         function renderGradeSubjectStats(container, students, grade) {
             if (!container) return;
 
+            // 필터 초기화
+            if (!window.gradeDashboardGradeFilter) window.gradeDashboardGradeFilter = '2';
             if (!window.gradeDashboardSemesterFilter) window.gradeDashboardSemesterFilter = 'all';
 
             const html = `
                 <div class="mb-4 flex gap-2 items-center bg-gray-50 p-3 rounded border border-gray-200">
                      <span class="font-bold text-gray-700">🔍 필터: </span>
-                     <select onchange="window.gradeDashboardSemesterFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm bg-white">
+                     <select id="grade-filter-grade" onchange="window.gradeDashboardGradeFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm bg-white">
+                        <option value="2" ${window.gradeDashboardGradeFilter === '2' ? 'selected' : ''}>2학년</option>
+                        <option value="3" ${window.gradeDashboardGradeFilter === '3' ? 'selected' : ''}>3학년</option>
+                     </select>
+                     <select id="grade-filter-semester" onchange="window.gradeDashboardSemesterFilter=this.value; renderClassStatsDashboard()" class="border p-1 rounded text-sm bg-white">
                         <option value="all" ${window.gradeDashboardSemesterFilter === 'all' ? 'selected' : ''}>전체 학기</option>
                         <option value="1" ${window.gradeDashboardSemesterFilter === '1' ? 'selected' : ''}>1학기</option>
                         <option value="2" ${window.gradeDashboardSemesterFilter === '2' ? 'selected' : ''}>2학기</option>
                      </select>
-                     <span class="text-xs text-gray-400 ml-2">* ${grade}학년 전체 학생 기준</span>
                 </div>
                 <div id="grade-subject-table-container"></div>
             `;
             container.innerHTML = html;
 
-            // Filter students by Grade ONLY (ignore class)
-            const targetGrade = grade || '1';
+            // 필터 적용: 학년 선택
+            const targetGrade = window.gradeDashboardGradeFilter || grade || '2';
             const gradeStudents = students.filter(s => String(s.Grade) === String(targetGrade));
             const totalStudents = gradeStudents.length;
 
-            // Counts
+            // 선택과목만 카운트 (학교지정과목 제외)
             const subjectCounts = {};
+            const subjectStudentMap = {}; // 각 과목을 신청한 학생 목록 (등급 계산용)
+
             gradeStudents.forEach(s => {
                 if (!s.SelectedCourses) return;
                 s.SelectedCourses.split(',').forEach(cName => {
-                    const name = cName.trim();
-                    if (!name) return;
-                    subjectCounts[name] = (subjectCounts[name] || 0) + 1;
+                    const originalName = cName.trim();
+                    if (!originalName) return;
+
+                    let searchKey = originalName;
+                    if (searchKey.includes('-')) {
+                        searchKey = searchKey.split('-')[0].trim();
+                    }
+
+                    // 과목 매칭
+                    const meta = allCourseData.find(c => {
+                        if (c.slug === searchKey || c.subjectName === searchKey || c.subjectName === originalName) {
+                            return true;
+                        }
+                        if (c.slug && c.slug.includes(searchKey)) return true;
+                        if (c.subjectName && c.subjectName.includes(searchKey)) return true;
+                        if (searchKey && c.slug && searchKey.includes(c.slug)) return true;
+                        if (searchKey && c.subjectName && searchKey.includes(c.subjectName)) return true;
+                        return false;
+                    });
+
+                    // 학교지정과목 제외
+                    if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) {
+                        return;
+                    }
+
+                    // 필터 적용 (학기)
+                    if (window.gradeDashboardSemesterFilter !== 'all' && meta) {
+                        if (String(meta.semester) !== String(window.gradeDashboardSemesterFilter)) {
+                            return;
+                        }
+                    }
+
+                    const finalName = meta ? meta.subjectName : originalName;
+
+                    if (finalName) {
+                        subjectCounts[finalName] = (subjectCounts[finalName] || 0) + 1;
+                        
+                        // 학생 목록 저장 (등급 계산용)
+                        if (!subjectStudentMap[finalName]) {
+                            subjectStudentMap[finalName] = [];
+                        }
+                        subjectStudentMap[finalName].push(s);
+                    }
                 });
             });
 
-            // Filter Courses
-            let courses = allCourseData.filter(c => String(c.grade) === String(targetGrade));
-            if (window.gradeDashboardSemesterFilter !== 'all') {
-                courses = courses.filter(c => String(c.semester) === String(window.gradeDashboardSemesterFilter));
-            }
+            // 테이블용 과목 목록 생성 (실제 신청된 선택과목만)
+            const tableSubjects = [];
+            Object.keys(subjectCounts).forEach(subjectName => {
+                const course = allCourseData.find(c => {
+                    if (c.subjectName === subjectName) return true;
+                    if (c.subjectName && c.subjectName.includes(subjectName)) return true;
+                    if (subjectName && subjectName.includes(c.subjectName)) return true;
+                    return false;
+                });
 
-            courses.sort((a, b) => {
-                if (a.semester !== b.semester) return a.semester - b.semester;
+                if (course) {
+                    // 선택과목만, 필터 적용
+                    if (course.required !== true && String(course.required).toLowerCase() !== 'true') {
+                        if (window.gradeDashboardSemesterFilter === 'all' || 
+                            String(course.semester) === String(window.gradeDashboardSemesterFilter)) {
+                            if (course.grade != 1 && String(course.grade) === String(targetGrade)) {
+                                tableSubjects.push({
+                                    grade: course.grade,
+                                    semester: course.semester,
+                                    subjectName: course.subjectName,
+                                    count: subjectCounts[subjectName],
+                                    students: subjectStudentMap[subjectName] || []
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    // allCourseData에 없는 경우 (예: 공동교육과정)
+                    if (window.gradeDashboardSemesterFilter === 'all') {
+                        tableSubjects.push({
+                            grade: targetGrade,
+                            semester: '?',
+                            subjectName: subjectName,
+                            count: subjectCounts[subjectName],
+                            students: subjectStudentMap[subjectName] || []
+                        });
+                    }
+                }
+            });
+
+            // 정렬: 학기 → 과목명
+            tableSubjects.sort((a, b) => {
+                if (a.semester !== b.semester) {
+                    if (a.semester === '?') return 1;
+                    if (b.semester === '?') return -1;
+                    return String(a.semester).localeCompare(String(b.semester));
+                }
                 return a.subjectName.localeCompare(b.subjectName);
             });
 
+            // 석차등급별 인원 계산
+            // 등급별 비율: 1등급(0~10%), 2등급(10~34%), 3등급(34~66%), 4등급(66~90%), 5등급(90~100%)
+            function calculateGradeDistribution(totalCount) {
+                if (totalCount === 0) {
+                    return {
+                        '1등급': 0,
+                        '2등급': 0,
+                        '3등급': 0,
+                        '4등급': 0,
+                        '5등급': 0
+                    };
+                }
+
+                // 각 등급의 비율에 따라 인원 계산 (소수점 반올림)
+                const grade1End = Math.round(totalCount * 0.10); // 0~10%
+                const grade2End = Math.round(totalCount * 0.34); // 10~34%
+                const grade3End = Math.round(totalCount * 0.66); // 34~66%
+                const grade4End = Math.round(totalCount * 0.90); // 66~90%
+                // grade5는 나머지 (90~100%)
+
+                const grade1 = grade1End;
+                const grade2 = grade2End - grade1End;
+                const grade3 = grade3End - grade2End;
+                const grade4 = grade4End - grade3End;
+                const grade5 = totalCount - grade4End;
+
+                return {
+                    '1등급': grade1,
+                    '2등급': grade2,
+                    '3등급': grade3,
+                    '4등급': grade4,
+                    '5등급': grade5
+                };
+            }
+
             let tableHtml = `
                 <table class="w-full text-sm text-left border-collapse">
-                    <thead class="bg-gray-100 text-gray-700 uppercase">
+                    <thead class="bg-gray-100 text-gray-700">
                         <tr>
+                            <th class="border p-2 text-center w-16">학년</th>
                             <th class="border p-2 text-center w-16">학기</th>
                             <th class="border p-2 text-center">과목명</th>
                             <th class="border p-2 text-center w-24">신청 인원</th>
-                            <th class="border p-2 text-center w-24">비율</th>
+                            <th class="border p-2 text-center w-32">석차등급별 인원</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white">
             `;
 
-            if (courses.length === 0) {
-                tableHtml += `<tr><td colspan="4" class="p-8 text-center text-gray-500">데이터가 없습니다.</td></tr>`;
+            if (tableSubjects.length === 0) {
+                tableHtml += `<tr><td colspan="5" class="p-8 text-center text-gray-500">표시할 과목이 없습니다.</td></tr>`;
             } else {
-                courses.forEach(c => {
-                    const count = subjectCounts[c.subjectName] || 0;
-                    const percent = totalStudents > 0 ? ((count / totalStudents) * 100).toFixed(1) : '0.0';
-                    const isZero = count === 0;
+                tableSubjects.forEach(item => {
+                    const isZero = item.count === 0;
+                    const percent = totalStudents > 0 ? ((item.count / totalStudents) * 100).toFixed(1) : '0.0';
+                    
+                    // 석차등급별 인원 계산 (신청 인원 기준)
+                    const gradeDistribution = calculateGradeDistribution(item.count);
+                    const gradeDistributionText = Object.entries(gradeDistribution)
+                        .filter(([_, count]) => count > 0)
+                        .map(([grade, count]) => `${grade}: ${count}명`)
+                        .join(', ') || '0명';
 
                     tableHtml += `
-                        <tr class="hover:bg-gray-50">
-                            <td class="border p-2 text-center text-gray-500">${c.semester}학기</td>
-                            <td class="border p-2 font-medium text-gray-800">${c.subjectName}</td>
-                            <td class="border p-2 text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}">${count}명</td>
-                            <td class="border p-2 text-center text-gray-500">${percent}%</td>
+                        <tr class="hover:bg-gray-50 ${isZero ? 'opacity-50' : ''}">
+                            <td class="border p-2 text-center text-gray-500">${item.grade}</td>
+                            <td class="border p-2 text-center text-gray-500">${item.semester === '?' ? '?' : item.semester + '학기'}</td>
+                            <td class="border p-2 font-medium text-gray-800">${item.subjectName}</td>
+                            <td class="border p-2 text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}">${item.count}명 (${percent}%)</td>
+                            <td class="border p-2 text-center text-xs text-gray-600">${gradeDistributionText}</td>
                         </tr>
                     `;
                 });
