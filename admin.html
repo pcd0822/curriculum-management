@@ -4561,75 +4561,15 @@
                 return;
             }
             
-            const gradeStudents = students.filter(s => {
-                // Grade 필드가 있는지 확인하고, 다양한 형식 지원
-                // 학급별 통계와 동일한 방식: == 사용 (타입 변환 허용)
-                let studentGrade = s.Grade || s.grade;
-                
-                // Grade 필드가 없으면 학번에서 추출
-                if (studentGrade === undefined || studentGrade === null) {
-                    if (s.학번) {
-                        const studentId = String(s.학번);
-                        if (studentId.length >= 1) {
-                            studentGrade = studentId.substring(0, 1);
-                        }
-                    }
-                }
-                
-                if (studentGrade === undefined || studentGrade === null) return false;
-                
-                // 숫자/문자열 모두 비교 가능하도록 == 사용 (타입 변환 허용)
-                // 숫자 2와 문자열 "2" 모두 매칭되도록
-                return String(studentGrade) === String(targetGrade) || studentGrade == targetGrade;
-            });
-            const totalStudents = gradeStudents.length;
-
-            // Grade 분포 확인
-            const gradeDistribution = {};
-            students.forEach(s => {
-                let studentGrade = s.Grade || s.grade;
-                if (studentGrade === undefined || studentGrade === null) {
-                    if (s.학번) {
-                        const studentId = String(s.학번);
-                        if (studentId.length >= 1) {
-                            studentGrade = studentId.substring(0, 1);
-                        }
-                    }
-                }
-                const gradeKey = studentGrade !== undefined && studentGrade !== null ? String(studentGrade) : 'unknown';
-                gradeDistribution[gradeKey] = (gradeDistribution[gradeKey] || 0) + 1;
-            });
+            // 학생 학년으로 필터링하지 않음 - 모든 학생 포함
+            // 필터는 과목의 개설 학년(meta.grade)으로 적용됨
+            const allStudents = students;
+            const totalStudents = allStudents.length;
             
-            console.log('[Grade Subject Stats] Filtered students:', {
+            console.log('[Grade Subject Stats] Students info:', {
                 totalStudents: totalStudents,
                 targetGrade: targetGrade,
-                targetGradeType: typeof targetGrade,
-                allStudentsCount: students.length,
-                gradeDistribution: gradeDistribution,
-                gradeStudentsSample: gradeStudents.length > 0 ? {
-                    Grade: gradeStudents[0].Grade,
-                    grade: gradeStudents[0].grade,
-                    학번: gradeStudents[0].학번,
-                    SelectedCourses: gradeStudents[0].SelectedCourses ? gradeStudents[0].SelectedCourses.substring(0, 100) : null
-                } : null,
-                firstFewStudents: students.slice(0, 3).map(s => {
-                    let studentGrade = s.Grade || s.grade;
-                    if (studentGrade === undefined || studentGrade === null && s.학번) {
-                        const studentId = String(s.학번);
-                        if (studentId.length >= 1) {
-                            studentGrade = studentId.substring(0, 1);
-                        }
-                    }
-                    return {
-                        Grade: s.Grade,
-                        grade: s.grade,
-                        학번: s.학번,
-                        extractedGrade: studentGrade,
-                        gradeType: typeof studentGrade,
-                        matchesTarget: studentGrade == targetGrade,
-                        hasSelectedCourses: !!s.SelectedCourses
-                    };
-                })
+                note: '필터는 과목의 개설 학년으로 적용됩니다 (학생 학년 아님)'
             });
 
             // 선택과목만 카운트 (학교지정과목 제외)
@@ -4641,7 +4581,8 @@
             let processedCoursesCount = 0;
             let skippedCoursesCount = 0;
             
-            gradeStudents.forEach(s => {
+            // 모든 학생의 과목을 처리하되, 과목의 개설 학년으로 필터링
+            allStudents.forEach(s => {
                 if (!s.SelectedCourses) return;
                 const courses = s.SelectedCourses.split(',').map(c => c.trim()).filter(c => c);
                 
@@ -4672,6 +4613,22 @@
 
                     // 학교지정과목 제외
                     if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) {
+                        skippedCoursesCount++;
+                        return;
+                    }
+
+                    // 필터 적용: 과목의 개설 학년 (meta.grade)
+                    // targetGrade는 과목의 개설 학년을 의미함
+                    if (meta) {
+                        // meta가 있으면 과목의 개설 학년 확인
+                        const courseGrade = meta.grade;
+                        if (courseGrade != targetGrade) {
+                            // 과목의 개설 학년이 필터와 일치하지 않으면 제외
+                            skippedCoursesCount++;
+                            return;
+                        }
+                    } else {
+                        // meta가 없으면 제외 (과목 정보를 알 수 없으므로)
                         skippedCoursesCount++;
                         return;
                     }
