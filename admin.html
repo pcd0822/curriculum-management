@@ -4569,10 +4569,20 @@
 
             console.log('[Grade Subject Stats] Filtered students:', {
                 totalStudents: totalStudents,
+                targetGrade: targetGrade,
+                allStudentsCount: students.length,
                 gradeStudentsSample: gradeStudents.length > 0 ? {
                     Grade: gradeStudents[0].Grade,
-                    SelectedCourses: gradeStudents[0].SelectedCourses ? gradeStudents[0].SelectedCourses.substring(0, 50) : null
-                } : null
+                    grade: gradeStudents[0].grade,
+                    학번: gradeStudents[0].학번,
+                    SelectedCourses: gradeStudents[0].SelectedCourses ? gradeStudents[0].SelectedCourses.substring(0, 100) : null
+                } : null,
+                firstFewStudents: students.slice(0, 3).map(s => ({
+                    Grade: s.Grade,
+                    grade: s.grade,
+                    학번: s.학번,
+                    hasSelectedCourses: !!s.SelectedCourses
+                }))
             });
 
             // 선택과목만 카운트 (학교지정과목 제외)
@@ -4581,11 +4591,17 @@
 
             console.log('[Grade Subject Stats] Processing students, allCourseData length:', allCourseData.length);
             
+            let processedCoursesCount = 0;
+            let skippedCoursesCount = 0;
+            
             gradeStudents.forEach(s => {
                 if (!s.SelectedCourses) return;
-                s.SelectedCourses.split(',').forEach(cName => {
+                const courses = s.SelectedCourses.split(',').map(c => c.trim()).filter(c => c);
+                
+                courses.forEach(cName => {
                     const originalName = cName.trim();
                     if (!originalName) return;
+                    processedCoursesCount++;
 
                     // slug 형식 처리 (예: "gongtonggwamog-1-1-0" -> "gongtonggwamog")
                     let searchKey = originalName;
@@ -4593,35 +4609,35 @@
                         searchKey = searchKey.split('-')[0].trim();
                     }
 
-                    // 과목 매칭 (slug 우선, 그 다음 subjectName)
+                    // 과목 매칭 (slug 우선, 그 다음 subjectName) - 학급별 통계와 동일한 로직
                     const meta = allCourseData.find(c => {
-                        // 정확한 slug 매칭
-                        if (c.slug === searchKey || c.slug === originalName) {
+                        // 정확한 매칭
+                        if (c.slug === searchKey || c.subjectName === searchKey || c.subjectName === originalName) {
                             return true;
                         }
-                        // 정확한 subjectName 매칭
-                        if (c.subjectName === searchKey || c.subjectName === originalName) {
-                            return true;
-                        }
-                        // 부분 일치 (slug)
-                        if (c.slug && (c.slug.includes(searchKey) || searchKey.includes(c.slug))) {
-                            return true;
-                        }
-                        // 부분 일치 (subjectName)
-                        if (c.subjectName && (c.subjectName.includes(searchKey) || searchKey.includes(c.subjectName))) {
-                            return true;
-                        }
+                        // 부분 일치 (slug나 subjectName이 searchKey를 포함하거나 그 반대)
+                        if (c.slug && c.slug.includes(searchKey)) return true;
+                        if (c.subjectName && c.subjectName.includes(searchKey)) return true;
+                        if (searchKey && c.slug && searchKey.includes(c.slug)) return true;
+                        if (searchKey && c.subjectName && searchKey.includes(c.subjectName)) return true;
                         return false;
                     });
 
                     // 학교지정과목 제외
                     if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) {
+                        skippedCoursesCount++;
                         return;
                     }
 
-                    // 필터 적용 (학기)
-                    if (window.gradeDashboardSemesterFilter !== 'all' && meta) {
+                    // 필터 적용 (학기) - 학급별 통계와 동일: meta가 없으면 필터가 'all'일 때만 포함
+                    if (window.gradeDashboardSemesterFilter !== 'all') {
+                        if (!meta) {
+                            // meta가 없으면 제외 (학기 정보를 알 수 없으므로)
+                            skippedCoursesCount++;
+                            return;
+                        }
                         if (String(meta.semester) !== String(window.gradeDashboardSemesterFilter)) {
+                            skippedCoursesCount++;
                             return;
                         }
                     }
@@ -4639,8 +4655,15 @@
                         subjectStudentMap[finalName].push(s);
                     } else {
                         console.warn('[Grade Subject Stats] finalName is empty for:', originalName, 'meta:', meta ? meta.subjectName : 'no meta');
+                        skippedCoursesCount++;
                     }
                 });
+            });
+            
+            console.log('[Grade Subject Stats] Course processing summary:', {
+                processedCourses: processedCoursesCount,
+                skippedCourses: skippedCoursesCount,
+                subjectCountsKeys: Object.keys(subjectCounts).length
             });
             
             console.log('[Grade Subject Stats] After processing:', {
