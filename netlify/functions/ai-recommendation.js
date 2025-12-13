@@ -27,22 +27,46 @@ exports.handler = async function (event, context) {
         let responseFormat = undefined;
 
         if (mode === 'admin') {
-            // Admin Mode: Strict JSON for structured display
-            prompt = `Role: High School Career Consultant. Target Major: '${major}'. 
-             Task: Analyze the provided course list and suggest:
-             1. Recommended Subjects (5-7 items, with brief reason).
-             2. Student Record Keywords (5 items, relevant to major).
-             3. Exploration Activities (3 items, research topics).
-             
-             Output JSON format:
-             {
-               "subjects": ["Subject Name: Reason..."],
-               "keywords": ["Keyword1", "Keyword2"],
-               "activities": ["Activity suggestion 1", "Activity suggestion 2"]
-             }
-             
-             List of available courses: ${availableCourses}
-             Language: Korean.`;
+            // Admin Mode: Strict JSON for structured display with enhanced prompt for consistency
+            prompt = `You are a professional High School Career Consultant with expertise in Korean education system.
+
+Target Major/Career Path: "${major}"
+
+TASK: Analyze the provided course list and provide consistent, objective recommendations.
+
+REQUIREMENTS:
+1. Recommended Subjects: Provide exactly 5-7 subjects that are MOST relevant to the target major.
+   - Format: "Subject Name: Brief reason (one sentence)"
+   - Prioritize subjects that directly relate to the major's core competencies
+   - Be specific and objective in your reasoning
+   - Use the exact subject names from the provided course list when possible
+
+2. Student Record Keywords: Provide exactly 5 keywords that are essential for this major.
+   - These should be specific terms related to the major field
+   - Use Korean terms when appropriate
+   - Focus on academic and professional competencies
+
+3. Exploration Activities: Provide exactly 3 research or exploration activities.
+   - These should be concrete, actionable activities
+   - Related to the target major
+   - Suitable for high school students
+
+IMPORTANT CONSIDERATIONS:
+- Be consistent: For the same major and course list, provide the same recommendations
+- Be objective: Base recommendations on factual relevance, not personal opinions
+- Be specific: Avoid generic recommendations
+- Use exact course names from the provided list when matching
+
+Available Courses: ${availableCourses}
+
+Output ONLY valid JSON in this exact format (no additional text, no markdown):
+{
+  "subjects": ["Subject Name: Reason...", "Subject Name: Reason..."],
+  "keywords": ["Keyword1", "Keyword2", "Keyword3", "Keyword4", "Keyword5"],
+  "activities": ["Activity 1", "Activity 2", "Activity 3"]
+}
+
+Language: Korean for all text content.`;
             responseFormat = { type: "json_object" };
         } else {
             // Default (Student Page): Plain Text
@@ -51,7 +75,8 @@ exports.handler = async function (event, context) {
 
         const payload = {
             model: "gpt-4o",
-            messages: [{ role: "user", content: prompt }]
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.3  // 낮은 temperature로 일관성 향상 (0.0~1.0, 기본값 1.0)
         };
 
         if (responseFormat) {
