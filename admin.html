@@ -4526,8 +4526,52 @@
 
             // 필터 적용: 학년 선택
             const targetGrade = window.gradeDashboardGradeFilter || grade || '2';
-            const gradeStudents = students.filter(s => String(s.Grade) === String(targetGrade));
+            
+            // 디버깅: students 데이터 확인
+            console.log('[Grade Subject Stats] Students data check:', {
+                studentsLength: students ? students.length : 0,
+                studentsIsArray: Array.isArray(students),
+                studentsSample: students && students.length > 0 ? {
+                    Grade: students[0].Grade,
+                    grade: students[0].grade,
+                    학번: students[0].학번,
+                    SelectedCourses: students[0].SelectedCourses ? students[0].SelectedCourses.substring(0, 50) : null,
+                    allKeys: Object.keys(students[0] || {})
+                } : null,
+                targetGrade: targetGrade,
+                gradeParam: grade
+            });
+            
+            // 학생 데이터가 없거나 비어있는 경우 처리
+            if (!students || students.length === 0) {
+                console.warn('[Grade Subject Stats] No students data available');
+                const tableContainer = document.getElementById('grade-subject-table-container');
+                if (tableContainer) {
+                    tableContainer.innerHTML = `
+                        <div class="p-8 text-center text-gray-500">
+                            <p class="font-bold mb-2">학생 데이터가 없습니다.</p>
+                            <p class="text-sm">학생 데이터를 먼저 로드해주세요.</p>
+                        </div>
+                    `;
+                }
+                return;
+            }
+            
+            const gradeStudents = students.filter(s => {
+                // Grade 필드가 있는지 확인하고, 다양한 형식 지원
+                const studentGrade = s.Grade || s.grade || (s.학번 ? String(s.학번).substring(0, 1) : null);
+                const matches = studentGrade && String(studentGrade) === String(targetGrade);
+                return matches;
+            });
             const totalStudents = gradeStudents.length;
+            
+            console.log('[Grade Subject Stats] Filtered students:', {
+                totalStudents: totalStudents,
+                gradeStudentsSample: gradeStudents.length > 0 ? {
+                    Grade: gradeStudents[0].Grade,
+                    SelectedCourses: gradeStudents[0].SelectedCourses ? gradeStudents[0].SelectedCourses.substring(0, 50) : null
+                } : null
+            });
 
             // 선택과목만 카운트 (학교지정과목 제외)
             const subjectCounts = {};
