@@ -4672,23 +4672,12 @@
                 if (course) {
                     // 선택과목만 (학교지정과목 제외) - 이미 위에서 필터링했지만 다시 확인
                     if (course.required !== true && String(course.required).toLowerCase() !== 'true') {
-                        // 학년 필터: targetGrade와 일치 (1학년 제외 조건 제거 - targetGrade가 1이면 1학년도 표시)
-                        const gradeMatch = String(course.grade) === String(targetGrade);
+                        // 학년 필터: targetGrade와 일치하고 1학년이 아닌 경우 (학급별과 동일)
+                        const gradeMatch = course.grade != 1 && String(course.grade) === String(targetGrade);
                         
                         // 학기 필터
                         const semesterMatch = window.gradeDashboardSemesterFilter === 'all' || 
                             String(course.semester) === String(window.gradeDashboardSemesterFilter);
-                        
-                        console.log('[Grade Subject Stats] Course check:', {
-                            subjectName: course.subjectName,
-                            courseGrade: course.grade,
-                            targetGrade: targetGrade,
-                            gradeMatch: gradeMatch,
-                            semester: course.semester,
-                            semesterFilter: window.gradeDashboardSemesterFilter,
-                            semesterMatch: semesterMatch,
-                            required: course.required
-                        });
                         
                         if (gradeMatch && semesterMatch) {
                             processedSubjects.add(subjectName);
@@ -4705,9 +4694,9 @@
                     }
                 } else {
                     // allCourseData에 없는 경우 (예: 공동교육과정, 또는 매칭 실패)
-                    // 학기 정보가 없으므로 'all'일 때만 표시
-                    // 하지만 실제로는 신청된 과목이므로 표시해야 함
+                    // 학급별과 동일하게 처리: 필터가 'all'이면 표시
                     console.log('[Grade Subject Stats] Course not found in allCourseData:', subjectName);
+                    // 학기 필터가 'all'이면 표시 (학급별과 동일한 로직)
                     if (window.gradeDashboardSemesterFilter === 'all') {
                         processedSubjects.add(subjectName);
                         
