@@ -4644,13 +4644,22 @@
             
             console.log('[Grade Subject Stats] After processing:', {
                 subjectCountsKeys: Object.keys(subjectCounts).length,
-                subjectCountsSample: Object.keys(subjectCounts).slice(0, 5),
-                subjectCounts: Object.fromEntries(Object.entries(subjectCounts).slice(0, 5))
+                subjectCountsSample: Object.keys(subjectCounts).slice(0, 10),
+                subjectCounts: Object.fromEntries(Object.entries(subjectCounts).slice(0, 10)),
+                allCourseDataSample: allCourseData.slice(0, 5).map(c => ({
+                    subjectName: c.subjectName,
+                    slug: c.slug,
+                    grade: c.grade,
+                    semester: c.semester,
+                    required: c.required
+                }))
             });
 
             // 테이블용 과목 목록 생성 (실제 신청된 선택과목만)
             const tableSubjects = [];
             const processedSubjects = new Set(); // 중복 방지
+            
+            console.log('[Grade Subject Stats] Building table, subjectCounts keys:', Object.keys(subjectCounts).length);
             
             Object.keys(subjectCounts).forEach(subjectName => {
                 if (processedSubjects.has(subjectName)) return; // 이미 처리된 과목은 건너뛰기
@@ -4671,26 +4680,34 @@
 
                 if (course) {
                     // 선택과목만 (학교지정과목 제외) - 이미 위에서 필터링했지만 다시 확인
-                    if (course.required !== true && String(course.required).toLowerCase() !== 'true') {
-                        // 학년 필터: targetGrade와 일치하고 1학년이 아닌 경우 (학급별과 동일)
-                        const gradeMatch = course.grade != 1 && String(course.grade) === String(targetGrade);
+                    const isRequired = course.required === true || String(course.required).toLowerCase() === 'true';
+                    const gradeMatch = course.grade != 1 && String(course.grade) === String(targetGrade);
+                    const semesterMatch = window.gradeDashboardSemesterFilter === 'all' || 
+                        String(course.semester) === String(window.gradeDashboardSemesterFilter);
+                    
+                    console.log('[Grade Subject Stats] Course check:', {
+                        subjectName: course.subjectName,
+                        courseGrade: course.grade,
+                        courseSemester: course.semester,
+                        targetGrade: targetGrade,
+                        semesterFilter: window.gradeDashboardSemesterFilter,
+                        isRequired: isRequired,
+                        gradeMatch: gradeMatch,
+                        semesterMatch: semesterMatch,
+                        willAdd: !isRequired && gradeMatch && semesterMatch
+                    });
+                    
+                    if (!isRequired && gradeMatch && semesterMatch) {
+                        processedSubjects.add(subjectName);
+                        processedSubjects.add(course.subjectName); // 중복 방지
                         
-                        // 학기 필터
-                        const semesterMatch = window.gradeDashboardSemesterFilter === 'all' || 
-                            String(course.semester) === String(window.gradeDashboardSemesterFilter);
-                        
-                        if (gradeMatch && semesterMatch) {
-                            processedSubjects.add(subjectName);
-                            processedSubjects.add(course.subjectName); // 중복 방지
-                            
-                            tableSubjects.push({
-                                grade: course.grade,
-                                semester: course.semester,
-                                subjectName: course.subjectName,
-                                count: subjectCounts[subjectName],
-                                students: subjectStudentMap[subjectName] || []
-                            });
-                        }
+                        tableSubjects.push({
+                            grade: course.grade,
+                            semester: course.semester,
+                            subjectName: course.subjectName,
+                            count: subjectCounts[subjectName],
+                            students: subjectStudentMap[subjectName] || []
+                        });
                     }
                 } else {
                     // allCourseData에 없는 경우 (예: 공동교육과정, 또는 매칭 실패)
@@ -4709,6 +4726,16 @@
                         });
                     }
                 }
+            });
+            
+            console.log('[Grade Subject Stats] Table subjects built:', {
+                tableSubjectsCount: tableSubjects.length,
+                tableSubjectsSample: tableSubjects.slice(0, 5).map(s => ({
+                    name: s.subjectName,
+                    grade: s.grade,
+                    semester: s.semester,
+                    count: s.count
+                }))
             });
             
             // 디버깅: 콘솔에 정보 출력
