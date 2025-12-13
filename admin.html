@@ -4564,29 +4564,72 @@
             const gradeStudents = students.filter(s => {
                 // Grade 필드가 있는지 확인하고, 다양한 형식 지원
                 // 학급별 통계와 동일한 방식: == 사용 (타입 변환 허용)
-                const studentGrade = s.Grade || s.grade || (s.학번 ? String(s.학번).substring(0, 1) : null);
-                if (!studentGrade) return false;
-                // 숫자/문자열 모두 비교 가능하도록 == 사용
-                return studentGrade == targetGrade;
+                let studentGrade = s.Grade || s.grade;
+                
+                // Grade 필드가 없으면 학번에서 추출
+                if (studentGrade === undefined || studentGrade === null) {
+                    if (s.학번) {
+                        const studentId = String(s.학번);
+                        if (studentId.length >= 1) {
+                            studentGrade = studentId.substring(0, 1);
+                        }
+                    }
+                }
+                
+                if (studentGrade === undefined || studentGrade === null) return false;
+                
+                // 숫자/문자열 모두 비교 가능하도록 == 사용 (타입 변환 허용)
+                // 숫자 2와 문자열 "2" 모두 매칭되도록
+                return String(studentGrade) === String(targetGrade) || studentGrade == targetGrade;
             });
             const totalStudents = gradeStudents.length;
 
+            // Grade 분포 확인
+            const gradeDistribution = {};
+            students.forEach(s => {
+                let studentGrade = s.Grade || s.grade;
+                if (studentGrade === undefined || studentGrade === null) {
+                    if (s.학번) {
+                        const studentId = String(s.학번);
+                        if (studentId.length >= 1) {
+                            studentGrade = studentId.substring(0, 1);
+                        }
+                    }
+                }
+                const gradeKey = studentGrade !== undefined && studentGrade !== null ? String(studentGrade) : 'unknown';
+                gradeDistribution[gradeKey] = (gradeDistribution[gradeKey] || 0) + 1;
+            });
+            
             console.log('[Grade Subject Stats] Filtered students:', {
                 totalStudents: totalStudents,
                 targetGrade: targetGrade,
+                targetGradeType: typeof targetGrade,
                 allStudentsCount: students.length,
+                gradeDistribution: gradeDistribution,
                 gradeStudentsSample: gradeStudents.length > 0 ? {
                     Grade: gradeStudents[0].Grade,
                     grade: gradeStudents[0].grade,
                     학번: gradeStudents[0].학번,
                     SelectedCourses: gradeStudents[0].SelectedCourses ? gradeStudents[0].SelectedCourses.substring(0, 100) : null
                 } : null,
-                firstFewStudents: students.slice(0, 3).map(s => ({
-                    Grade: s.Grade,
-                    grade: s.grade,
-                    학번: s.학번,
-                    hasSelectedCourses: !!s.SelectedCourses
-                }))
+                firstFewStudents: students.slice(0, 3).map(s => {
+                    let studentGrade = s.Grade || s.grade;
+                    if (studentGrade === undefined || studentGrade === null && s.학번) {
+                        const studentId = String(s.학번);
+                        if (studentId.length >= 1) {
+                            studentGrade = studentId.substring(0, 1);
+                        }
+                    }
+                    return {
+                        Grade: s.Grade,
+                        grade: s.grade,
+                        학번: s.학번,
+                        extractedGrade: studentGrade,
+                        gradeType: typeof studentGrade,
+                        matchesTarget: studentGrade == targetGrade,
+                        hasSelectedCourses: !!s.SelectedCourses
+                    };
+                })
             });
 
             // 선택과목만 카운트 (학교지정과목 제외)
