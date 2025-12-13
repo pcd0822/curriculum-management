@@ -3792,7 +3792,8 @@
                 if (window.currentDashboardTab === 'class-subjects') {
                     renderClassSubjectStats(tabContent, students);
                 } else if (window.currentDashboardTab === 'grade-subjects') {
-                    renderGradeSubjectStats(tabContent, allStudentData, grade);
+                    // 필터 변경 시 window.gradeDashboardGradeFilter를 사용하도록 함
+                    renderGradeSubjectStats(tabContent, allStudentData, window.gradeDashboardGradeFilter || grade);
                 }
             }
         }
@@ -4525,8 +4526,8 @@
             container.innerHTML = html;
 
             // 필터 적용: 학년 선택
-            // grade 파라미터가 전달되면 우선 사용, 없으면 window 필터 사용
-            const targetGrade = grade || window.gradeDashboardGradeFilter || '2';
+            // window 필터를 우선 사용 (필터 변경 시 반영되도록)
+            const targetGrade = window.gradeDashboardGradeFilter || grade || '2';
             
             // 디버깅: students 데이터 확인
             console.log('[Grade Subject Stats] Students data check:', {
@@ -4808,33 +4809,36 @@
                             <th class="border p-2 text-center w-16">학기</th>
                             <th class="border p-2 text-center">과목명</th>
                             <th class="border p-2 text-center w-24">신청 인원</th>
-                            <th class="border p-2 text-center w-32">석차등급별 인원</th>
+                            <th class="border p-2 text-center w-20">1등급</th>
+                            <th class="border p-2 text-center w-20">2등급</th>
+                            <th class="border p-2 text-center w-20">3등급</th>
+                            <th class="border p-2 text-center w-20">4등급</th>
+                            <th class="border p-2 text-center w-20">5등급</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white">
             `;
 
             if (tableSubjects.length === 0) {
-                tableHtml += `<tr><td colspan="5" class="p-8 text-center text-gray-500">표시할 과목이 없습니다.</td></tr>`;
+                tableHtml += `<tr><td colspan="9" class="p-8 text-center text-gray-500">표시할 과목이 없습니다.</td></tr>`;
             } else {
                 tableSubjects.forEach(item => {
                     const isZero = item.count === 0;
-                    const percent = totalStudents > 0 ? ((item.count / totalStudents) * 100).toFixed(1) : '0.0';
                     
                     // 석차등급별 인원 계산 (신청 인원 기준)
                     const gradeDistribution = calculateGradeDistribution(item.count);
-                    const gradeDistributionText = Object.entries(gradeDistribution)
-                        .filter(([_, count]) => count > 0)
-                        .map(([grade, count]) => `${grade}: ${count}명`)
-                        .join(', ') || '0명';
 
                     tableHtml += `
                         <tr class="hover:bg-gray-50 ${isZero ? 'opacity-50' : ''}">
                             <td class="border p-2 text-center text-gray-500">${item.grade}</td>
                             <td class="border p-2 text-center text-gray-500">${item.semester === '?' ? '?' : item.semester + '학기'}</td>
                             <td class="border p-2 font-medium text-gray-800">${item.subjectName}</td>
-                            <td class="border p-2 text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}">${item.count}명 (${percent}%)</td>
-                            <td class="border p-2 text-center text-xs text-gray-600">${gradeDistributionText}</td>
+                            <td class="border p-2 text-center font-bold ${isZero ? 'text-gray-400' : 'text-blue-600'}">${item.count}명</td>
+                            <td class="border p-2 text-center text-gray-600">${gradeDistribution['1등급']}명</td>
+                            <td class="border p-2 text-center text-gray-600">${gradeDistribution['2등급']}명</td>
+                            <td class="border p-2 text-center text-gray-600">${gradeDistribution['3등급']}명</td>
+                            <td class="border p-2 text-center text-gray-600">${gradeDistribution['4등급']}명</td>
+                            <td class="border p-2 text-center text-gray-600">${gradeDistribution['5등급']}명</td>
                         </tr>
                     `;
                 });
