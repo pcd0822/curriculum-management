@@ -4681,9 +4681,14 @@
                 if (course) {
                     // 선택과목만 (학교지정과목 제외) - 이미 위에서 필터링했지만 다시 확인
                     const isRequired = course.required === true || String(course.required).toLowerCase() === 'true';
-                    const gradeMatch = course.grade != 1 && String(course.grade) === String(targetGrade);
+                    
+                    // 학급별 통계와 동일한 로직: 필터가 'all'이면 모든 과목 표시, 아니면 학년/학기 일치 확인
+                    // subjectCounts에 있는 과목들은 이미 필터링된 것이므로, 여기서는 단순히 표시
                     const semesterMatch = window.gradeDashboardSemesterFilter === 'all' || 
                         String(course.semester) === String(window.gradeDashboardSemesterFilter);
+                    
+                    // 1학년 과목 제외 (학급별 통계와 동일)
+                    const isNotFirstGrade = course.grade != 1;
                     
                     console.log('[Grade Subject Stats] Course check:', {
                         subjectName: course.subjectName,
@@ -4692,12 +4697,13 @@
                         targetGrade: targetGrade,
                         semesterFilter: window.gradeDashboardSemesterFilter,
                         isRequired: isRequired,
-                        gradeMatch: gradeMatch,
+                        isNotFirstGrade: isNotFirstGrade,
                         semesterMatch: semesterMatch,
-                        willAdd: !isRequired && gradeMatch && semesterMatch
+                        willAdd: !isRequired && isNotFirstGrade && semesterMatch
                     });
                     
-                    if (!isRequired && gradeMatch && semesterMatch) {
+                    // subjectCounts에 있는 과목들은 이미 필터링된 것이므로, required 체크와 1학년 제외, 학기 필터만 확인
+                    if (!isRequired && isNotFirstGrade && semesterMatch) {
                         processedSubjects.add(subjectName);
                         processedSubjects.add(course.subjectName); // 중복 방지
                         
