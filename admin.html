@@ -4506,7 +4506,9 @@
 
             // 필터 초기화
             if (!window.gradeDashboardGradeFilter) window.gradeDashboardGradeFilter = '2';
-            if (!window.gradeDashboardSemesterFilter) window.gradeDashboardSemesterFilter = 'all';
+            if (window.gradeDashboardSemesterFilter === undefined || window.gradeDashboardSemesterFilter === null) {
+                window.gradeDashboardSemesterFilter = 'all';
+            }
 
             const html = `
                 <div class="mb-4 flex gap-2 items-center bg-gray-50 p-3 rounded border border-gray-200">
@@ -4561,9 +4563,11 @@
             
             const gradeStudents = students.filter(s => {
                 // Grade 필드가 있는지 확인하고, 다양한 형식 지원
+                // 학급별 통계와 동일한 방식: == 사용 (타입 변환 허용)
                 const studentGrade = s.Grade || s.grade || (s.학번 ? String(s.학번).substring(0, 1) : null);
-                const matches = studentGrade && String(studentGrade) === String(targetGrade);
-                return matches;
+                if (!studentGrade) return false;
+                // 숫자/문자열 모두 비교 가능하도록 == 사용
+                return studentGrade == targetGrade;
             });
             const totalStudents = gradeStudents.length;
 
