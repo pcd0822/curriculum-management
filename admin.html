@@ -1745,6 +1745,52 @@
 
             const headers = allCourses.map(c => c.subjectName); // Using Names for headers
 
+            // Helper function: Convert SelectedCourses (slug format) to subject names
+            const getSelectedSubjectNames = (selectedCoursesStr) => {
+                if (!selectedCoursesStr) return new Set();
+                
+                const selectedNames = new Set();
+                const courses = selectedCoursesStr.split(',').map(c => c.trim()).filter(c => c);
+                
+                courses.forEach(cName => {
+                    const originalName = cName.trim();
+                    if (!originalName) return;
+
+                    // slug 형식 처리 (예: "gongtonggwamog-1-1-0" -> "gongtonggwamog")
+                    let searchKey = originalName;
+                    if (searchKey.includes('-')) {
+                        searchKey = searchKey.split('-')[0].trim();
+                    }
+
+                    // 과목 매칭 (slug 우선, 그 다음 subjectName) - 학급별 통계와 동일한 로직
+                    const meta = allCourseData.find(c => {
+                        // 정확한 매칭
+                        if (c.slug === searchKey || c.subjectName === searchKey || c.subjectName === originalName) {
+                            return true;
+                        }
+                        // 부분 일치 (slug나 subjectName이 searchKey를 포함하거나 그 반대)
+                        if (c.slug && c.slug.includes(searchKey)) return true;
+                        if (c.subjectName && c.subjectName.includes(searchKey)) return true;
+                        if (searchKey && c.slug && searchKey.includes(c.slug)) return true;
+                        if (searchKey && c.subjectName && searchKey.includes(c.subjectName)) return true;
+                        return false;
+                    });
+
+                    // 학교지정과목 제외
+                    if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) {
+                        return;
+                    }
+
+                    // meta가 있으면 정확한 subjectName 사용, 없으면 원본 이름 사용
+                    const finalName = meta ? meta.subjectName : originalName;
+                    if (finalName) {
+                        selectedNames.add(finalName);
+                    }
+                });
+                
+                return selectedNames;
+            };
+
             // 2. Build Matrix
             const matrix = allStudentData.map(d => {
                 const row = {
@@ -1757,10 +1803,12 @@
                     '총학점': d.TotalCredits
                 };
 
-                const selected = new Set(d.SelectedCourses ? d.SelectedCourses.split(', ').map(c => c.trim()) : []);
+                // SelectedCourses를 과목명 Set으로 변환
+                const selectedSubjectNames = getSelectedSubjectNames(d.SelectedCourses);
 
+                // 헤더의 각 과목명에 대해 선택 여부 확인
                 headers.forEach(h => {
-                    row[h] = selected.has(h) ? 1 : 0;
+                    row[h] = selectedSubjectNames.has(h) ? 1 : 0;
                 });
                 return row;
             });
