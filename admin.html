@@ -4525,7 +4525,8 @@
             container.innerHTML = html;
 
             // 필터 적용: 학년 선택
-            const targetGrade = window.gradeDashboardGradeFilter || grade || '2';
+            // grade 파라미터가 전달되면 우선 사용, 없으면 window 필터 사용
+            const targetGrade = grade || window.gradeDashboardGradeFilter || '2';
             
             // 디버깅: students 데이터 확인
             console.log('[Grade Subject Stats] Students data check:', {
@@ -4564,7 +4565,7 @@
                 return matches;
             });
             const totalStudents = gradeStudents.length;
-            
+
             console.log('[Grade Subject Stats] Filtered students:', {
                 totalStudents: totalStudents,
                 gradeStudentsSample: gradeStudents.length > 0 ? {
@@ -4583,20 +4584,30 @@
                     const originalName = cName.trim();
                     if (!originalName) return;
 
+                    // slug 형식 처리 (예: "gongtonggwamog-1-1-0" -> "gongtonggwamog")
                     let searchKey = originalName;
                     if (searchKey.includes('-')) {
                         searchKey = searchKey.split('-')[0].trim();
                     }
 
-                    // 과목 매칭
+                    // 과목 매칭 (slug 우선, 그 다음 subjectName)
                     const meta = allCourseData.find(c => {
-                        if (c.slug === searchKey || c.subjectName === searchKey || c.subjectName === originalName) {
+                        // 정확한 slug 매칭
+                        if (c.slug === searchKey || c.slug === originalName) {
                             return true;
                         }
-                        if (c.slug && c.slug.includes(searchKey)) return true;
-                        if (c.subjectName && c.subjectName.includes(searchKey)) return true;
-                        if (searchKey && c.slug && searchKey.includes(c.slug)) return true;
-                        if (searchKey && c.subjectName && searchKey.includes(c.subjectName)) return true;
+                        // 정확한 subjectName 매칭
+                        if (c.subjectName === searchKey || c.subjectName === originalName) {
+                            return true;
+                        }
+                        // 부분 일치 (slug)
+                        if (c.slug && (c.slug.includes(searchKey) || searchKey.includes(c.slug))) {
+                            return true;
+                        }
+                        // 부분 일치 (subjectName)
+                        if (c.subjectName && (c.subjectName.includes(searchKey) || searchKey.includes(c.subjectName))) {
+                            return true;
+                        }
                         return false;
                     });
 
@@ -4612,6 +4623,7 @@
                         }
                     }
 
+                    // 최종 과목명 결정: meta가 있으면 subjectName 사용, 없으면 원본 사용
                     const finalName = meta ? meta.subjectName : originalName;
 
                     if (finalName) {
