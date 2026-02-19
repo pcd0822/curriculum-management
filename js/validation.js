@@ -60,18 +60,21 @@ const Validation = {
             errorMessages.push(`생활·교양 교과군(기술·가정/제2외국어/한문/교양) 필수 이수 학점(16)이 부족합니다. 현재 ${electiveGroupCredits}학점입니다.`);
         }
 
-        // 5. Prerequisites Check
-        const selectedSlugs = new Set(selectedCourses.map(c => c.slug));
+        // 5. Prerequisites Check (슬러그→과목명: 선택과목 식별을 slug·subjectName 모두로)
+        const selectedIds = new Set();
+        selectedCourses.forEach(c => {
+            if (c.slug) selectedIds.add(c.slug);
+            if (c.subjectName) selectedIds.add(c.subjectName);
+        });
         selectedCourses.forEach(course => {
             if (course.prerequisites && course.prerequisites.length > 0) {
-                // prerequisites can be a string (comma separated) or array
                 let prereqs = [];
                 if (Array.isArray(course.prerequisites)) prereqs = course.prerequisites;
                 else if (typeof course.prerequisites === 'string') prereqs = course.prerequisites.split(',').map(s => s.trim());
 
                 prereqs.forEach(reqSlug => {
-                    if (reqSlug && !selectedSlugs.has(reqSlug)) {
-                        errorMessages.push(`'${course.name}' 과목을 수강하기 위해서는 선이수 과목(${reqSlug})을 먼저 이수해야 합니다.`);
+                    if (reqSlug && !selectedIds.has(reqSlug)) {
+                        errorMessages.push(`'${course.subjectName || course.name}' 과목을 수강하기 위해서는 선이수 과목(${reqSlug})을 먼저 이수해야 합니다.`);
                     }
                 });
             }
