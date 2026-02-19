@@ -78,6 +78,51 @@ const ExcelHandler = {
             }
         ];
         ExcelHandler.downloadExcel(templateData, 'student_registry_template.xlsx', 'Registry');
+    },
+
+    /**
+     * Reads an Excel file and returns raw rows (array of arrays). First row = headers.
+     * @param {File} file - The uploaded file object.
+     * @returns {Promise<Array<Array>>} - Array of rows, each row is array of cell values.
+     */
+    readExcelRaw: (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                    resolve(rows);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = (error) => reject(error);
+            reader.readAsArrayBuffer(file);
+        });
+    },
+
+    /**
+     * Generates and downloads the bulk enrollment template xlsx.
+     * Row 1: 학번, 이름, 희망진로, ...subject names (optional only, grade-semester order).
+     * Row 2+: sample student rows with 0/1 for each subject.
+     * @param {Array} optionalCourses - List of course objects (subjectName, grade, semester, id/slug).
+     */
+    downloadBulkEnrollmentTemplate: (optionalCourses) => {
+        const subjectNames = (optionalCourses || []).map(c => (c.subjectName || c.과목명 || '').toString().trim()).filter(Boolean);
+        const headerRow = ['학번', '이름', '희망 진로', ...subjectNames];
+        const sampleRows = [
+            ['20101', '홍길동', '컴퓨터공학', ...subjectNames.map((_, i) => i < 2 ? 1 : 0)],
+            ['20102', '이순신', '간호사', ...subjectNames.map((_, i) => i >= 1 && i < 3 ? 1 : 0)]
+        ];
+        const data = [headerRow, ...sampleRows];
+        const worksheet = XLSX.utils.aoa_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, '수강신청일괄');
+        XLSX.writeFile(workbook, '수강신청_일괄등록_양식.xlsx');
     }
 };
 
