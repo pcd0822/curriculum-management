@@ -1653,18 +1653,41 @@
                 }
                 const headerRow = rows[0];
                 const colA = 0, colB = 1, colC = 2;
-                const subjectNames = [];
+                const subjectHeaders = [];
                 for (let c = 3; c < headerRow.length; c++) {
                     const v = headerRow[c];
-                    if (v != null && String(v).trim() !== '') subjectNames.push(String(v).trim());
+                    if (v != null && String(v).trim() !== '') subjectHeaders.push(String(v).trim());
                 }
-                if (subjectNames.length === 0) {
+                if (subjectHeaders.length === 0) {
                     throw new Error('D열부터 과목명이 있어야 합니다. 샘플 양식을 사용해주세요.');
                 }
 
                 let courses = allCourseData && allCourseData.length > 0 ? allCourseData : await DB.fetchConfig() || [];
+                const optionalOnly = courses.filter(co => {
+                    const name = (co.subjectName || co.과목명 || '').toString().trim();
+                    if (!name) return false;
+                    const req = co.required !== undefined && co.required !== null
+                        ? (String(co.required).toUpperCase() === 'TRUE' || co.required === true || co.required === 1) : false;
+                    return !req;
+                });
+                optionalOnly.sort((a, b) => {
+                    const g1 = parseInt(a.grade || a.학년 || 0, 10);
+                    const g2 = parseInt(b.grade || b.학년 || 0, 10);
+                    if (g1 !== g2) return g1 - g2;
+                    const s1 = parseInt(a.semester || a.학기 || 0, 10);
+                    const s2 = parseInt(b.semester || b.학기 || 0, 10);
+                    return s1 - s2;
+                });
+                const headerToId = {};
+                optionalOnly.forEach(co => {
+                    const name = (co.subjectName || co.과목명 || '').toString().trim();
+                    const g = co.grade ?? co.학년 ?? '';
+                    const s = co.semester ?? co.학기 ?? '';
+                    const header = `${name} (${g}-${s})`;
+                    headerToId[header] = co.id || co.slug || name;
+                });
                 const nameToId = {};
-                courses.forEach(co => {
+                optionalOnly.forEach(co => {
                     const name = (co.subjectName || co.과목명 || '').toString().trim();
                     if (name) nameToId[name] = co.id || co.slug || name;
                 });
@@ -1680,14 +1703,17 @@
                     const classNum = sid.substring(1, 3);
                     const num = sid.substring(3, 5);
                     const selectedIds = [];
-                    for (let c = 0; c < subjectNames.length; c++) {
+                    for (let c = 0; c < subjectHeaders.length; c++) {
                         const cell = row[3 + c];
                         const v = cell != null ? String(cell).trim() : '0';
-                        if (v === '1' || v === 1) {
-                            const subName = subjectNames[c];
-                            const id = nameToId[subName] || subName;
-                            selectedIds.push(id);
+                        if (v !== '1' && v !== 1) continue;
+                        const header = subjectHeaders[c];
+                        let id = headerToId[header];
+                        if (id == null && c < optionalOnly.length) {
+                            id = optionalOnly[c].id || optionalOnly[c].slug || (optionalOnly[c].subjectName || optionalOnly[c].과목명);
                         }
+                        if (id == null) id = nameToId[header] || header;
+                        if (id) selectedIds.push(id);
                     }
                     toSubmit.push({
                         Grade: grade,
