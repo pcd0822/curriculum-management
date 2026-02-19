@@ -107,16 +107,22 @@ const ExcelHandler = {
 
     /**
      * Generates and downloads the bulk enrollment template xlsx.
-     * Row 1: 학번, 이름, 희망진로, ...subject names (optional only, grade-semester order).
-     * Row 2+: sample student rows with 0/1 for each subject.
+     * Row 1: 학번, 이름, 희망진로, ... (과목명 (학년-학기)) so duplicate subjects are distinct per semester.
+     * Row 2+: sample student rows with 0/1 for each column.
      * @param {Array} optionalCourses - List of course objects (subjectName, grade, semester, id/slug).
      */
     downloadBulkEnrollmentTemplate: (optionalCourses) => {
-        const subjectNames = (optionalCourses || []).map(c => (c.subjectName || c.과목명 || '').toString().trim()).filter(Boolean);
-        const headerRow = ['학번', '이름', '희망 진로', ...subjectNames];
+        const list = (optionalCourses || []).filter(c => (c.subjectName || c.과목명 || '').toString().trim());
+        const headers = list.map(c => {
+            const name = (c.subjectName || c.과목명 || '').toString().trim();
+            const g = c.grade ?? c.학년 ?? '';
+            const s = c.semester ?? c.학기 ?? '';
+            return `${name} (${g}-${s})`;
+        });
+        const headerRow = ['학번', '이름', '희망 진로', ...headers];
         const sampleRows = [
-            ['20101', '홍길동', '컴퓨터공학', ...subjectNames.map((_, i) => i < 2 ? 1 : 0)],
-            ['20102', '이순신', '간호사', ...subjectNames.map((_, i) => i >= 1 && i < 3 ? 1 : 0)]
+            ['20101', '홍길동', '컴퓨터공학', ...headers.map((_, i) => i < 2 ? 1 : 0)],
+            ['20102', '이순신', '간호사', ...headers.map((_, i) => i >= 1 && i < 3 ? 1 : 0)]
         ];
         const data = [headerRow, ...sampleRows];
         const worksheet = XLSX.utils.aoa_to_sheet(data);
