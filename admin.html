@@ -4214,18 +4214,18 @@
 
                     // id 우선 매칭 (중복 편제 허용 시 학기별 구분)
                     let meta = allCourseData.find(c => c.id === originalName);
-                    // "과목명-학년-학기" 또는 "과목명-학년-학기-인덱스" 형식 파싱 → 학기별로 올바른 meta 지정 (2학기 과목이 1학기로만 나오는 문제 방지)
+                    // "과목명-학년-학기" 또는 "과목명-학년-학기-인덱스" 형식 파싱 (4부를 먼저 검사해야 인덱스가 학기로 잘못 해석되지 않음)
                     if (!meta && originalName.includes('-')) {
                         const parts = originalName.split('-');
                         let namePart = '', g = '', sem = '';
-                        if (parts.length >= 3 && /^\d+$/.test(parts[parts.length - 2]) && /^\d+$/.test(parts[parts.length - 1])) {
-                            sem = parts[parts.length - 1];
-                            g = parts[parts.length - 2];
-                            namePart = parts.length === 3 ? parts[0] : parts.slice(0, -2).join('-');
-                        } else if (parts.length >= 4 && /^\d+$/.test(parts[parts.length - 3]) && /^\d+$/.test(parts[parts.length - 2]) && /^\d+$/.test(parts[parts.length - 1])) {
-                            sem = parts[parts.length - 2];
+                        if (parts.length >= 4 && /^\d+$/.test(parts[parts.length - 3]) && /^\d+$/.test(parts[parts.length - 2]) && /^\d+$/.test(parts[parts.length - 1])) {
                             g = parts[parts.length - 3];
+                            sem = parts[parts.length - 2];
                             namePart = parts.slice(0, -3).join('-');
+                        } else if (parts.length >= 3 && /^\d+$/.test(parts[parts.length - 2]) && /^\d+$/.test(parts[parts.length - 1])) {
+                            g = parts[parts.length - 2];
+                            sem = parts[parts.length - 1];
+                            namePart = parts.length === 3 ? parts[0] : parts.slice(0, -2).join('-');
                         }
                         if (namePart && g && sem) {
                             meta = allCourseData.find(c =>
@@ -4884,18 +4884,18 @@
 
                     // id 우선 매칭 (중복 편제 허용 시 학기별 구분)
                     let meta = allCourseData.find(c => c.id === originalName);
-                    // "과목명-학년-학기" 또는 "과목명-학년-학기-인덱스" 형식 파싱 → 2학기 등 올바른 meta 지정
+                    // "과목명-학년-학기" 또는 "과목명-학년-학기-인덱스" 형식 파싱 (4부를 먼저 검사해야 인덱스가 학기로 잘못 해석되지 않음)
                     if (!meta && originalName.includes('-')) {
                         const parts = originalName.split('-');
                         let namePart = '', g = '', sem = '';
-                        if (parts.length >= 3 && /^\d+$/.test(parts[parts.length - 2]) && /^\d+$/.test(parts[parts.length - 1])) {
-                            sem = parts[parts.length - 1];
-                            g = parts[parts.length - 2];
-                            namePart = parts.length === 3 ? parts[0] : parts.slice(0, -2).join('-');
-                        } else if (parts.length >= 4 && /^\d+$/.test(parts[parts.length - 3]) && /^\d+$/.test(parts[parts.length - 2]) && /^\d+$/.test(parts[parts.length - 1])) {
-                            sem = parts[parts.length - 2];
+                        if (parts.length >= 4 && /^\d+$/.test(parts[parts.length - 3]) && /^\d+$/.test(parts[parts.length - 2]) && /^\d+$/.test(parts[parts.length - 1])) {
                             g = parts[parts.length - 3];
+                            sem = parts[parts.length - 2];
                             namePart = parts.slice(0, -3).join('-');
+                        } else if (parts.length >= 3 && /^\d+$/.test(parts[parts.length - 2]) && /^\d+$/.test(parts[parts.length - 1])) {
+                            g = parts[parts.length - 2];
+                            sem = parts[parts.length - 1];
+                            namePart = parts.length === 3 ? parts[0] : parts.slice(0, -2).join('-');
                         }
                         if (namePart && g && sem) {
                             meta = allCourseData.find(c =>
