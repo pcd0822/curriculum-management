@@ -2406,8 +2406,9 @@
                     return; // Skip joint courses from course list
                 }
 
-                // 1. Resolve Metadata - Priority: slug > id > subjectName (slug가 가장 정확한 매칭)
-                let meta = allCourseData.find(c => c.slug === cName || c.id === cName || c.subjectName === cName);
+                // 1. Resolve Metadata - id 우선(학기별 구분), 그 다음 slug, subjectName
+                let meta = allCourseData.find(c => c.id === cName);
+                if (!meta) meta = allCourseData.find(c => c.slug === cName || c.subjectName === cName);
 
                 // Fallback: check parts if hyphenated
                 // Handle format: slug-grade-semester or slug-grade-semester-numbering
@@ -4050,10 +4051,10 @@
 
                 // Render Content based on Active Tab
                 if (window.currentDashboardTab === 'class-subjects') {
-                    renderClassSubjectStats(tabContent, students);
+                    await renderClassSubjectStats(tabContent, students);
                 } else if (window.currentDashboardTab === 'grade-subjects') {
                     // 필터 변경 시 window.gradeDashboardGradeFilter를 사용하도록 함
-                    renderGradeSubjectStats(tabContent, allStudentData, window.gradeDashboardGradeFilter || grade);
+                    await renderGradeSubjectStats(tabContent, allStudentData, window.gradeDashboardGradeFilter || grade);
                 }
             }
         }
@@ -4161,8 +4162,14 @@
 
         // Render Class Subject Stats (Refactored)
         // Includes: Bar Chart (Top 10), Filters (2/3 Grade), Data Fix
-        function renderClassSubjectStats(container, students) {
+        async function renderClassSubjectStats(container, students) {
             if (!container) return;
+
+            let allowMultiSemesterDuplicate = false;
+            try {
+                const settings = await DB.fetchSettings();
+                if (settings && settings.allowMultiSemesterDuplicate !== undefined) allowMultiSemesterDuplicate = !!settings.allowMultiSemesterDuplicate;
+            } catch (e) { /* ignore */ }
 
             // Updated HTML to include Charts
             const html = `
@@ -4212,42 +4219,39 @@
                     const originalName = cName.trim();
                     if (!originalName) return;
 
-                    let searchKey = originalName;
-                    if (searchKey.includes('-')) {
-                        searchKey = searchKey.split('-')[0].trim();
+                    // id 우선 매칭 (중복 편제 허용 시 학기별 구분)
+                    let meta = allCourseData.find(c => c.id === originalName);
+                    if (!meta) {
+                        let searchKey = originalName;
+                        if (searchKey.includes('-')) searchKey = searchKey.split('-')[0].trim();
+                        meta = allCourseData.find(c => {
+                            if (c.slug === searchKey || c.subjectName === searchKey || c.subjectName === originalName) return true;
+                            if (c.slug && c.slug.includes(searchKey)) return true;
+                            if (c.subjectName && c.subjectName.includes(searchKey)) return true;
+                            if (searchKey && c.slug && searchKey.includes(c.slug)) return true;
+                            if (searchKey && c.subjectName && searchKey.includes(c.subjectName)) return true;
+                            return false;
+                        });
                     }
 
-                    // 더 정확한 매칭: slug, subjectName, 그리고 부분 일치도 시도
-                    const meta = allCourseData.find(c => {
-                        // 정확한 매칭
-                        if (c.slug === searchKey || c.subjectName === searchKey || c.subjectName === originalName) {
-                            return true;
-                        }
-                        // 부분 일치 (slug나 subjectName이 searchKey를 포함하거나 그 반대)
-                        if (c.slug && c.slug.includes(searchKey)) return true;
-                        if (c.subjectName && c.subjectName.includes(searchKey)) return true;
-                        if (searchKey && c.slug && searchKey.includes(c.slug)) return true;
-                        if (searchKey && c.subjectName && searchKey.includes(c.subjectName)) return true;
-                        return false;
-                    });
-                    
                     // 학교과목(required) 제외 - 선택과목만 통계에 포함
                     if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) {
-                        return; // 학교과목은 제외
+                        return;
                     }
 
                     // 필터 적용 (학년-학기)
                     if (filterValue !== 'all' && meta) {
                         if (String(meta.grade) !== filterGrade || String(meta.semester) !== filterSemester) {
-                            return; // 필터 조건에 맞지 않으면 제외
+                            return;
                         }
                     }
 
-                    // meta가 있으면 정확한 subjectName 사용, 없으면 원본 이름 사용
-                    const finalName = meta ? meta.subjectName : originalName;
+                    // 중복 편제 허용이면 학기별로 키 구분 (3-1, 3-2 각각 표시)
+                    const finalName = meta
+                        ? (allowMultiSemesterDuplicate ? `${meta.subjectName} (${meta.grade}-${meta.semester})` : meta.subjectName)
+                        : originalName;
 
                     if (finalName) {
-                        // 기존 카운트에 추가 (같은 과목이 여러 번 나올 수 있으므로)
                         subjectCounts[finalName] = (subjectCounts[finalName] || 0) + 1;
                     }
                 });
@@ -4342,25 +4346,27 @@
             // subjectCounts에 있는 과목들을 기준으로 테이블 생성
             const tableSubjects = [];
             
-            // subjectCounts에 있는 과목들을 allCourseData에서 찾아서 정보 추가
+            // subjectCounts에 있는 과목들을 allCourseData에서 찾아서 정보 추가 (키가 "과목명 (학년-학기)" 형식 지원)
             Object.keys(subjectCounts).forEach(subjectName => {
-                const course = allCourseData.find(c => {
-                    // 정확한 매칭
-                    if (c.subjectName === subjectName) return true;
-                    // 부분 일치도 확인
-                    if (c.subjectName && c.subjectName.includes(subjectName)) return true;
-                    if (subjectName && subjectName.includes(c.subjectName)) return true;
-                    return false;
-                });
-                
+                let course = null;
+                const match = subjectName.match(/^(.+)\s*\((\d+)-(\d+)\)$/);
+                if (match) {
+                    const baseName = match[1].trim();
+                    const g = match[2], s = match[3];
+                    course = allCourseData.find(c => c.subjectName === baseName && String(c.grade) === g && String(c.semester) === s);
+                }
+                if (!course) {
+                    course = allCourseData.find(c => {
+                        if (c.subjectName === subjectName) return true;
+                        if (c.subjectName && c.subjectName.includes(subjectName)) return true;
+                        if (subjectName && subjectName.includes(c.subjectName)) return true;
+                        return false;
+                    });
+                }
+
                 if (course) {
-                    // 선택과목만 포함 (학교과목 제외)
                     if (course.required !== true && String(course.required).toLowerCase() !== 'true') {
-                        // 필터 적용
-                        if (filterValue === 'all' || 
-                            (String(course.grade) === filterGrade && String(course.semester) === filterSemester)) {
-                            // 1학년 제외 (elective courses typically start from grade 2)
-                            // Note: If your DB has electives in grade 1, remove this condition
+                        if (filterValue === 'all' || (String(course.grade) === filterGrade && String(course.semester) === filterSemester)) {
                             if (course.grade != 1) {
                                 tableSubjects.push({
                                     grade: course.grade,
@@ -4372,7 +4378,6 @@
                         }
                     }
                 } else {
-                    // allCourseData에 없는 경우 (예: 공동교육과정 등) - 기본 정보로 추가
                     if (filterValue === 'all') {
                         tableSubjects.push({
                             grade: '?',
@@ -4768,8 +4773,14 @@
         }
 
         // Tab 4: Grade Subject Stats (Entire Grade)
-        function renderGradeSubjectStats(container, students, grade) {
+        async function renderGradeSubjectStats(container, students, grade) {
             if (!container) return;
+
+            let allowMultiSemesterDuplicate = false;
+            try {
+                const settings = await DB.fetchSettings();
+                if (settings && settings.allowMultiSemesterDuplicate !== undefined) allowMultiSemesterDuplicate = !!settings.allowMultiSemesterDuplicate;
+            } catch (e) { /* ignore */ }
 
             // 필터 초기화
             if (!window.gradeDashboardGradeFilter) window.gradeDashboardGradeFilter = '2';
@@ -4852,58 +4863,45 @@
             allStudents.forEach(s => {
                 if (!s.SelectedCourses) return;
                 const courses = s.SelectedCourses.split(',').map(c => c.trim()).filter(c => c);
-                
+
                 courses.forEach(cName => {
                     const originalName = cName.trim();
                     if (!originalName) return;
                     processedCoursesCount++;
 
-                    // slug 형식 처리 (예: "gongtonggwamog-1-1-0" -> "gongtonggwamog")
-                    let searchKey = originalName;
-                    if (searchKey.includes('-')) {
-                        searchKey = searchKey.split('-')[0].trim();
+                    // id 우선 매칭 (중복 편제 허용 시 학기별 구분)
+                    let meta = allCourseData.find(c => c.id === originalName);
+                    if (!meta) {
+                        let searchKey = originalName;
+                        if (searchKey.includes('-')) searchKey = searchKey.split('-')[0].trim();
+                        meta = allCourseData.find(c => {
+                            if (c.slug === searchKey || c.subjectName === searchKey || c.subjectName === originalName) return true;
+                            if (c.slug && c.slug.includes(searchKey)) return true;
+                            if (c.subjectName && c.subjectName.includes(searchKey)) return true;
+                            if (searchKey && c.slug && searchKey.includes(c.slug)) return true;
+                            if (searchKey && c.subjectName && searchKey.includes(c.subjectName)) return true;
+                            return false;
+                        });
                     }
 
-                    // 과목 매칭 (slug 우선, 그 다음 subjectName) - 학급별 통계와 동일한 로직
-                    const meta = allCourseData.find(c => {
-                        // 정확한 매칭
-                        if (c.slug === searchKey || c.subjectName === searchKey || c.subjectName === originalName) {
-                            return true;
-                        }
-                        // 부분 일치 (slug나 subjectName이 searchKey를 포함하거나 그 반대)
-                        if (c.slug && c.slug.includes(searchKey)) return true;
-                        if (c.subjectName && c.subjectName.includes(searchKey)) return true;
-                        if (searchKey && c.slug && searchKey.includes(c.slug)) return true;
-                        if (searchKey && c.subjectName && searchKey.includes(c.subjectName)) return true;
-                        return false;
-                    });
-
-                    // 학교지정과목 제외
                     if (meta && (meta.required === true || String(meta.required).toLowerCase() === 'true')) {
                         skippedCoursesCount++;
                         return;
                     }
 
-                    // 필터 적용: 과목의 개설 학년 (meta.grade)
-                    // targetGrade는 과목의 개설 학년을 의미함
                     if (meta) {
-                        // meta가 있으면 과목의 개설 학년 확인
                         const courseGrade = meta.grade;
                         if (courseGrade != targetGrade) {
-                            // 과목의 개설 학년이 필터와 일치하지 않으면 제외
                             skippedCoursesCount++;
                             return;
                         }
                     } else {
-                        // meta가 없으면 제외 (과목 정보를 알 수 없으므로)
                         skippedCoursesCount++;
                         return;
                     }
 
-                    // 필터 적용 (학기) - 학급별 통계와 동일: meta가 없으면 필터가 'all'일 때만 포함
                     if (window.gradeDashboardSemesterFilter !== 'all') {
                         if (!meta) {
-                            // meta가 없으면 제외 (학기 정보를 알 수 없으므로)
                             skippedCoursesCount++;
                             return;
                         }
@@ -4913,19 +4911,16 @@
                         }
                     }
 
-                    // 최종 과목명 결정: meta가 있으면 subjectName 사용, 없으면 원본 사용
-                    const finalName = meta ? meta.subjectName : originalName;
+                    // 중복 편제 허용이면 학기별로 키 구분
+                    const finalName = meta
+                        ? (allowMultiSemesterDuplicate ? `${meta.subjectName} (${meta.grade}-${meta.semester})` : meta.subjectName)
+                        : originalName;
 
                     if (finalName) {
                         subjectCounts[finalName] = (subjectCounts[finalName] || 0) + 1;
-                        
-                        // 학생 목록 저장 (등급 계산용)
-                        if (!subjectStudentMap[finalName]) {
-                            subjectStudentMap[finalName] = [];
-                        }
+                        if (!subjectStudentMap[finalName]) subjectStudentMap[finalName] = [];
                         subjectStudentMap[finalName].push(s);
                     } else {
-                        console.warn('[Grade Subject Stats] finalName is empty for:', originalName, 'meta:', meta ? meta.subjectName : 'no meta');
                         skippedCoursesCount++;
                     }
                 });
@@ -4957,21 +4952,27 @@
             console.log('[Grade Subject Stats] Building table, subjectCounts keys:', Object.keys(subjectCounts).length);
             
             Object.keys(subjectCounts).forEach(subjectName => {
-                if (processedSubjects.has(subjectName)) return; // 이미 처리된 과목은 건너뛰기
-                
-                // 더 정확한 과목 매칭 시도
-                const course = allCourseData.find(c => {
-                    // 정확한 매칭
-                    if (c.subjectName === subjectName) return true;
-                    // 부분 일치 (양방향)
-                    if (c.subjectName && c.subjectName.includes(subjectName)) return true;
-                    if (subjectName && subjectName.includes(c.subjectName)) return true;
-                    // slug 매칭도 시도
-                    if (c.slug === subjectName) return true;
-                    if (c.slug && c.slug.includes(subjectName)) return true;
-                    if (subjectName && subjectName.includes(c.slug)) return true;
-                    return false;
-                });
+                if (processedSubjects.has(subjectName)) return;
+
+                // "과목명 (학년-학기)" 형식이면 학기별 과목으로 매칭
+                let course = null;
+                const match = subjectName.match(/^(.+)\s*\((\d+)-(\d+)\)$/);
+                if (match) {
+                    const baseName = match[1].trim();
+                    const g = match[2], s = match[3];
+                    course = allCourseData.find(c => c.subjectName === baseName && String(c.grade) === g && String(c.semester) === s);
+                }
+                if (!course) {
+                    course = allCourseData.find(c => {
+                        if (c.subjectName === subjectName) return true;
+                        if (c.subjectName && c.subjectName.includes(subjectName)) return true;
+                        if (subjectName && subjectName.includes(c.subjectName)) return true;
+                        if (c.slug === subjectName) return true;
+                        if (c.slug && c.slug.includes(subjectName)) return true;
+                        if (subjectName && subjectName.includes(c.slug)) return true;
+                        return false;
+                    });
+                }
 
                 if (course) {
                     // 선택과목만 (학교지정과목 제외) - 이미 위에서 필터링했지만 다시 확인
