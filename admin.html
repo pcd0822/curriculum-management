@@ -1543,7 +1543,9 @@
             btn.textContent = '저장 중...';
 
             try {
+                const settings = await DB.fetchSettings() || {};
                 await DB.saveSettings({
+                    ...settings,
                     selectionRules: currentRules
                 });
                 alert('규칙이 저장되었습니다.');
