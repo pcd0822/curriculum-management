@@ -2367,15 +2367,17 @@
                         return; // 이미 계산된 복수편제과목은 건너뛰기
                     }
 
-                    const slug = c.slug || c.id || '';
-                    let shouldCount = !multiRestrictedReq || (!duplicateCourseSlugs.includes(slug) || !countedCourseSlugs.has(slug));
+                    // 슬러그→과목명 전환: duplicateCourseSlugs에 slug/subjectName/id 중 하나가 들어 있을 수 있음
+                    const courseKey = c.subjectName || c.slug || c.id || '';
+                    const inDupList = duplicateCourseSlugs.some(x => (x || '') === (c.slug || '') || (x || '') === (c.subjectName || '') || (x || '') === (c.id || ''));
+                    let shouldCount = !multiRestrictedReq || (!inDupList || !countedCourseSlugs.has(courseKey));
 
                     if (!shouldCount) {
                         return; // 중복된 과목은 건너뛰기
                     }
 
-                    if (multiRestrictedReq && duplicateCourseSlugs.includes(slug)) {
-                        countedCourseSlugs.add(slug);
+                    if (multiRestrictedReq && inDupList) {
+                        countedCourseSlugs.add(courseKey);
                     }
                     if (multiRestrictedReq) {
                         countedMultiSemesterNames.add(subjectName);
@@ -2480,15 +2482,16 @@
                         return; // 이미 계산된 복수편제과목은 건너뛰기
                     }
 
-                    let shouldCount = !multiRestrictedSel || (!duplicateCourseSlugs.includes(meta.slug || meta.id || '') || 
-                                     !countedCourseSlugs.has(meta.slug || meta.id || ''));
+                    const metaKey = meta.subjectName || meta.slug || meta.id || '';
+                    const metaInDupList = duplicateCourseSlugs.some(x => (x || '') === (meta.slug || '') || (x || '') === (meta.subjectName || '') || (x || '') === (meta.id || ''));
+                    let shouldCount = !multiRestrictedSel || (!metaInDupList || !countedCourseSlugs.has(metaKey));
 
                     if (!shouldCount) {
                         return; // 중복된 과목은 건너뛰기
                     }
 
-                    if (multiRestrictedSel && duplicateCourseSlugs.includes(meta.slug || meta.id || '')) {
-                        countedCourseSlugs.add(meta.slug || meta.id || '');
+                    if (multiRestrictedSel && metaInDupList) {
+                        countedCourseSlugs.add(metaKey);
                     }
                     if (multiRestrictedSel) {
                         countedMultiSemesterNames.add(displayName);
@@ -2707,11 +2710,13 @@
                     if (subjectName.includes('2') || c.semester && c.semester.includes('-2')) koreanHistory2 = true;
                 }
 
-                // Add to slug set for prerequisites
-                // Try to find slug from meta first
-                const meta = allCourseData.find(m => m.subjectName === c.name);
-                if (meta) selectedSlugs.add(meta.slug);
-                else selectedSlugs.add(c.name); // Fallback: Name is slug
+                // 선이수 검증용: 슬러그→과목명 전환으로 slug와 subjectName 모두 수집
+                const meta = allCourseData.find(m => m.subjectName === c.name || m.slug === c.name || m.id === c.name);
+                if (meta) {
+                    if (meta.slug) selectedSlugs.add(meta.slug);
+                    if (meta.subjectName) selectedSlugs.add(meta.subjectName);
+                }
+                selectedSlugs.add(c.name); // 시트 값(과목명 또는 slug) 그대로도 추가
             });
             
             // Also check required courses for subject-specific credits and category sums (index.html과 동일)
@@ -2855,8 +2860,7 @@
 
                     reqs.forEach(req => {
                         if (req && !selectedSlugs.has(req)) {
-                            // Find name of missing prereq
-                            const reqMeta = allCourseData.find(m => m.slug === req);
+                            const reqMeta = allCourseData.find(m => m.slug === req || m.subjectName === req || (m.id && m.id === req));
                             const reqName = reqMeta ? reqMeta.subjectName : req;
                             prereqFailures.push(`${c.name} (선이수: ${reqName})`);
                         }
