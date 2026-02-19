@@ -1678,18 +1678,26 @@
                     const s2 = parseInt(b.semester || b.학기 || 0, 10);
                     return s1 - s2;
                 });
+                // SelectedCourses에 학년-학기 구분이 되도록 저장 (slug만 있으면 동일 과목 여러 학기가 구분 안 됨)
                 const headerToId = {};
-                optionalOnly.forEach(co => {
+                optionalOnly.forEach((co, idx) => {
                     const name = (co.subjectName || co.과목명 || '').toString().trim();
                     const g = co.grade ?? co.학년 ?? '';
                     const s = co.semester ?? co.학기 ?? '';
                     const header = `${name} (${g}-${s})`;
-                    headerToId[header] = co.id || co.slug || name;
+                    const idAlreadyHasSemester = co.id && (String(co.id).match(/\d+-\d+/) || String(co.id).split('-').length >= 3);
+                    headerToId[header] = (co.id && idAlreadyHasSemester)
+                        ? co.id
+                        : `${name}-${g}-${s}-${idx}`.replace(/\s+/g, '-');
                 });
                 const nameToId = {};
-                optionalOnly.forEach(co => {
+                optionalOnly.forEach((co, idx) => {
                     const name = (co.subjectName || co.과목명 || '').toString().trim();
-                    if (name) nameToId[name] = co.id || co.slug || name;
+                    if (!name) return;
+                    const idAlreadyHasSemester = co.id && (String(co.id).match(/\d+-\d+/) || String(co.id).split('-').length >= 3);
+                    nameToId[name] = (co.id && idAlreadyHasSemester)
+                        ? co.id
+                        : `${name}-${co.grade ?? co.학년 ?? ''}-${co.semester ?? co.학기 ?? ''}-${idx}`.replace(/\s+/g, '-');
                 });
 
                 const toSubmit = [];
@@ -1710,7 +1718,10 @@
                         const header = subjectHeaders[c];
                         let id = headerToId[header];
                         if (id == null && c < optionalOnly.length) {
-                            id = optionalOnly[c].id || optionalOnly[c].slug || (optionalOnly[c].subjectName || optionalOnly[c].과목명);
+                            const co = optionalOnly[c];
+                            const n = (co.subjectName || co.과목명 || '').toString().trim();
+                            const hasSemester = co.id && (String(co.id).match(/\d+-\d+/) || String(co.id).split('-').length >= 3);
+                            id = (co.id && hasSemester) ? co.id : `${n}-${co.grade ?? ''}-${co.semester ?? ''}-${c}`.replace(/\s+/g, '-');
                         }
                         if (id == null) id = nameToId[header] || header;
                         if (id) selectedIds.push(id);
@@ -2406,63 +2417,41 @@
                     return; // Skip joint courses from course list
                 }
 
-                // 1. Resolve Metadata - id 우선(학기별 구분), 그 다음 slug, subjectName
+                // 1. Resolve Metadata - id 우선(학기별 구분), 그 다음 과목명-학년-학기 형식 파싱, slug, subjectName
                 let meta = allCourseData.find(c => c.id === cName);
                 if (!meta) meta = allCourseData.find(c => c.slug === cName || c.subjectName === cName);
 
-                // Fallback: check parts if hyphenated
-                // Handle format: slug-grade-semester or slug-grade-semester-numbering
-                // (e.g., "dokseotorongwa-geulssgi-3-1" or "dokseotorongwa-geulssgi-3-1-57")
+                // Fallback: "과목명-학년-학기" (3부) 또는 "과목명-학년-학기-인덱스" (4부) - 일괄등록/제출 저장 형식
                 if (!meta && cName.includes('-')) {
                     const parts = cName.split('-');
-                    
-                    // Pattern 1: Check if last 2 parts are numbers (grade-semester)
-                    // This is the most common format: slug-grade-semester
-                    if (parts.length >= 3) {
+                    let namePart = '';
+                    let g = '';
+                    let s = '';
+                    if (parts.length === 3 && /^\d+$/.test(parts[1]) && /^\d+$/.test(parts[2])) {
+                        namePart = parts[0];
+                        g = parts[1];
+                        s = parts[2];
+                    } else if (parts.length >= 4 && /^\d+$/.test(parts[parts.length - 3]) && /^\d+$/.test(parts[parts.length - 2]) && /^\d+$/.test(parts[parts.length - 1])) {
+                        namePart = parts.slice(0, -3).join('-');
+                        g = parts[parts.length - 3];
+                        s = parts[parts.length - 2];
+                    }
+                    if (namePart && g && s) {
+                        meta = allCourseData.find(c =>
+                            String(c.grade ?? c.학년 ?? '') === g &&
+                            String(c.semester ?? c.학기 ?? '') === s &&
+                            (c.subjectName === namePart || (c.subjectName && c.subjectName.replace(/\s+/g, '-') === namePart) || (c.slug && c.slug.includes(namePart)))
+                        );
+                    }
+                    if (!meta && parts.length >= 3) {
                         const lastTwo = parts.slice(-2);
-                        const isGradeSemester = lastTwo.every(p => /^\d+$/.test(p));
-                        
-                        if (isGradeSemester) {
-                            // Remove last 2 parts to get slug
-                            let slugParts = parts.slice(0, -2);
-                            
-                            // If there's a 3rd number at the end (numbering), remove it too
-                            if (parts.length >= 4 && /^\d+$/.test(parts[parts.length - 3])) {
-                                slugParts = parts.slice(0, -3);
-                            }
-                            
-                            const slug = slugParts.join('-');
-                            // Priority: slug로 먼저 찾기 (가장 정확)
-                            meta = allCourseData.find(c => c.slug === slug);
-                            if (!meta) {
-                                // Fallback: id나 subjectName으로 찾기
-                                meta = allCourseData.find(c => c.id === slug || c.subjectName === slug);
-                            }
+                        if (lastTwo.every(p => /^\d+$/.test(p))) {
+                            const slug = parts.slice(0, -2).join('-');
+                            meta = allCourseData.find(c => c.slug === slug || c.subjectName === slug);
                         }
                     }
-                    
-                    // Pattern 2: If still not found, try progressively removing last parts
-                    // This handles edge cases where format might be different
-                    if (!meta && parts.length > 2) {
-                        for (let i = parts.length - 2; i >= 1; i--) {
-                            const slug = parts.slice(0, i).join('-');
-                            // Priority: slug로 먼저 찾기
-                            meta = allCourseData.find(c => c.slug === slug);
-                            if (!meta) {
-                                meta = allCourseData.find(c => c.id === slug || c.subjectName === slug);
-                            }
-                            if (meta) break;
-                        }
-                    }
-                    
-                    // Pattern 3: Last resort - try first part only
                     if (!meta && parts.length > 0) {
-                        const firstPart = parts[0];
-                        // Priority: slug로 먼저 찾기
-                        meta = allCourseData.find(c => c.slug === firstPart);
-                        if (!meta) {
-                            meta = allCourseData.find(c => c.id === firstPart || c.subjectName === firstPart);
-                        }
+                        meta = allCourseData.find(c => c.slug === parts[0] || c.subjectName === parts[0]);
                     }
                 }
 
