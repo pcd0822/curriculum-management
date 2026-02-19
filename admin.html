@@ -2322,18 +2322,16 @@
                 if (name) coursesByName[name].push(c);
             });
             
-            // Get multiSemesterRules and duplicateCourseSlugs from settings if available
+            // Get multiSemesterRules, allowMultiSemesterDuplicate, duplicateCourseSlugs from settings
             let multiSemesterRules = {};
             let duplicateCourseSlugs = [];
+            let allowMultiSemesterDuplicate = false;
             try {
                 const settings = await DB.fetchSettings();
                 if (settings) {
-                    if (settings.multiSemesterRules) {
-                        multiSemesterRules = settings.multiSemesterRules;
-                    }
-                    if (settings.duplicateCourseSlugs) {
-                        duplicateCourseSlugs = settings.duplicateCourseSlugs;
-                    }
+                    if (settings.multiSemesterRules) multiSemesterRules = settings.multiSemesterRules;
+                    if (settings.duplicateCourseSlugs) duplicateCourseSlugs = settings.duplicateCourseSlugs;
+                    if (settings.allowMultiSemesterDuplicate !== undefined) allowMultiSemesterDuplicate = !!settings.allowMultiSemesterDuplicate;
                 }
             } catch (e) {
                 console.warn('Could not fetch settings:', e);
@@ -2349,25 +2347,26 @@
                 if (isRequired) {
                     const subjectName = c.subjectName || c.name || '';
                     
-                    // 복수편제과목 중복 계산 방지 (index.html과 동일)
+                    // 복수편제과목 중복 계산 방지 (중복 신청 허용이면 학기별 모두 계산)
                     const isMultiSemester = (multiSemesterRules[subjectName] && multiSemesterRules[subjectName].length > 0) ||
                         (coursesByName[subjectName] && coursesByName[subjectName].length > 1);
+                    const multiRestrictedReq = isMultiSemester && !allowMultiSemesterDuplicate;
 
-                    if (isMultiSemester && countedMultiSemesterNames.has(subjectName)) {
+                    if (multiRestrictedReq && countedMultiSemesterNames.has(subjectName)) {
                         return; // 이미 계산된 복수편제과목은 건너뛰기
                     }
 
                     const slug = c.slug || c.id || '';
-                    let shouldCount = !duplicateCourseSlugs.includes(slug) || !countedCourseSlugs.has(slug);
+                    let shouldCount = !multiRestrictedReq || (!duplicateCourseSlugs.includes(slug) || !countedCourseSlugs.has(slug));
 
                     if (!shouldCount) {
                         return; // 중복된 과목은 건너뛰기
                     }
 
-                    if (duplicateCourseSlugs.includes(slug)) {
+                    if (multiRestrictedReq && duplicateCourseSlugs.includes(slug)) {
                         countedCourseSlugs.add(slug);
                     }
-                    if (isMultiSemester) {
+                    if (multiRestrictedReq) {
                         countedMultiSemesterNames.add(subjectName);
                     }
                     
@@ -2482,25 +2481,26 @@
                     displayGrade = parseInt(meta.grade || 99);
                     isRequired = meta.required === true || String(meta.required).toLowerCase() === 'true';
 
-                    // 복수편제과목 중복 계산 방지 (index.html과 동일)
+                    // 복수편제과목 중복 계산 방지 (중복 신청 허용이면 학기별 모두 표시·계산)
                     const isMultiSemester = (multiSemesterRules[displayName] && multiSemesterRules[displayName].length > 0) ||
                         (coursesByName[displayName] && coursesByName[displayName].length > 1);
+                    const multiRestrictedSel = isMultiSemester && !allowMultiSemesterDuplicate;
 
-                    if (isMultiSemester && countedMultiSemesterNames.has(displayName)) {
+                    if (multiRestrictedSel && countedMultiSemesterNames.has(displayName)) {
                         return; // 이미 계산된 복수편제과목은 건너뛰기
                     }
 
-                    let shouldCount = !duplicateCourseSlugs.includes(meta.slug || meta.id || '') || 
-                                     !countedCourseSlugs.has(meta.slug || meta.id || '');
+                    let shouldCount = !multiRestrictedSel || (!duplicateCourseSlugs.includes(meta.slug || meta.id || '') || 
+                                     !countedCourseSlugs.has(meta.slug || meta.id || ''));
 
                     if (!shouldCount) {
                         return; // 중복된 과목은 건너뛰기
                     }
 
-                    if (duplicateCourseSlugs.includes(meta.slug || meta.id || '')) {
+                    if (multiRestrictedSel && duplicateCourseSlugs.includes(meta.slug || meta.id || '')) {
                         countedCourseSlugs.add(meta.slug || meta.id || '');
                     }
-                    if (isMultiSemester) {
+                    if (multiRestrictedSel) {
                         countedMultiSemesterNames.add(displayName);
                     }
 
