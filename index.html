@@ -274,7 +274,7 @@
         let multiSemesterRules = {};
         let allowMultiSemesterDuplicate = false;
         let registryData = [];
-        const duplicateCourseSlugs = [];
+        let duplicateCourseSlugs = []; // 설정에서 로드 가능 (슬러그 또는 과목명)
         const jointSubCategoryToCategoryMap = {
             '국어': '기초교과', '수학': '기초교과', '영어': '기초교과', '한국사': '기초교과',
             '사회': '탐구교과', '과학': '탐구교과',
@@ -385,6 +385,7 @@
                     if (settings.selectionRules) selectionRules = settings.selectionRules;
                     if (settings.multiSemesterRules) multiSemesterRules = settings.multiSemesterRules;
                     if (settings.allowMultiSemesterDuplicate !== undefined) allowMultiSemesterDuplicate = !!settings.allowMultiSemesterDuplicate;
+                    if (settings.duplicateCourseSlugs && Array.isArray(settings.duplicateCourseSlugs)) duplicateCourseSlugs = settings.duplicateCourseSlugs;
 
                     // Migration for old format
                     if (settings.selectionLimits && !settings.selectionRules) {
@@ -594,10 +595,12 @@
                 }
 
                 // 중복 신청 허용이면 slug 중복 제한 없이 매 학기 모두 학점 계산
-                let shouldCount = !multiRestricted || (!duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug));
+                const inDupList = duplicateCourseSlugs.some(x => (x || '') === (course.slug || '') || (x || '') === (course.subjectName || '') || (x || '') === (course.id || ''));
+                const courseKey = course.subjectName || course.slug || course.id || '';
+                let shouldCount = !multiRestricted || (!inDupList || !countedCourseSlugs.has(courseKey));
 
                 if (shouldCount) {
-                    if (multiRestricted && duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
+                    if (multiRestricted && inDupList) countedCourseSlugs.add(courseKey);
                     if (multiRestricted) countedMultiSemesterNames.add(course.subjectName);
 
                     // Ensure credits is a number
@@ -662,10 +665,12 @@
                 }
 
                 // 중복 신청 허용이면 slug 중복 제한 없이 매 학기 모두 학점 계산
-                let shouldCount = !multiRestrictedOpt || (!duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug));
+                const inDupListOpt = duplicateCourseSlugs.some(x => (x || '') === (course.slug || '') || (x || '') === (course.subjectName || '') || (x || '') === (course.id || ''));
+                const courseKeyOpt = course.subjectName || course.slug || course.id || '';
+                let shouldCount = !multiRestrictedOpt || (!inDupListOpt || !countedCourseSlugs.has(courseKeyOpt));
 
                 if (shouldCount) {
-                    if (multiRestrictedOpt && duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
+                    if (multiRestrictedOpt && inDupListOpt) countedCourseSlugs.add(courseKeyOpt);
                     if (multiRestrictedOpt) countedMultiSemesterNames.add(course.subjectName);
 
                     // Ensure credits is a number
@@ -849,11 +854,14 @@
                 addMsg(`체육 교과 필수 이수학점(10)을 충족했습니다. (현재: ${physicalCredits}학점)`, 'success');
             }
 
-            // Rule 5: Prerequisites
-            const selectedCourseSlugs = new Set(selectedCourses.map(c => c.slug || '').filter(s => s));
+            // Rule 5: Prerequisites (슬러그→과목명 전환: 선택과목 식별을 slug·subjectName 모두로)
+            const selectedCourseIds = new Set();
+            selectedCourses.forEach(c => {
+                if (c.slug) selectedCourseIds.add((c.slug || '').trim());
+                if (c.subjectName) selectedCourseIds.add((c.subjectName || '').trim());
+            });
             selectedCourses.filter(c => !c.required).forEach(course => {
                 if (course.prerequisites) {
-                    // Handle prerequisites as string (comma-separated) or array
                     let prereqList = [];
                     if (Array.isArray(course.prerequisites)) {
                         prereqList = course.prerequisites;
@@ -864,12 +872,12 @@
                     if (prereqList.length > 0) {
                         const missingPrereqs = new Set();
                         prereqList.forEach(prereqSlug => {
-                            if (prereqSlug && !selectedCourseSlugs.has(prereqSlug.trim())) {
-                                const prereqCourse = PROCESSED_COURSES.find(c => (c.slug || '').trim() === prereqSlug.trim());
+                            const key = prereqSlug.trim();
+                            if (key && !selectedCourseIds.has(key)) {
+                                const prereqCourse = PROCESSED_COURSES.find(c => (c.slug || '').trim() === key || (c.subjectName || '').trim() === key);
                                 if (prereqCourse) {
                                     missingPrereqs.add(prereqCourse.subjectName || prereqCourse.name || prereqSlug);
                                 } else {
-                                    // If course not found, show the slug itself
                                     missingPrereqs.add(prereqSlug);
                                 }
                             }
@@ -937,8 +945,12 @@
             const totalCreditsValid = totalCredits >= 174;
             const basicCreditsValid = totalCredits === 0 || basicCredits <= (totalCredits * 0.5);
 
-            // Check prerequisites
-            const selectedCourseSlugs = new Set(selectedCourses.map(c => c.slug || '').filter(s => s));
+            // Check prerequisites (슬러그→과목명: slug·subjectName 모두로 비교)
+            const selectedIdsForPrereq = new Set();
+            selectedCourses.forEach(c => {
+                if (c.slug) selectedIdsForPrereq.add((c.slug || '').trim());
+                if (c.subjectName) selectedIdsForPrereq.add((c.subjectName || '').trim());
+            });
             let prerequisitesValid = true;
             selectedCourses.filter(c => !c.required).forEach(course => {
                 if (course.prerequisites) {
@@ -949,7 +961,7 @@
                         prereqList = course.prerequisites.split(',').map(s => s.trim()).filter(s => s);
                     }
                     prereqList.forEach(prereqSlug => {
-                        if (prereqSlug && !selectedCourseSlugs.has(prereqSlug.trim())) {
+                        if (prereqSlug && !selectedIdsForPrereq.has(prereqSlug.trim())) {
                             prerequisitesValid = false;
                         }
                     });
