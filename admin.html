@@ -1562,7 +1562,11 @@
             container.classList.remove('hidden');
             errorMsg.classList.add('hidden');
 
-            const baseUrl = window.location.href.replace('admin.html', 'index.html');
+            // 학생 수강신청 페이지 URL: 현재와 같은 경로에서 admin.html 대신 index.html로
+            const origin = window.location.origin;
+            const pathname = window.location.pathname || '/';
+            const basePath = pathname.replace(/\/[^/]*$/, '/') + 'index.html';
+            const baseUrl = origin + basePath;
             const encodedKey = btoa(savedUrl);
 
             const fullLink = `${baseUrl}?key=${encodedKey}`;
