@@ -272,6 +272,7 @@
         let jointCourses = [];
         let selectionRules = {};
         let multiSemesterRules = {};
+        let allowMultiSemesterDuplicate = false;
         let registryData = [];
         const duplicateCourseSlugs = [];
         const jointSubCategoryToCategoryMap = {
@@ -383,6 +384,7 @@
                 if (settings) {
                     if (settings.selectionRules) selectionRules = settings.selectionRules;
                     if (settings.multiSemesterRules) multiSemesterRules = settings.multiSemesterRules;
+                    if (settings.allowMultiSemesterDuplicate !== undefined) allowMultiSemesterDuplicate = !!settings.allowMultiSemesterDuplicate;
 
                     // Migration for old format
                     if (settings.selectionLimits && !settings.selectionRules) {
@@ -582,19 +584,21 @@
 
             // 1. Calculate Credits from Required Courses (School Designated)
             requiredCourses.forEach(course => {
-                // 복수편제과목 중복 계산 방지
+                // 복수편제과목 중복 계산 방지 (중복 신청 허용이 아닐 때만)
                 const isMultiSemester = (multiSemesterRules[course.subjectName] && multiSemesterRules[course.subjectName].length > 0) ||
                     (coursesByName[course.subjectName] && coursesByName[course.subjectName].length > 1);
+                const multiRestricted = isMultiSemester && !allowMultiSemesterDuplicate;
 
-                if (isMultiSemester && countedMultiSemesterNames.has(course.subjectName)) {
+                if (multiRestricted && countedMultiSemesterNames.has(course.subjectName)) {
                     return; // 이미 계산된 복수편제과목은 건너뛰기
                 }
 
-                let shouldCount = !duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug);
+                // 중복 신청 허용이면 slug 중복 제한 없이 매 학기 모두 학점 계산
+                let shouldCount = !multiRestricted || (!duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug));
 
                 if (shouldCount) {
-                    if (duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
-                    if (isMultiSemester) countedMultiSemesterNames.add(course.subjectName);
+                    if (multiRestricted && duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
+                    if (multiRestricted) countedMultiSemesterNames.add(course.subjectName);
 
                     // Ensure credits is a number
                     let credits = course.credits;
@@ -648,19 +652,21 @@
 
             // 2. Calculate Credits from Optional Courses (Student Selected)
             optionalCourses.forEach(course => {
-                // 복수편제과목 중복 계산 방지
+                // 복수편제과목 중복 계산 방지 (중복 신청 허용이 아닐 때만)
                 const isMultiSemester = (multiSemesterRules[course.subjectName] && multiSemesterRules[course.subjectName].length > 0) ||
                     (coursesByName[course.subjectName] && coursesByName[course.subjectName].length > 1);
+                const multiRestrictedOpt = isMultiSemester && !allowMultiSemesterDuplicate;
 
-                if (isMultiSemester && countedMultiSemesterNames.has(course.subjectName)) {
+                if (multiRestrictedOpt && countedMultiSemesterNames.has(course.subjectName)) {
                     return; // 이미 계산된 복수편제과목은 건너뛰기
                 }
 
-                let shouldCount = !duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug);
+                // 중복 신청 허용이면 slug 중복 제한 없이 매 학기 모두 학점 계산
+                let shouldCount = !multiRestrictedOpt || (!duplicateCourseSlugs.includes(course.slug) || !countedCourseSlugs.has(course.slug));
 
                 if (shouldCount) {
-                    if (duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
-                    if (isMultiSemester) countedMultiSemesterNames.add(course.subjectName);
+                    if (multiRestrictedOpt && duplicateCourseSlugs.includes(course.slug)) countedCourseSlugs.add(course.slug);
+                    if (multiRestrictedOpt) countedMultiSemesterNames.add(course.subjectName);
 
                     // Ensure credits is a number
                     let credits = course.credits;
@@ -914,10 +920,11 @@
             selectedCourses.forEach(course => {
                 const isMultiSemester = (multiSemesterRules[course.subjectName] && multiSemesterRules[course.subjectName].length > 0) ||
                     (coursesByName[course.subjectName] && coursesByName[course.subjectName].length > 1);
-                if (isMultiSemester && countedMultiSemesterNames.has(course.subjectName)) {
+                const multiRestrictedVal = isMultiSemester && !allowMultiSemesterDuplicate;
+                if (multiRestrictedVal && countedMultiSemesterNames.has(course.subjectName)) {
                     return;
                 }
-                if (isMultiSemester) countedMultiSemesterNames.add(course.subjectName);
+                if (multiRestrictedVal) countedMultiSemesterNames.add(course.subjectName);
 
                 const credits = parseInt(course.credits || 0);
                 if (course.category === '예술교과') artCredits += credits;
@@ -952,9 +959,8 @@
             // Check selection rules
             const ruleValidation = validateSelectionRules(selectedCourses);
 
-            // Enable button if all validations pass
-            const allValid = !hasErrors && totalCreditsValid && artCreditsValid && electiveCreditsValid &&
-                basicCreditsValid && prerequisitesValid && ruleValidation.valid;
+            // Enable button: 필수 이수 학점 미충족해도 제출 가능 (totalCreditsValid, artCreditsValid, electiveCreditsValid는 안내만 하고 제출 막지 않음)
+            const allValid = !hasErrors && basicCreditsValid && prerequisitesValid && ruleValidation.valid;
 
             submitBtn.disabled = !allValid;
         }
@@ -1049,12 +1055,12 @@
                 });
             });
 
-            // 2. Check Multi-Semester Constraint - 선택 규칙과 독립적으로 실행
+            // 2. Check Multi-Semester Constraint - 선택 규칙과 독립적으로 실행 (중복 신청 허용 과목은 적용 안 함)
             document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 const course = PROCESSED_COURSES.find(c => c.id == cb.value);
                 if (!course || course.required) return;
 
-                if (multiSemesterGroups[course.subjectName]) {
+                if (multiSemesterGroups[course.subjectName] && !allowMultiSemesterDuplicate) {
                     const group = multiSemesterGroups[course.subjectName];
                     const currentSemesterKey = `${course.grade}-${course.semester}`;
 
@@ -1117,11 +1123,12 @@
             });
 
             courses.forEach(c => {
-                // Check if this is a multi-semester course
+                // Check if this is a multi-semester course (중복 신청 허용이면 여러 학기 모두 표시)
                 const isMultiSemester = (multiSemesterRules[c.subjectName] && multiSemesterRules[c.subjectName].length > 0) ||
                     (coursesByName[c.subjectName] && coursesByName[c.subjectName].length > 1);
+                const multiRestrictedList = isMultiSemester && !allowMultiSemesterDuplicate;
 
-                if (isMultiSemester) {
+                if (multiRestrictedList) {
                     // If already processed this course name, skip
                     if (processedCourseNames.has(c.subjectName)) {
                         return;
@@ -1187,15 +1194,16 @@
                     categoryGroups['교양,제2외국어,정보'].push(c);
                 }
 
-                // Semester Grouping - 복수편제과목은 선택된 학기에만 표시
+                // Semester Grouping - 복수편제과목은 선택된 학기에만 표시 (중복 허용이면 학기별로 모두 표시)
                 const isJointCourse = c.id && typeof c.id === 'string' && c.id.startsWith('joint');
                 if (isJointCourse) {
                     const key = `공동-${c.category}`;
                     if (!semesterGroups[key]) semesterGroups[key] = [];
                     semesterGroups[key].push(c);
                 } else {
-                    // 복수편제과목인 경우, 이미 다른 학기에 추가되었는지 확인
-                    if (isMultiSemester && addedToSemesterGroups.has(c.subjectName)) {
+                    const multiRestrictedSem = isMultiSemester && !allowMultiSemesterDuplicate;
+                    // 복수편제과목(중복 미허용)인 경우, 이미 다른 학기에 추가되었는지 확인
+                    if (multiRestrictedSem && addedToSemesterGroups.has(c.subjectName)) {
                         // 이미 추가되었으면 건너뛰기
                         return;
                     }
@@ -1204,7 +1212,7 @@
                     if (!semesterGroups[key]) semesterGroups[key] = [];
                     semesterGroups[key].push(c);
 
-                    if (isMultiSemester) {
+                    if (multiRestrictedSem) {
                         addedToSemesterGroups.add(c.subjectName);
                     }
                 }
