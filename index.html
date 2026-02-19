@@ -318,21 +318,25 @@
 
         // Initialization
         async function init() {
-            // Check for API Key in URL
             const urlParams = new URLSearchParams(window.location.search);
             const key = urlParams.get('key');
 
             if (key) {
                 try {
                     const decodedUrl = atob(key);
+                    if (!decodedUrl || !decodedUrl.startsWith('http')) {
+                        throw new Error('Invalid key');
+                    }
                     DB.init(decodedUrl);
+                    window.location.hash = '';
                     await loadData();
                 } catch (e) {
                     console.error('Invalid Key', e);
-                    alert('유효하지 않은 접근 키입니다.');
+                    alert('유효하지 않은 접근 키입니다. 배포 링크를 확인해주세요.');
                 }
             } else {
                 console.warn('No API Key provided');
+                courseListEl.innerHTML = '<div class="text-center py-8 theme-text-muted"><p class="font-medium">배포 링크로 접속해주세요.</p><p class="text-sm mt-2">관리자가 공유한 수강신청 링크(QR코드 또는 URL)를 통해 접속하면 바로 수강신청 페이지가 열립니다.</p></div>';
             }
 
             initJointCourses();
@@ -397,10 +401,23 @@
 
                 // Fetch Courses
                 const courses = await DB.fetchConfig();
-                if (!courses) throw new Error('과목 데이터를 불러올 수 없습니다.');
+                if (!courses || !Array.isArray(courses)) throw new Error('과목 데이터를 불러올 수 없습니다.');
+
+                // Normalize course keys (support both Korean sheet headers and English)
+                const normalized = courses.map(c => ({
+                    ...c,
+                    subjectName: c.subjectName || c.과목명 || c['과목명'] || '',
+                    grade: c.grade ?? c.학년 ?? c['학년'],
+                    semester: c.semester ?? c.학기 ?? c['학기'],
+                    credits: c.credits ?? c.학점 ?? c['학점'],
+                    category: c.category || c.교과군 || c['교과군'] || '',
+                    subCategory: c.subCategory || c.세부교과 || c['세부교과'] || '',
+                    slug: c.slug || c.영문ID || c['영문ID'] || '',
+                    required: c.required !== undefined && c.required !== null ? c.required : (c.필수여부 === 'TRUE' || c.필수여부 === 'true' || c.필수여부 === true || c.필수여부 === 1 || c['필수여부'] === 'TRUE')
+                }));
 
                 // Process courses
-                PROCESSED_COURSES = courses.filter(c => c.subjectName).map((c, index) => {
+                PROCESSED_COURSES = normalized.filter(c => (c.subjectName || '').toString().trim()).map((c, index) => {
                     let credits = c.credits || c.Credits || c.credit || c.학점 || 0;
                     if (typeof credits === 'string') {
                         credits = parseFloat(credits.replace(/[^\d.]/g, '')) || 0;
