@@ -658,7 +658,9 @@
                 onclick="switchTab('rules')">선택 규칙</button><button
                 class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600" onclick="switchTab('share')">배포 및
                 공유</button><button class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600"
-                onclick="switchTab('dashboard')">학생 신청 현황</button></div>
+                onclick="switchTab('dashboard')">학생 신청 현황</button><button
+                class="tab-btn px-6 py-3 theme-text-muted hover:text-blue-600"
+                onclick="switchTab('bulk')">일괄 등록</button></div>
         <!-- 1. System Config -->
         <div id="tab-system" class="tab-content">
             <div class="theme-card p-6 rounded-lg shadow-md max-w-2xl">
@@ -779,6 +781,31 @@
                         복사하기</button>
                 </div>
                 <div id="share-error" class="hidden text-red-500">시스템 설정에서 API URL을 먼저 설정해주세요.</div>
+            </div>
+        </div>
+        <!-- 3.5 Bulk Enrollment -->
+        <div id="tab-bulk" class="tab-content hidden">
+            <div class="theme-card p-6 rounded-lg shadow-md max-w-4xl">
+                <h2 class="text-xl font-semibold mb-4 theme-text">일괄 수강신청 등록</h2>
+                <p class="text-sm mb-4 theme-text-muted">
+                    xlsx 파일을 통해 전체 학생의 과목 수강 신청 정보를 한 번에 등록할 수 있습니다.<br>
+                    샘플 양식을 다운로드한 뒤, 학번·이름·희망 진로와 과목별 수강 여부(0/1)를 입력하고 업로드하세요.
+                </p>
+                <div class="space-y-4">
+                    <div class="flex flex-wrap gap-4 items-center">
+                        <button type="button" id="bulk-download-template-btn"
+                            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">📥 샘플 양식 다운로드 (xlsx)</button>
+                        <span id="bulk-template-hint" class="text-sm theme-text-muted">서버에 등록된 선택과목 목록으로 양식이 생성됩니다.</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1 theme-text">수강신청 일괄 파일 선택</label>
+                        <input type="file" id="bulk-enrollment-file" accept=".xlsx,.xls"
+                            class="block w-full text-sm theme-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                    </div>
+                    <button type="button" id="bulk-upload-btn" disabled
+                        class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">일괄 등록 실행</button>
+                </div>
+                <div id="bulk-upload-status" class="mt-4 text-sm"></div>
             </div>
         </div>
         <!-- 4. Student Dashboard -->
@@ -950,6 +977,7 @@
             if (tabName === 'share') updateShareLink();
             if (tabName === 'dashboard') loadStudentData();
             if (tabName === 'rules') loadRulesAndClassification();
+            if (tabName === 'bulk') initBulkTab();
         }
 
         // 1. System Config
@@ -1549,6 +1577,138 @@
                 ;
         }
 
+        // 3.5 Bulk Enrollment
+        function initBulkTab() {
+            document.getElementById('bulk-enrollment-file').value = '';
+            document.getElementById('bulk-upload-btn').disabled = true;
+            document.getElementById('bulk-upload-status').textContent = '';
+            document.getElementById('bulk-download-template-btn').onclick = downloadBulkEnrollmentTemplate;
+            document.getElementById('bulk-enrollment-file').onchange = function () {
+                document.getElementById('bulk-upload-btn').disabled = !this.files || !this.files[0];
+            };
+            document.getElementById('bulk-upload-btn').onclick = runBulkEnrollmentUpload;
+        }
+
+        async function downloadBulkEnrollmentTemplate() {
+            if (!DB.isConfigured()) {
+                alert('시스템 설정에서 API URL을 먼저 저장해주세요.');
+                return;
+            }
+            try {
+                const courses = await DB.fetchConfig() || [];
+                const optionalOnly = courses.filter(c => {
+                    const name = (c.subjectName || c.과목명 || '').toString().trim();
+                    if (!name) return false;
+                    const req = c.required !== undefined && c.required !== null
+                        ? (String(c.required).toUpperCase() === 'TRUE' || c.required === true || c.required === 1) : false;
+                    return !req;
+                });
+                optionalOnly.sort((a, b) => {
+                    const g1 = parseInt(a.grade || a.학년 || 0, 10);
+                    const g2 = parseInt(b.grade || b.학년 || 0, 10);
+                    if (g1 !== g2) return g1 - g2;
+                    const s1 = parseInt(a.semester || a.학기 || 0, 10);
+                    const s2 = parseInt(b.semester || b.학기 || 0, 10);
+                    return s1 - s2;
+                });
+                ExcelHandler.downloadBulkEnrollmentTemplate(optionalOnly);
+            } catch (e) {
+                alert('양식 다운로드 실패: ' + e.message);
+            }
+        }
+
+        async function runBulkEnrollmentUpload() {
+            const fileInput = document.getElementById('bulk-enrollment-file');
+            const file = fileInput && fileInput.files[0];
+            if (!file) return alert('파일을 선택해주세요.');
+            if (!DB.isConfigured()) return alert('API URL을 먼저 설정해주세요.');
+
+            const statusEl = document.getElementById('bulk-upload-status');
+            statusEl.textContent = '파일 읽는 중...';
+            statusEl.className = 'mt-4 text-sm text-blue-600';
+
+            try {
+                const rows = await ExcelHandler.readExcelRaw(file);
+                if (!rows || rows.length < 2) {
+                    throw new Error('파일에는 최소 1행 헤더와 1행 이상의 데이터가 필요합니다.');
+                }
+                const headerRow = rows[0];
+                const colA = 0, colB = 1, colC = 2;
+                const subjectNames = [];
+                for (let c = 3; c < headerRow.length; c++) {
+                    const v = headerRow[c];
+                    if (v != null && String(v).trim() !== '') subjectNames.push(String(v).trim());
+                }
+                if (subjectNames.length === 0) {
+                    throw new Error('D열부터 과목명이 있어야 합니다. 샘플 양식을 사용해주세요.');
+                }
+
+                let courses = allCourseData && allCourseData.length > 0 ? allCourseData : await DB.fetchConfig() || [];
+                const nameToId = {};
+                courses.forEach(co => {
+                    const name = (co.subjectName || co.과목명 || '').toString().trim();
+                    if (name) nameToId[name] = co.id || co.slug || name;
+                });
+
+                const toSubmit = [];
+                for (let r = 1; r < rows.length; r++) {
+                    const row = rows[r];
+                    const sid = row[colA] != null ? String(row[colA]).trim() : '';
+                    const name = row[colB] != null ? String(row[colB]).trim() : '';
+                    const major = row[colC] != null ? String(row[colC]).trim() : '';
+                    if (!sid || sid.length !== 5) continue;
+                    const grade = parseInt(sid[0], 10);
+                    const classNum = sid.substring(1, 3);
+                    const num = sid.substring(3, 5);
+                    const selectedIds = [];
+                    for (let c = 0; c < subjectNames.length; c++) {
+                        const cell = row[3 + c];
+                        const v = cell != null ? String(cell).trim() : '0';
+                        if (v === '1' || v === 1) {
+                            const subName = subjectNames[c];
+                            const id = nameToId[subName] || subName;
+                            selectedIds.push(id);
+                        }
+                    }
+                    toSubmit.push({
+                        Grade: grade,
+                        Class: classNum,
+                        Number: num,
+                        Name: name,
+                        Major: major,
+                        SelectedCourses: selectedIds.join(', '),
+                        JointCourses: '',
+                        TotalCredits: '',
+                        ValidationResult: '',
+                        AiRecommendation: ''
+                    });
+                }
+                if (toSubmit.length === 0) {
+                    statusEl.textContent = '등록할 유효한 학생 데이터가 없습니다. 학번은 5자리여야 합니다.';
+                    statusEl.className = 'mt-4 text-sm text-amber-600';
+                    return;
+                }
+
+                statusEl.textContent = `총 ${toSubmit.length}명 제출 중...`;
+                let ok = 0, fail = 0;
+                for (const data of toSubmit) {
+                    try {
+                        await DB.submitResponse(data);
+                        ok++;
+                    } catch (err) {
+                        fail++;
+                        console.warn('Submit failed for', data.Number, data.Name, err);
+                    }
+                }
+                statusEl.textContent = `완료: 성공 ${ok}명, 실패 ${fail}명 (총 ${toSubmit.length}명)`;
+                statusEl.className = fail > 0 ? 'mt-4 text-sm text-amber-600' : 'mt-4 text-sm text-green-600';
+                loadStudentData();
+            } catch (e) {
+                statusEl.textContent = '오류: ' + e.message;
+                statusEl.className = 'mt-4 text-sm text-red-600';
+            }
+        }
+
         // 4. Dashboard
         function updateDashboardCounts() {
             // Count total submissions
@@ -1731,8 +1891,15 @@
 
             // 1. Prepare All Courses Columns (Sorted 2-1 ~ 3-2)
             // Filter: Grade 2 or 3, and NOT required (electives only)
+            // Note: This assumes elective courses are only offered in grades 2-3
+            // If your DB has electives in other grades, modify this filter accordingly
             const allCourses = allCourseData.filter(c => {
+                // Check if course has required fields
+                if (!c.subjectName) return false; // subjectName is required
+                
                 const isReq = (c.required === true || String(c.required).toLowerCase() === 'true');
+                // Filter: Only non-required courses in grades 2-3
+                // This matches the typical curriculum structure where electives start from grade 2
                 return (c.grade == 2 || c.grade == 3) && !isReq;
             });
 
@@ -4046,10 +4213,16 @@
             const [filterGradeForTable, filterSemesterForTable] = filterValueForTable !== 'all' ? filterValueForTable.split('-') : [null, null];
             
             let displayList = allCourseData.filter(c => {
-                // 학교과목 제외
+                // 필수 필드 확인
+                if (!c.subjectName) return false; // subjectName is required
+                
+                // 학교과목 제외 (required courses are excluded from elective statistics)
                 if (c.required === true || String(c.required).toLowerCase() === 'true') return false;
-                // 1학년 제외
+                
+                // 1학년 제외 (elective courses typically start from grade 2)
+                // Note: If your DB has electives in grade 1, remove this line
                 if (c.grade == 1) return false;
+                
                 // 필터 적용 (학년-학기)
                 if (filterValueForTable !== 'all') {
                     if (String(c.grade) !== filterGradeForTable || String(c.semester) !== filterSemesterForTable) return false;
@@ -4141,7 +4314,8 @@
                         // 필터 적용
                         if (filterValue === 'all' || 
                             (String(course.grade) === filterGrade && String(course.semester) === filterSemester)) {
-                            // 1학년 제외
+                            // 1학년 제외 (elective courses typically start from grade 2)
+                            // Note: If your DB has electives in grade 1, remove this condition
                             if (course.grade != 1) {
                                 tableSubjects.push({
                                     grade: course.grade,
@@ -4764,6 +4938,8 @@
                         String(course.semester) === String(window.gradeDashboardSemesterFilter);
                     
                     // 1학년 과목 제외 (학급별 통계와 동일)
+                    // Note: This assumes elective courses are only in grades 2-3
+                    // If your DB has electives in grade 1, set this to true or remove the check
                     const isNotFirstGrade = course.grade != 1;
                     
                     console.log('[Grade Subject Stats] Course check:', {
