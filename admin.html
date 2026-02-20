@@ -230,7 +230,7 @@
             page-break-inside: avoid !important;
         }
         
-        /* Header - more compact and always visible */
+        /* Header - more compact, 테두리 숨김 (학번/이름 섹션) */
         #student-report-card > div:first-child {
             display: block !important;
             visibility: visible !important;
@@ -239,6 +239,15 @@
             padding-bottom: 1.5mm !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
+            border: none !important;
+            border-bottom: none !important;
+        }
+
+        /* 학번 테두리 숨김 */
+        #student-report-card > div:first-child span.bg-gray-200,
+        #student-report-card > div:first-child span[class*="bg-gray"] {
+            border: none !important;
+            box-shadow: none !important;
         }
 
         /* Ensure header content is visible */
@@ -266,10 +275,21 @@
             font-size: 14pt !important;
         }
         
-        /* Grid layout - more compact for print */
+        /* Grid layout - 섹션별 정렬, 깔끔하게 */
         #student-report-card .grid {
             gap: 1mm !important;
             margin-bottom: 1mm !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            align-items: start !important;
+        }
+
+        #student-report-card .grid.grid-cols-1.lg\:grid-cols-2 {
+            grid-template-columns: repeat(2, 1fr) !important;
+        }
+
+        #student-report-card .grid.grid-cols-1.lg\:grid-cols-3 {
+            grid-template-columns: 2fr 1fr !important;
         }
         
         /* Cards - more compact for print */
@@ -311,6 +331,11 @@
         #student-report-card .h-48 {
             height: 100% !important;
             min-height: 120px !important;
+        }
+
+        /* 교과별 선택학점 차트 - 출력 시 축소 */
+        #student-report-card #subcategory-chart-wrap {
+            min-height: 80px !important;
         }
         
         /* Tables - optimized */
@@ -717,6 +742,20 @@
                             class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 w-full">학적
                             데이터 업로드 및 저장</button></div>
                     <div id="registry-upload-status" class="mt-4 text-sm"></div>
+                </div>
+                <!-- 공동교육과정 개설 과목 업로드 -->
+                <div class="theme-card p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 theme-text">공동교육과정 개설 과목 엑셀 업로드</h2>
+                    <p class="text-sm mb-4 theme-text-muted">공동교육과정 개설 과목을 엑셀로 업로드하세요. JointCurriculum 시트에 저장됩니다.</p>
+                    <div class="space-y-4">
+                        <button onclick="ExcelHandler.downloadJointCurriculumTemplate()" class="text-blue-600 hover:underline text-sm flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            공동교육과정 템플릿 양식 다운로드
+                        </button>
+                        <input type="file" id="joint-curriculum-excel-file" accept=".xlsx, .xls" class="block w-full text-sm theme-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                        <button id="upload-joint-curriculum-btn" class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 w-full">공동교육과정 데이터 업로드 및 저장</button>
+                    </div>
+                    <div id="joint-curriculum-upload-status" class="mt-4 text-sm"></div>
                 </div>
                 <div class="theme-card p-6 rounded-lg shadow-md md:col-span-2">
                     <h2 class="text-xl font-semibold mb-4 theme-text">현재 등록된 과목</h2>
@@ -1185,6 +1224,39 @@
             }
         });
 
+        // 공동교육과정 업로드
+        document.getElementById('upload-joint-curriculum-btn').addEventListener('click', async () => {
+            const fileInput = document.getElementById('joint-curriculum-excel-file');
+            const file = fileInput.files[0];
+            if (!file) return alert('파일을 선택해주세요.');
+            if (!DB.isConfigured()) return alert('API URL을 먼저 설정해주세요.');
+
+            const statusEl = document.getElementById('joint-curriculum-upload-status');
+            statusEl.textContent = '업로드 중...';
+            statusEl.className = 'mt-4 text-sm text-blue-600';
+
+            try {
+                const jsonData = await ExcelHandler.readExcel(file);
+                if (jsonData.length === 0) throw new Error('데이터가 비어있습니다.');
+                const targetKeys = ['분류','거점학교','과목명','slug','세부교과','교과편제','학년','학기','학점','운영일시','선이수과목'];
+                const altMap = { subjectName:'과목명', subCategory:'세부교과', grade:'학년', semester:'학기', credits:'학점', prerequisites:'선이수과목' };
+                const mapped = jsonData.map(row => {
+                    const out = {};
+                    targetKeys.forEach(k => {
+                        out[k] = row[k] ?? row[altMap[k]] ?? '';
+                    });
+                    return out;
+                });
+                const result = await DB.saveJointCurriculum(mapped);
+                if (result && result.status === 'success') {
+                    statusEl.textContent = '공동교육과정 업로드 성공! (' + mapped.length + '건)';
+                    statusEl.className = 'mt-4 text-sm text-green-600';
+                } else throw new Error(result?.message || '업로드 실패');
+            } catch (e) {
+                statusEl.textContent = '업로드 실패: ' + e.message;
+                statusEl.className = 'mt-4 text-sm text-red-600';
+            }
+        });
 
         // 2.5 Selection Rules (Advanced)
         let currentRules = {
@@ -2610,12 +2682,14 @@
                 const uniqueKey = `${displayName}-${displaySem}`;
                 if (!addedCourses.has(uniqueKey)) {
                     addedCourses.add(uniqueKey);
+                    const subCat = meta ? (meta.subCategory || meta.세부교과 || '') : '';
                     courseList.push({
                         name: displayName,
                         semester: displaySem,
                         grade: displayGrade,
                         credit: displayCredit,
                             category: displayCat,
+                            subCategory: subCat || '기타',
                             required: isRequired
                     });
                     }
@@ -2625,6 +2699,53 @@
             // Recalculate Total from Stats to ensure match
             // totalCredits is now sum of (Required Base + Selected + Joint)
             let totalCredits = Object.values(creditStats).reduce((a, b) => a + b, 0);
+
+            // 교과군별 선택학점 (subCategory 기반, Config 참조)
+            const subCategoryCredits = {};
+            courseList.forEach(c => {
+                const subCat = (c.subCategory || '기타').trim() || '기타';
+                subCategoryCredits[subCat] = (subCategoryCredits[subCat] || 0) + (parseInt(c.credit) || 0);
+            });
+            const subCategoryEntries = Object.entries(subCategoryCredits).sort((a, b) => b[1] - a[1]);
+
+            // 학년 전체 교과별 추세 (같은 학년 학생들의 subCategory별 집계)
+            const gradeSubCategoryCredits = {};
+            const gradeSubCategoryCount = {};
+            const studentGrade = String(s.Grade || '');
+            const gradeStudents = (typeof allStudentData !== 'undefined' && Array.isArray(allStudentData)) ? allStudentData.filter(x => String(x.Grade) === studentGrade) : [];
+            gradeStudents.forEach(st => {
+                if (!st.SelectedCourses) return;
+                const seen = {};
+                st.SelectedCourses.split(',').forEach(cName => {
+                    const orig = cName.trim();
+                    if (!orig || orig.startsWith('joint-')) return;
+                    let meta = allCourseData.find(c => c.id === orig || c.slug === orig || c.subjectName === orig);
+                    if (!meta && orig.includes('-')) {
+                        const parts = orig.split('-');
+                        if (parts.length >= 4 && /^\d+$/.test(parts[parts.length-3]) && /^\d+$/.test(parts[parts.length-2])) {
+                            const g = parts[parts.length-3], sem = parts[parts.length-2];
+                            meta = allCourseData.find(c => String(c.grade)===g && String(c.semester)===sem && (c.subjectName===parts.slice(0,-3).join('-') || c.slug===parts[0]));
+                        }
+                    }
+                    if (meta) {
+                        const sc = (meta.subCategory || meta.세부교과 || '기타').trim() || '기타';
+                        const cred = parseInt(meta.credit || meta.credits || 0) || 0;
+                        gradeSubCategoryCredits[sc] = (gradeSubCategoryCredits[sc] || 0) + cred;
+                        if (!seen[sc]) { seen[sc] = true; gradeSubCategoryCount[sc] = (gradeSubCategoryCount[sc] || 0) + 1; }
+                    }
+                });
+            });
+            const gradeNum = gradeStudents.length;
+            const allSubCats = [...new Set([...Object.keys(subCategoryCredits), ...Object.keys(gradeSubCategoryCredits)])];
+            const gradeTrendData = allSubCats.map(sc => gradeNum ? Math.round(((gradeSubCategoryCredits[sc] || 0) / gradeNum) * 10) / 10 : 0);
+
+            let subCategoryTableRows = '';
+            for (let i = 0; i < subCategoryEntries.length; i += 2) {
+                const r1 = subCategoryEntries[i];
+                const r2 = subCategoryEntries[i + 1];
+                subCategoryTableRows += '<tr><td class="border p-1 print:p-0.5">' + (r1 ? r1[0] : '') + '</td><td class="border p-1 text-right print:p-0.5">' + (r1 ? r1[1] : '') + '</td><td class="border p-1 print:p-0.5">' + (r2 ? r2[0] : '') + '</td><td class="border p-1 text-right print:p-0.5">' + (r2 ? r2[1] : '') + '</td></tr>';
+            }
+            if (!subCategoryTableRows) subCategoryTableRows = '<tr><td class="border p-1" colspan="4">-</td></tr>';
 
             // Sort: Grade > Semester > Name
             courseList.sort((a, b) => {
@@ -2876,7 +2997,7 @@
             });
 
 
-            const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full print:p-0"><!-- Header - Always visible in print --><div class="flex flex-row justify-between items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-2 print:pb-2 print:flex-row print:items-center"><div class="flex-1 print:flex-1"><div class="flex items-center gap-3 print:gap-3 print:mb-1"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border print:bg-white print:text-black print:px-2 print:py-1 print:text-[9pt] print:font-bold">학번: ${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}</span><h3 class="text-2xl font-bold theme-text print:text-black print:text-[12pt] print:m-0 print:inline-block print:ml-2 print:font-bold">이름: ${s.Name
+            const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full print:p-0"><!-- Header - Always visible in print --><div class="flex flex-row justify-between items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-2 print:pb-2 print:flex-row print:items-center"><div class="flex-1 print:flex-1"><div class="flex items-center gap-3 print:gap-3 print:mb-1"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border-0 print:bg-transparent print:text-black print:px-0 print:py-0 print:text-[9pt] print:font-bold print:shadow-none">학번: ${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}</span><h3 class="text-2xl font-bold theme-text print:text-black print:text-[12pt] print:m-0 print:inline-block print:ml-2 print:font-bold">이름: ${s.Name
                 }
 
     </h3></div><p class="text-gray-500 mt-1 flex items-center gap-2 print:text-xs print:mt-1 print:text-[9pt] print:block print:mt-0.5"><span class="font-bold text-gray-400 print:text-black print:font-bold">진로희망사항: </span><span class="font-medium text-blue-600 text-lg print:text-black print:text-[9pt]">${s.Major || '-'
@@ -2885,7 +3006,7 @@
     </span></p></div><div class="flex flex-row gap-4 text-center bg-gray-50 dark:bg-gray-700 p-3 rounded-lg print:bg-white print:border print:text-black print:gap-3 print:p-2 print:flex-shrink-0"><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">선택 과목</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${courseList.length
                 }
 
-    </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${totalCredits}</div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1 print:mb-1 items-stretch"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📊 교과 영역별 이수 현황</h4><div class="flex-1 flex items-stretch justify-stretch min-h-[192px] print:h-[100px] print:min-h-[100px] print:max-h-[140px]"><div class="w-full h-full relative flex-1"><canvas id="individualCreditChart"></canvas></div></div></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
+    </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${totalCredits}</div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1 print:mb-1 items-stretch"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📊 교과 영역별 이수 현황</h4><div class="flex-1 flex items-stretch justify-stretch min-h-[192px] print:h-[100px] print:min-h-[100px] print:max-h-[140px]"><div class="w-full h-full relative flex-1"><canvas id="individualCreditChart"></canvas></div></div><div class="mt-2 min-h-[120px] print:min-h-[80px]" id="subcategory-chart-wrap"><canvas id="individualSubCategoryChart"></canvas></div><table class="w-full text-xs mt-2 print:text-[6pt] print:mt-1 border-collapse" id="subcategory-credits-table"><thead><tr><th class="border p-1 text-left print:p-0.5">교과군</th><th class="border p-1 text-right print:p-0.5">신청학점</th><th class="border p-1 text-left print:p-0.5">교과군</th><th class="border p-1 text-right print:p-0.5">신청학점</th></tr></thead><tbody>${subCategoryTableRows}</tbody></table></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
                 }
 
     </p></div><div class="flex-1 overflow-y-auto"><table class="w-full text-xs print:text-[7pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.75 print:text-[7pt]">항목</th><th class="text-right print:p-0.75 print:text-[7pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
@@ -2938,8 +3059,10 @@
 
             // Auto-fetch AI analysis if major is available
             if (s.Major) {
-                setTimeout(() => {
-                    fetchAiCareerAnalysis(s.Major, courseList.map(c => c.name).join(','));
+                setTimeout(async () => {
+                    let jointCurriculum = [];
+                    try { if (DB.fetchJointCurriculum) jointCurriculum = await DB.fetchJointCurriculum() || []; } catch (e) { console.warn('Joint curriculum fetch failed', e); }
+                    fetchAiCareerAnalysis(s.Major, courseList.map(c => c.name).join(','), jointCurriculum);
                 }, 500);
             }
 
@@ -3002,6 +3125,56 @@
                                         }
                                     }
                                 }
+                            }
+                        }
+                    });
+                }
+
+                // 교과별 선택학점 막대 + 학년 추세선 차트
+                const ctx2 = document.getElementById('individualSubCategoryChart');
+                if (ctx2 && allSubCats && allSubCats.length > 0) {
+                    const myCredits = allSubCats.map(sc => subCategoryCredits[sc] || 0);
+                    const countMap = typeof gradeSubCategoryCount !== 'undefined' ? gradeSubCategoryCount : {};
+                    new Chart(ctx2, {
+                        type: 'bar',
+                        data: {
+                            labels: allSubCats,
+                            datasets: [
+                                { label: '본인 신청학점', data: myCredits, backgroundColor: 'rgba(59, 130, 246, 0.7)', borderRadius: 4 },
+                                { label: '학년 평균', data: gradeTrendData, type: 'line', borderColor: '#F59E0B', backgroundColor: 'transparent', fill: false, pointRadius: 6, pointHoverRadius: 8 }
+                            ]
+                        },
+                        options: {
+                            indexAxis: 'x',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: true, position: 'top' },
+                                tooltip: {
+                                    callbacks: {
+                                        afterLabel: (ctx) => {
+                                            if (ctx.datasetIndex === 1) {
+                                                const idx = ctx.dataIndex;
+                                                const sc = allSubCats[idx];
+                                                const cnt = countMap[sc] || 0;
+                                                return '학년 해당 교과 선택: ' + cnt + '명';
+                                            }
+                                            return '';
+                                        }
+                                    }
+                                }
+                            },
+                            onClick: (evt, els) => {
+                                if (els && els[0] && els[0].datasetIndex === 1) {
+                                    const idx = els[0].index;
+                                    const sc = allSubCats[idx];
+                                    const cnt = countMap[sc] || 0;
+                                    alert(sc + ' 교과 선택 인원: ' + cnt + '명');
+                                }
+                            },
+                            scales: {
+                                x: { beginAtZero: true, grid: { display: false } },
+                                y: { beginAtZero: true, grid: { display: false } }
                             }
                         }
                     });
@@ -5296,7 +5469,7 @@
         }
 
         // AI Analysis Fetcher (Admin Mode)
-        async function fetchAiCareerAnalysis(major, userCourses) {
+        async function fetchAiCareerAnalysis(major, userCourses, jointCurriculum) {
             const container = document.getElementById('ai-analysis-container');
             if (!container) return;
 
@@ -5322,7 +5495,8 @@
                     body: JSON.stringify({
                         major: major,
                         availableCourses: availableCourses,
-                        mode: 'admin' // Enable JSON format
+                        jointCurriculum: jointCurriculum || [],
+                        mode: 'admin'
                     })
                 });
 
@@ -5352,10 +5526,25 @@
                 const subjects = data.subjects || [];
                 const keywords = data.keywords || [];
                 const activities = data.activities || [];
+                const balancedRecs = data.balancedRecommendations || [];
+                const advancedRecs = data.advancedRecommendations || [];
 
                 container.innerHTML = `
                     <div class="space-y-4">
-                        <!-- 1. Activities -->
+                        ${balancedRecs.length > 0 ? `
+                        <div>
+                            <span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">⚖️ 균형 잡힌 공동교육과정 추천 (각 3개)</span>
+                            <ul class="list-disc pl-4 text-gray-700 dark:text-gray-300 space-y-1 text-xs print:text-black leading-snug">
+                                ${balancedRecs.map(r => `<li><strong>${r.subject || r.과목명 || ''}</strong>: ${r.reason || ''}</li>`).join('')}
+                            </ul>
+                        </div>` : ''}
+                        ${advancedRecs.length > 0 ? `
+                        <div class="pt-2 border-t border-indigo-100">
+                            <span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">📈 심화 공동교육과정 추천 (진로/융합)</span>
+                            <ul class="list-disc pl-4 text-gray-700 dark:text-gray-300 space-y-1 text-xs print:text-black leading-snug">
+                                ${advancedRecs.map(r => `<li><strong>${r.subject || r.과목명 || ''}</strong>: ${r.reason || ''}</li>`).join('')}
+                            </ul>
+                        </div>` : ''}
                         <div>
                             <span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">🔍 추천 탐구 활동</span>
                              <ul class="list-disc pl-4 text-gray-700 dark:text-gray-300 space-y-1 text-xs print:text-black leading-snug">
@@ -5363,15 +5552,14 @@
                              </ul>
                         </div>
                         
-                        <!-- 2. Subjects -->
                         <div class="pt-2 border-t border-indigo-100">
                             <span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">📚 추천 과목 및 이유</span>
                             <ul class="list-disc pl-4 text-gray-700 dark:text-gray-300 space-y-1 text-xs print:text-black leading-snug">
                                 ${subjects.map(s => `<li>${s}</li>`).join('')}
-                            </ul>
+                             </ul>
                         </div>
 
-                        <!-- 3. Keywords -->
+                        <!-- Keywords -->
                         <div class="pt-2 border-t border-indigo-100">
                             <span class="block text-xs font-bold text-gray-500 mb-1 print:text-black">🔑 생기부 추천 키워드</span>
                             <div class="flex flex-wrap gap-1">
@@ -5391,7 +5579,7 @@
                     <div class="text-center py-4 text-red-500 text-sm">
                         <p class="font-bold">분석 중 오류가 발생했습니다.</p>
                         <p class="text-xs mt-1">${error.message}</p>
-                        <button onclick="fetchAiCareerAnalysis('${major}', '${userCourses}')" class="mt-2 text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">다시 시도</button>
+                        <button onclick="fetchAiCareerAnalysis('${(major||'').replace(/'/g,"\\'")}', '', [])" class="mt-2 text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">다시 시도</button>
                     </div>
                 `;
             }
