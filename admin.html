@@ -2728,11 +2728,24 @@
                     const orig = cName.trim();
                     if (!orig || orig.startsWith('joint-')) return;
                     let meta = allCourseData.find(c => c.id === orig || c.slug === orig || c.subjectName === orig);
+                    // 3부·4부 형식 파싱 (개인 리포트와 동일) - "공통국어1-1-1" 등 국어 과목 누락 방지
                     if (!meta && orig.includes('-')) {
                         const parts = orig.split('-');
-                        if (parts.length >= 4 && /^\d+$/.test(parts[parts.length-3]) && /^\d+$/.test(parts[parts.length-2])) {
-                            const g = parts[parts.length-3], sem = parts[parts.length-2];
-                            meta = allCourseData.find(c => String(c.grade)===g && String(c.semester)===sem && (c.subjectName===parts.slice(0,-3).join('-') || c.slug===parts[0]));
+                        let namePart = '', g = '', sem = '';
+                        if (parts.length >= 4 && /^\d+$/.test(parts[parts.length-3]) && /^\d+$/.test(parts[parts.length-2]) && /^\d+$/.test(parts[parts.length-1])) {
+                            g = parts[parts.length-3];
+                            sem = parts[parts.length-2];
+                            namePart = parts.slice(0, -3).join('-');
+                        } else if (parts.length >= 3 && /^\d+$/.test(parts[parts.length-2]) && /^\d+$/.test(parts[parts.length-1])) {
+                            g = parts[parts.length-2];
+                            sem = parts[parts.length-1];
+                            namePart = parts.length === 3 ? parts[0] : parts.slice(0, -2).join('-');
+                        }
+                        if (namePart && g && sem) {
+                            meta = allCourseData.find(c =>
+                                String(c.grade ?? c.학년 ?? '') === g && String(c.semester ?? c.학기 ?? '') === sem &&
+                                (c.subjectName === namePart || (c.subjectName && c.subjectName.replace(/\s+/g, '-') === namePart) || (c.slug && c.slug === namePart))
+                            );
                         }
                     }
                     if (meta) {
