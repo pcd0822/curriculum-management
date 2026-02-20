@@ -757,12 +757,17 @@
                     </div>
                     <div id="joint-curriculum-upload-status" class="mt-4 text-sm"></div>
                 </div>
-                <div class="theme-card p-6 rounded-lg shadow-md md:col-span-2">
+                <div class="theme-card p-6 rounded-lg shadow-md">
                     <h2 class="text-xl font-semibold mb-4 theme-text">현재 등록된 과목</h2>
-                    <div id="current-course-count" class="text-3xl font-bold mb-2 theme-text">-
-                    </div>
-                    <p class="text-sm theme-text-muted">개의 과목이 등록되어 있습니다.</p><button id="refresh-course-btn"
-                        class="mt-4 text-sm text-blue-600 hover:underline">새로고침</button>
+                    <div id="current-course-count" class="text-3xl font-bold mb-2 theme-text">-</div>
+                    <p class="text-sm theme-text-muted">개의 과목이 등록되어 있습니다.</p>
+                    <button id="refresh-course-btn" class="mt-4 text-sm text-blue-600 hover:underline">새로고침</button>
+                </div>
+                <div class="theme-card p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 theme-text">등록된 공동교육과정</h2>
+                    <div id="current-joint-curriculum-count" class="text-3xl font-bold mb-2 theme-text">-</div>
+                    <p class="text-sm theme-text-muted">개의 공동교육과정이 등록되어 있습니다.</p>
+                    <button class="mt-4 text-sm text-blue-600 hover:underline" onclick="loadCourseCount()">새로고침</button>
                 </div>
             </div>
         </div>
@@ -1069,12 +1074,15 @@
             if (!DB.isConfigured()) return;
 
             try {
-                const courses = await DB.fetchConfig();
-                allCourseData = courses || []; // Save globally
+                const [courses, jointCurriculum] = await Promise.all([
+                    DB.fetchConfig(),
+                    DB.fetchJointCurriculum ? DB.fetchJointCurriculum().catch(() => []) : []
+                ]);
+                allCourseData = courses || [];
                 document.getElementById('current-course-count').textContent = courses ? courses.length : 0;
-            }
-
-            catch (e) {
+                const jointEl = document.getElementById('current-joint-curriculum-count');
+                if (jointEl) jointEl.textContent = Array.isArray(jointCurriculum) ? jointCurriculum.length : 0;
+            } catch (e) {
                 console.error('Failed to load course count', e);
             }
         }
@@ -3006,7 +3014,7 @@
     </span></p></div><div class="flex flex-row gap-4 text-center bg-gray-50 dark:bg-gray-700 p-3 rounded-lg print:bg-white print:border print:text-black print:gap-3 print:p-2 print:flex-shrink-0"><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">선택 과목</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${courseList.length
                 }
 
-    </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${totalCredits}</div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1 print:mb-1 items-stretch"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📊 교과 영역별 이수 현황</h4><div class="flex-1 flex items-stretch justify-stretch min-h-[192px] print:h-[100px] print:min-h-[100px] print:max-h-[140px]"><div class="w-full h-full relative flex-1"><canvas id="individualCreditChart"></canvas></div></div><div class="mt-2 min-h-[120px] print:min-h-[80px]" id="subcategory-chart-wrap"><canvas id="individualSubCategoryChart"></canvas></div><table class="w-full text-xs mt-2 print:text-[6pt] print:mt-1 border-collapse" id="subcategory-credits-table"><thead><tr><th class="border p-1 text-left print:p-0.5">교과군</th><th class="border p-1 text-right print:p-0.5">신청학점</th><th class="border p-1 text-left print:p-0.5">교과군</th><th class="border p-1 text-right print:p-0.5">신청학점</th></tr></thead><tbody>${subCategoryTableRows}</tbody></table></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
+    </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${totalCredits}</div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1 print:mb-1 items-stretch"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📊 교과 영역별 이수 현황</h4><div class="flex-1 flex items-stretch justify-stretch min-h-[192px] print:h-[100px] print:min-h-[100px] print:max-h-[140px]"><div class="w-full h-full relative flex-1"><canvas id="individualCreditChart"></canvas></div></div><div class="mt-2 min-h-[260px] print:min-h-[100px]" id="subcategory-chart-wrap" style="height: 260px;"><canvas id="individualSubCategoryChart"></canvas></div><table class="w-full text-xs mt-2 print:text-[6pt] print:mt-1 border-collapse" id="subcategory-credits-table"><thead><tr><th class="border p-1 text-left print:p-0.5">교과군</th><th class="border p-1 text-right print:p-0.5">신청학점</th><th class="border p-1 text-left print:p-0.5">교과군</th><th class="border p-1 text-right print:p-0.5">신청학점</th></tr></thead><tbody>${subCategoryTableRows}</tbody></table></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
                 }
 
     </p></div><div class="flex-1 overflow-y-auto"><table class="w-full text-xs print:text-[7pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.75 print:text-[7pt]">항목</th><th class="text-right print:p-0.75 print:text-[7pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
@@ -3103,27 +3111,18 @@
                             scales: {
                                 x: {
                                     beginAtZero: true,
-                                    grid: {
-                                        display: false
-                                    },
+                                    grid: { display: false },
                                     ticks: {
-                                        font: {
-                                            size: window.matchMedia('print').matches ? 7 : 11
-                                        },
-                                        maxRotation: 0,
-                                        minRotation: 0
+                                        autoSkip: false,
+                                        maxRotation: 45,
+                                        minRotation: 0,
+                                        font: { size: window.matchMedia('print').matches ? 7 : 10 }
                                     }
                                 },
                                 y: {
                                     beginAtZero: true,
-                                    grid: {
-                                        display: false
-                                    },
-                                    ticks: {
-                                        font: {
-                                            size: window.matchMedia('print').matches ? 7 : 11
-                                        }
-                                    }
+                                    grid: { display: false },
+                                    ticks: { font: { size: window.matchMedia('print').matches ? 7 : 11 } }
                                 }
                             }
                         }
@@ -3174,7 +3173,15 @@
                             },
                             scales: {
                                 x: { beginAtZero: true, grid: { display: false } },
-                                y: { beginAtZero: true, grid: { display: false } }
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { display: true },
+                                    ticks: { stepSize: 10 },
+                                    suggestedMax: (function() {
+                                        const maxVal = Math.max(...myCredits, ...(gradeTrendData || []), 10);
+                                        return Math.ceil(maxVal / 10) * 10;
+                                    })()
+                                }
                             }
                         }
                     });
