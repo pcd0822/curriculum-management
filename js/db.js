@@ -199,6 +199,30 @@ const DB = {
         const response = await fetch(`${DB.apiUrl}?action=getRegistry`);
         if (!response.ok) throw new Error("Failed to fetch registry");
         return await response.json();
+    },
+
+    /**
+     * Fetches 공동교육과정 개설 과목 from JointCurriculum sheet.
+     */
+    fetchJointCurriculum: async () => {
+        if (!DB.apiUrl) throw new Error("API URL not configured");
+        const response = await fetch(`${DB.apiUrl}?action=getJointCurriculum`);
+        if (!response.ok) throw new Error("Failed to fetch joint curriculum");
+        return await response.json();
+    },
+
+    /**
+     * Saves 공동교육과정 개설 과목 to JointCurriculum sheet.
+     */
+    saveJointCurriculum: async (data) => {
+        if (!DB.apiUrl) throw new Error("API URL not configured");
+        const response = await fetch(DB.apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'saveJointCurriculum', data })
+        });
+        if (!response.ok) throw new Error("Failed to save joint curriculum");
+        return await response.json();
     }
 };
 
