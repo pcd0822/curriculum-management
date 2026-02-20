@@ -164,8 +164,8 @@
 
     @media print {
         @page {
-            size: auto;
-            margin: 5mm;
+            size: A4 landscape;
+            margin: 8mm;
         }
 
         body {
@@ -178,6 +178,11 @@
 
         /* Hide everything except the modal and batch print container */
         body>*:not(#class-lookup-modal):not(#batch-print-container) {
+            display: none !important;
+        }
+        
+        /* 출력 옵션 모달 숨김 */
+        #print-options-modal {
             display: none !important;
         }
 
@@ -216,9 +221,20 @@
             width: 100% !important;
             padding: 0 !important;
             margin: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            overflow-y: visible !important;
+        }
+        
+        /* class-stats-content: 스크롤 제거, 전체 내용 노출 */
+        #class-stats-content {
+            overflow: visible !important;
+            overflow-y: visible !important;
+            max-height: none !important;
+            min-height: auto !important;
         }
 
-        /* Report Card Optimization - Fit on one page with good readability, any paper size */
+        /* Report Card Optimization - 가로 출력 시 전체 노출 */
         #student-report-card {
             border: none !important;
             box-shadow: none !important;
@@ -227,7 +243,6 @@
             font-size: 9pt !important;
             width: 100% !important;
             max-width: 100% !important;
-            page-break-inside: avoid !important;
         }
         
         /* Header - more compact, 테두리 숨김 (학번/이름 섹션) */
@@ -541,11 +556,12 @@
             color: black !important;
         }
         
-        /* Force single page */
+        /* 전체 대시보드 출력: 높이 제한 제거, 여러 페이지로 흐름 허용 */
         #student-report-card {
             height: auto !important;
             min-height: auto !important;
-            max-height: 100vh !important;
+            max-height: none !important;
+            page-break-inside: auto !important;
         }
         
         /* Optimize grid for print - more compact */
@@ -3112,7 +3128,7 @@
                             datasets: [{
                                 label: '이수 학점',
                                 data: Object.values(creditStats),
-                                backgroundColor: ['#60A5FA', '#34D399', '#3B82F6', '#F472B6', '#A78BFA'],
+                                backgroundColor: ['rgba(173, 216, 230, 0.85)', 'rgba(152, 251, 152, 0.85)', 'rgba(221, 160, 221, 0.85)', 'rgba(255, 182, 193, 0.85)', 'rgba(255, 218, 185, 0.85)'],
                                 borderRadius: 4
                             }]
                         },
@@ -3154,8 +3170,8 @@
                     });
                 }
 
-                // 교과별 선택학점 막대 + 학년 추세선 차트 (교과 영역별 차트와 동일 팔레트 사용)
-                const subCategoryPalette = ['#60A5FA', '#34D399', '#3B82F6', '#F472B6', '#A78BFA', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F97316'];
+                // 교과별 선택학점 막대 + 학년 추세선 차트 (파스텔톤, 추세선이 막대 위에 표시)
+                const subCategoryPalette = ['rgba(173, 216, 230, 0.85)', 'rgba(152, 251, 152, 0.85)', 'rgba(221, 160, 221, 0.85)', 'rgba(255, 182, 193, 0.85)', 'rgba(255, 218, 185, 0.85)', 'rgba(255, 228, 196, 0.85)', 'rgba(176, 224, 230, 0.85)', 'rgba(255, 192, 203, 0.85)', 'rgba(230, 230, 250, 0.85)', 'rgba(255, 250, 205, 0.85)'];
                 const ctx2 = document.getElementById('individualSubCategoryChart');
                 if (ctx2 && allSubCats && allSubCats.length > 0) {
                     const myCredits = allSubCats.map(sc => subCategoryCredits[sc] || 0);
@@ -3166,8 +3182,8 @@
                         data: {
                             labels: allSubCats,
                             datasets: [
-                                { label: '본인 신청학점', data: myCredits, backgroundColor: barColors, borderRadius: 4 },
-                                { label: '학년 평균', data: gradeTrendData, type: 'line', borderColor: '#F59E0B', backgroundColor: 'transparent', fill: false, pointRadius: 6, pointHoverRadius: 8 }
+                                { label: '본인 신청학점', data: myCredits, backgroundColor: barColors, borderRadius: 4, order: 0 },
+                                { label: '학년 평균', data: gradeTrendData, type: 'line', borderColor: 'rgba(245, 158, 11, 0.9)', borderWidth: 2, backgroundColor: 'transparent', fill: false, pointRadius: 6, pointHoverRadius: 8, order: 1 }
                             ]
                         },
                         options: {
@@ -3650,7 +3666,8 @@
                 printModal.innerHTML = `
                     <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-2xl">
                         <h3 class="text-xl font-bold theme-text mb-4">출력 옵션 선택</h3>
-                        <p class="text-sm theme-text-muted mb-6">출력할 내용을 선택하세요.</p>
+                        <p class="text-sm theme-text-muted mb-2">출력할 내용을 선택하세요.</p>
+                        <p class="text-xs text-gray-500 mb-6">(인쇄 대화상자에서 대상: <strong>PDF로 저장</strong> 선택 시 파일로 저장됩니다. 가로 방향 출력)</p>
                         <div class="flex flex-col gap-3">
                             <button onclick="printIndividualReport()" class="w-full px-6 py-3 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center justify-center gap-2">
                                 <span>📄</span> 개인 통계자료 출력
@@ -3677,9 +3694,13 @@
             }
         };
 
-        // Print individual report
+        // Print individual report (PDF 저장 시 브라우저에서 '대상: PDF로 저장' 선택)
         window.printIndividualReport = () => {
             closePrintOptions();
+            const content = document.getElementById('class-stats-content');
+            if (content) content.scrollTop = 0;
+            const modalInner = document.querySelector('#class-lookup-modal > div');
+            if (modalInner) modalInner.scrollTop = 0;
             window.print();
         };
 
