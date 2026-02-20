@@ -111,6 +111,28 @@ const ExcelHandler = {
      * Row 2+: sample student rows with 0/1 for each column.
      * @param {Array} optionalCourses - List of course objects (subjectName, grade, semester, id/slug).
      */
+    /**
+     * 공동교육과정 개설 과목 템플릿 다운로드
+     */
+    downloadJointCurriculumTemplate: () => {
+        const templateData = [
+            {
+                '분류': '예시',
+                '거점학교': 'OO고',
+                '과목명': '예시: 심화수학',
+                'slug': 'simhwasuhak',
+                '세부교과': '수학',
+                '교과편제': '진로',
+                '학년': 2,
+                '학기': 1,
+                '학점': 4,
+                '운영일시': '화요일 7교시',
+                '선이수과목': '수학I, 수학II'
+            }
+        ];
+        ExcelHandler.downloadExcel(templateData, '공동교육과정_개설과목_양식.xlsx', '공동교육과정');
+    },
+
     downloadBulkEnrollmentTemplate: (optionalCourses) => {
         const list = (optionalCourses || []).filter(c => (c.subjectName || c.과목명 || '').toString().trim());
         const headers = list.map(c => {
