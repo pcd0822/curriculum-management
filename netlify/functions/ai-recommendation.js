@@ -27,46 +27,42 @@ exports.handler = async function (event, context) {
         let responseFormat = undefined;
 
         if (mode === 'admin') {
-            // Admin Mode: Strict JSON for structured display with enhanced prompt for consistency
+            const jointCurriculum = body.jointCurriculum || [];
+            const jointStr = jointCurriculum.length > 0 
+                ? JSON.stringify(jointCurriculum.map(c => ({
+                    과목명: c.과목명 || c.subjectName,
+                    세부교과: c.세부교과 || c.subCategory,
+                    교과편제: c.교과편제
+                })))
+                : '[]';
+
             prompt = `You are a professional High School Career Consultant with expertise in Korean education system.
 
 Target Major/Career Path: "${major}"
+Student's Selected Courses: ${availableCourses}
+공동교육과정 개설 과목: ${jointStr}
 
-TASK: Analyze the provided course list and provide consistent, objective recommendations.
+TASK: Provide recommendations including 공동교육과정 (joint curriculum) if available.
 
 REQUIREMENTS:
-1. Recommended Subjects: Provide exactly 5-7 subjects that are MOST relevant to the target major.
-   - Format: "Subject Name: Brief reason (one sentence)"
-   - Prioritize subjects that directly relate to the major's core competencies
-   - Be specific and objective in your reasoning
-   - Use the exact subject names from the provided course list when possible
+1. balancedRecommendations: If 공동교육과정 목록 has items, recommend exactly 3 courses that would BALANCE the student's selection considering career and subject trend. Format: [{ "subject": "과목명", "reason": "추천 사유" }]
+2. advancedRecommendations: If 공동교육과정 has 진로/융합 교과편제 items, recommend exactly 3 ADVANCED (심화) courses. Format: [{ "subject": "과목명", "reason": "추천 사유" }]
+3. Recommended Subjects: Provide exactly 5-7 subjects (from regular curriculum) most relevant to the major. Format: "Subject Name: Brief reason"
+4. Keywords: Exactly 5 keywords for student record
+5. Activities: Exactly 3 exploration activities
 
-2. Student Record Keywords: Provide exactly 5 keywords that are essential for this major.
-   - These should be specific terms related to the major field
-   - Use Korean terms when appropriate
-   - Focus on academic and professional competencies
+If 공동교육과정 is empty, set balancedRecommendations and advancedRecommendations to empty arrays [].
 
-3. Exploration Activities: Provide exactly 3 research or exploration activities.
-   - These should be concrete, actionable activities
-   - Related to the target major
-   - Suitable for high school students
-
-IMPORTANT CONSIDERATIONS:
-- Be consistent: For the same major and course list, provide the same recommendations
-- Be objective: Base recommendations on factual relevance, not personal opinions
-- Be specific: Avoid generic recommendations
-- Use exact course names from the provided list when matching
-
-Available Courses: ${availableCourses}
-
-Output ONLY valid JSON in this exact format (no additional text, no markdown):
+Output ONLY valid JSON:
 {
-  "subjects": ["Subject Name: Reason...", "Subject Name: Reason..."],
-  "keywords": ["Keyword1", "Keyword2", "Keyword3", "Keyword4", "Keyword5"],
+  "balancedRecommendations": [{"subject":"과목명","reason":"사유"}],
+  "advancedRecommendations": [{"subject":"과목명","reason":"사유"}],
+  "subjects": ["Subject Name: Reason..."],
+  "keywords": ["Keyword1", "Keyword2", ...],
   "activities": ["Activity 1", "Activity 2", "Activity 3"]
 }
 
-Language: Korean for all text content.`;
+Language: Korean.`;
             responseFormat = { type: "json_object" };
         } else {
             // Default (Student Page): Plain Text
