@@ -165,13 +165,13 @@
     @media print {
         @page {
             size: A4 landscape;
-            margin: 8mm;
+            margin: 5mm;
         }
 
         body {
             padding: 0;
             background: white;
-            font-size: 7pt;
+            font-size: 6pt;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
@@ -234,24 +234,26 @@
             min-height: auto !important;
         }
 
-        /* Report Card Optimization - 가로 출력 시 전체 노출 */
+        /* Report Card Optimization - 한 페이지에 전체 수납 */
         #student-report-card {
             border: none !important;
             box-shadow: none !important;
-            padding: 2mm !important;
+            padding: 1mm !important;
             margin: 0 !important;
-            font-size: 9pt !important;
+            font-size: 6pt !important;
             width: 100% !important;
             max-width: 100% !important;
+            max-height: 198mm !important;
+            page-break-inside: avoid !important;
         }
         
-        /* Header - more compact, 테두리 숨김 (학번/이름 섹션) */
+        /* Header - 초압축 */
         #student-report-card > div:first-child {
             display: block !important;
             visibility: visible !important;
             opacity: 1 !important;
-            margin-bottom: 1.5mm !important;
-            padding-bottom: 1.5mm !important;
+            margin-bottom: 0.5mm !important;
+            padding-bottom: 0.5mm !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
             border: none !important;
@@ -281,19 +283,19 @@
         }
         
         #student-report-card h3 {
-            font-size: 12pt !important;
+            font-size: 9pt !important;
             margin: 0 !important;
-            line-height: 1.2 !important;
+            line-height: 1.1 !important;
         }
         
         #student-report-card .text-2xl {
-            font-size: 14pt !important;
+            font-size: 10pt !important;
         }
         
-        /* Grid layout - 섹션별 정렬, 깔끔하게 */
+        /* Grid layout - 초압축 */
         #student-report-card .grid {
-            gap: 1mm !important;
-            margin-bottom: 1mm !important;
+            gap: 0.5mm !important;
+            margin-bottom: 0.5mm !important;
             display: grid !important;
             grid-template-columns: repeat(2, 1fr) !important;
             align-items: start !important;
@@ -307,17 +309,17 @@
             grid-template-columns: 2fr 1fr !important;
         }
         
-        /* Cards - more compact for print */
+        /* Cards - 초압축 */
         #student-report-card .theme-card {
-            padding: 1mm !important;
-            margin-bottom: 1mm !important;
+            padding: 0.5mm !important;
+            margin-bottom: 0.5mm !important;
             page-break-inside: avoid !important;
         }
         
         #student-report-card h4 {
-            font-size: 7pt !important;
-            margin-bottom: 0.5mm !important;
-            line-height: 1.1 !important;
+            font-size: 5.5pt !important;
+            margin-bottom: 0.25mm !important;
+            line-height: 1 !important;
         }
         
         /* Chart - fill container in print */
@@ -328,41 +330,42 @@
             max-height: 100% !important;
         }
         
-        /* Chart container - fill available space, more compact for print */
+        /* Chart container - 한 페이지 수납용 축소 */
         #student-report-card .theme-card.flex.flex-col > div.flex-1.flex {
             width: 100% !important;
             height: 100% !important;
-            min-height: 100px !important;
-            max-height: 140px !important;
+            min-height: 45px !important;
+            max-height: 65px !important;
         }
 
-        /* Chart wrapper div - fill container */
+        /* Chart wrapper div */
         #student-report-card .theme-card.flex.flex-col > div.flex-1.flex > div {
             width: 100% !important;
             height: 100% !important;
         }
         
-        /* Ensure chart container has proper height */
+        /* Chart container height */
         #student-report-card .h-48 {
             height: 100% !important;
-            min-height: 120px !important;
+            min-height: 50px !important;
         }
 
-        /* 교과별 선택학점 차트 - 출력 시 축소 */
+        /* 교과별 선택학점 차트 - 한 페이지용 축소 */
         #student-report-card #subcategory-chart-wrap {
-            min-height: 80px !important;
+            min-height: 40px !important;
+            max-height: 55px !important;
         }
         
-        /* Tables - optimized */
+        /* Tables - 한 페이지용 축소 */
         #student-report-card table {
-            font-size: 7pt !important;
+            font-size: 5pt !important;
             width: 100% !important;
         }
         
         #student-report-card table th,
         #student-report-card table td {
-            padding: 0.75mm 0.5mm !important;
-            line-height: 1.2 !important;
+            padding: 0.25mm 0.2mm !important;
+            line-height: 1.1 !important;
         }
         
         /* Validation table */
@@ -434,9 +437,9 @@
             max-width: 50% !important;
         }
         
-        /* Increase font size for course name column in print */
+        /* 과목명 컬럼 - 한 페이지용 */
         #student-report-card .overflow-y-auto table td:nth-child(3) {
-            font-size: 9pt !important;
+            font-size: 5.5pt !important;
         }
         
         /* Print layout: 2x2 grid with equal column widths */
@@ -480,8 +483,8 @@
             position: relative !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
-            margin-bottom: 2mm !important;
-            padding-bottom: 1.5mm !important;
+            margin-bottom: 0.5mm !important;
+            padding-bottom: 0.5mm !important;
             border-bottom: 1px solid #000 !important;
             width: 100% !important;
             align-items: center !important;
@@ -531,13 +534,13 @@
             gap: 1rem !important;
         }
 
-        /* Header text styling for print */
+        /* Header text - 한 페이지용 축소 */
         #student-report-card > div:first-child h3,
         #student-report-card > div:first-child span,
         #student-report-card > div:first-child p {
             color: black !important;
-            font-size: 12pt !important;
-            line-height: 1.5 !important;
+            font-size: 7pt !important;
+            line-height: 1.2 !important;
         }
         
         /* Border spacing */
@@ -545,10 +548,10 @@
             border-width: 0.5px !important;
         }
         
-        /* AI section styling for print */
+        /* AI 섹션 - 한 페이지용 */
         #student-report-card .bg-indigo-50 h4 {
             color: black !important;
-            font-size: 8pt !important;
+            font-size: 5.5pt !important;
         }
         
         #student-report-card .text-indigo-400,
@@ -556,56 +559,55 @@
             color: black !important;
         }
         
-        /* 전체 대시보드 출력: 높이 제한 제거, 여러 페이지로 흐름 허용 */
-        #student-report-card {
-            height: auto !important;
-            min-height: auto !important;
-            max-height: none !important;
-            page-break-inside: auto !important;
+        /* 인라인 print 클래스 오버라이드 - 한 페이지용 */
+        #student-report-card [class*="print:h-"],
+        #student-report-card [class*="print:min-h"],
+        #student-report-card [class*="print:max-h"] {
+            min-height: 45px !important;
+            max-height: 65px !important;
         }
         
-        /* Optimize grid for print - more compact */
+        /* Grid - 한 페이지용 */
         #student-report-card .grid.print\:grid-cols-2 {
             grid-template-columns: 1fr 1fr !important;
-            gap: 1mm !important;
-            margin-bottom: 1mm !important;
+            gap: 0.5mm !important;
+            margin-bottom: 0.5mm !important;
         }
 
-        /* Override print spacing classes for more compact layout */
         #student-report-card .print\:gap-1\.5 {
-            gap: 1mm !important;
+            gap: 0.5mm !important;
         }
 
         #student-report-card .print\:mb-1\.5 {
-            margin-bottom: 1mm !important;
+            margin-bottom: 0.5mm !important;
         }
 
         #student-report-card .print\:p-1\.5 {
-            padding: 1mm !important;
+            padding: 0.5mm !important;
         }
 
         #student-report-card .print\:h-\[120px\] {
-            height: 100px !important;
-            min-height: 100px !important;
-            max-height: 140px !important;
+            height: 50px !important;
+            min-height: 45px !important;
+            max-height: 65px !important;
         }
 
         #student-report-card .print\:text-\[8pt\] {
-            font-size: 7pt !important;
+            font-size: 5.5pt !important;
         }
 
         #student-report-card .print\:mb-0\.75 {
-            margin-bottom: 0.5mm !important;
+            margin-bottom: 0.25mm !important;
         }
         
-        /* Compact course list */
+        /* 과목 목록 테이블 - 한 페이지용 */
         #student-report-card .overflow-y-auto table {
-            font-size: 6.5pt !important;
+            font-size: 5pt !important;
         }
         
         #student-report-card .overflow-y-auto table th,
         #student-report-card .overflow-y-auto table td {
-            padding: 0.5mm 0.25mm !important;
+            padding: 0.2mm 0.15mm !important;
         }
 
         /* Hide UI controls */
