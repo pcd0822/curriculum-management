@@ -3154,17 +3154,19 @@
                     });
                 }
 
-                // 교과별 선택학점 막대 + 학년 추세선 차트
+                // 교과별 선택학점 막대 + 학년 추세선 차트 (교과 영역별 차트와 동일 팔레트 사용)
+                const subCategoryPalette = ['#60A5FA', '#34D399', '#3B82F6', '#F472B6', '#A78BFA', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F97316'];
                 const ctx2 = document.getElementById('individualSubCategoryChart');
                 if (ctx2 && allSubCats && allSubCats.length > 0) {
                     const myCredits = allSubCats.map(sc => subCategoryCredits[sc] || 0);
                     const countMap = typeof gradeSubCategoryCount !== 'undefined' ? gradeSubCategoryCount : {};
+                    const barColors = allSubCats.map((_, i) => subCategoryPalette[i % subCategoryPalette.length]);
                     new Chart(ctx2, {
                         type: 'bar',
                         data: {
                             labels: allSubCats,
                             datasets: [
-                                { label: '본인 신청학점', data: myCredits, backgroundColor: 'rgba(59, 130, 246, 0.7)', borderRadius: 4 },
+                                { label: '본인 신청학점', data: myCredits, backgroundColor: barColors, borderRadius: 4 },
                                 { label: '학년 평균', data: gradeTrendData, type: 'line', borderColor: '#F59E0B', backgroundColor: 'transparent', fill: false, pointRadius: 6, pointHoverRadius: 8 }
                             ]
                         },
@@ -5501,8 +5503,18 @@
         }
 
         // 공동교육과정 개설 과목 정보 팝업 (구글 시트 데이터 기반)
+        function slugToSubjectName(val, courseData) {
+            if (!val || !(courseData && courseData.length)) return String(val || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const tokens = String(val).split(/[,，\/\s]+/).map(s => s.trim()).filter(Boolean);
+            const names = tokens.map(t => {
+                const c = courseData.find(c => (c.slug && c.slug === t) || (c.slug && c.slug.toLowerCase() === (t||'').toLowerCase()) || (c.subjectName && String(c.subjectName).trim() === t) || (c.과목명 && String(c.과목명).trim() === t));
+                return c ? (c.subjectName || c.과목명 || t) : t;
+            });
+            return names.join(', ').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
         function showJointCourseInfo(subjectName) {
             const list = (window._adminJointCurriculum || []);
+            const courseData = (typeof allCourseData !== 'undefined' && allCourseData) ? allCourseData : [];
             const name = (subjectName || '').toString().trim();
             const matches = list.filter(c => {
                 const cn = (c.과목명 || c.subjectName || c.name || '').toString().trim();
@@ -5515,7 +5527,11 @@
             if (matches.length === 0) {
                 body.innerHTML = `<p class="text-sm text-gray-500 p-4">"${name}"에 해당하는 개설 과목이 없습니다.</p>`;
             } else {
-                body.innerHTML = `<table class="w-full text-xs border-collapse theme-text"><thead><tr class="bg-gray-100 dark:bg-gray-700">${headers.map(h => `<th class="border border-gray-300 dark:border-gray-600 p-1.5 text-left">${h}</th>`).join('')}</tr></thead><tbody>${matches.map(r => `<tr>${headers.map(h => `<td class="border border-gray-300 dark:border-gray-600 p-1.5">${String(r[h] ?? '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+                body.innerHTML = `<table class="w-full text-xs border-collapse theme-text"><thead><tr class="bg-gray-100 dark:bg-gray-700">${headers.map(h => `<th class="border border-gray-300 dark:border-gray-600 p-1.5 text-left">${h}</th>`).join('')}</tr></thead><tbody>${matches.map(r => `<tr>${headers.map(h => {
+                    const raw = r[h] ?? '';
+                    const display = (h === '선이수과목') ? slugToSubjectName(raw, courseData) : String(raw).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    return `<td class="border border-gray-300 dark:border-gray-600 p-1.5">${display}</td>`;
+                }).join('')}</tr>`).join('')}</tbody></table>`;
             }
             modal.classList.remove('hidden');
             modal.classList.add('flex');
