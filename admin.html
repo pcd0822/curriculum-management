@@ -2589,7 +2589,7 @@
                             const preds = parents.get(id) || [];
                             if (preds.length === 0) return 0;
                             const indices = preds.map(p => (pos.get(p) || {}).rowIndex).filter(x => x != null);
-                            return indices.length ? Math.max(...indices) : 0;
+                            return indices.length ? Math.min(...indices) : 0;
                         };
                         ids = [...ids].sort((a, b) => predRow(a) - predRow(b));
                         ids.forEach((id, i) => {
@@ -2624,6 +2624,18 @@
                     const segMinY = Math.min(sy1, sy2), segMaxY = Math.max(sy1, sy2);
                     return segMinX < rx + rw && segMaxX > rx && segMinY < ry + rh && segMaxY > ry;
                 };
+                const pathOverlapsAnyNode = (segments, excludeFrom, excludeTo) => {
+                    let overlap = false;
+                    g.nodes.forEach((_, nid) => {
+                        if (nid === excludeFrom || nid === excludeTo) return;
+                        const p = pos.get(nid);
+                        if (!p) return;
+                        for (const [sx1, sy1, sx2, sy2] of segments) {
+                            if (segmentOverlapsRect(sx1, sy1, sx2, sy2, p.x, p.y, p.w, NODE_H)) { overlap = true; return; }
+                        }
+                    });
+                    return overlap;
+                };
                 let svg = `<svg class="absolute left-0 top-0 pointer-events-none" width="${W}" height="${maxY + 18}" xmlns="http://www.w3.org/2000/svg">`;
                 g.edges.forEach(e => {
                     const a = pos.get(e.from);
@@ -2643,9 +2655,19 @@
                     if (useStraight) {
                         svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#94a3b8" stroke-width="1"/>`;
                     } else {
-                        const dx = 10;
-                        const routeY = Math.max(a.y, b.y) + NODE_H + 6;
-                        svg += `<path d="M ${x1} ${y1} L ${x1 + dx} ${y1} L ${x1 + dx} ${routeY} L ${x2 - dx} ${routeY} L ${x2 - dx} ${y2} L ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
+                        const segHthenV = [[x1, y1, x2, y1], [x2, y1, x2, y2]];
+                        const segVthenH = [[x1, y1, x1, y2], [x1, y2, x2, y2]];
+                        const overlapHthenV = pathOverlapsAnyNode(segHthenV, e.from, e.to);
+                        const overlapVthenH = pathOverlapsAnyNode(segVthenH, e.from, e.to);
+                        if (!overlapHthenV) {
+                            svg += `<path d="M ${x1} ${y1} L ${x2} ${y1} L ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
+                        } else if (!overlapVthenH) {
+                            svg += `<path d="M ${x1} ${y1} L ${x1} ${y2} L ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
+                        } else {
+                            const dx = 10;
+                            const routeY = Math.max(a.y, b.y) + NODE_H + 6;
+                            svg += `<path d="M ${x1} ${y1} L ${x1 + dx} ${y1} L ${x1 + dx} ${routeY} L ${x2 - dx} ${routeY} L ${x2 - dx} ${y2} L ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
+                        }
                     }
                 });
                 svg += '</svg>';
