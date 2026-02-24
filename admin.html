@@ -2742,7 +2742,7 @@
             const mathArea2Html = renderGraphVertical(MATH_CHAINS_AREA2, '2. 전문교과', MATH_LEVEL_ORDER_AREA2, { verticalStep: 14, subTitle: true });
             const mathSectionHtml = `<div class="mb-3"><h4 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">수학 위계</h4><div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${mathArea1Html}${mathArea2Html}</div></div>`;
             const scienceHtml = renderGraph(SCIENCE_CHAINS, '과학 위계', null, { variableWidth: true, perChar: 6, paddingX: 14, fixedStep: 144 });
-            return `<div class="w-full flex flex-col items-center justify-center"><div class="space-y-3 flex flex-col items-center mx-auto" style="transform: scale(1); transform-origin: center center;">${mathSectionHtml}${scienceHtml}</div></div>`;
+            return `<div class="w-full flex flex-col items-start"><div class="space-y-1 flex flex-col items-start" style="transform: scale(1.08); transform-origin: left top;">${mathSectionHtml}${scienceHtml}</div></div>`;
         }
 
         async function renderDetailedStudentReport(s) {
