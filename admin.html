@@ -2636,7 +2636,8 @@
                     });
                     return overlap;
                 };
-                let svg = `<svg class="absolute left-0 top-0 pointer-events-none" width="${W}" height="${maxY + 18}" xmlns="http://www.w3.org/2000/svg">`;
+                const svgExtra = 45;
+                let svg = `<svg class="absolute left-0 top-0 pointer-events-none" width="${W}" height="${maxY + svgExtra}" xmlns="http://www.w3.org/2000/svg">`;
                 g.edges.forEach(e => {
                     const a = pos.get(e.from);
                     const b = pos.get(e.to);
@@ -2659,13 +2660,16 @@
                         const segVthenH = [[x1, y1, x1, y2], [x1, y2, x2, y2]];
                         const overlapHthenV = pathOverlapsAnyNode(segHthenV, e.from, e.to);
                         const overlapVthenH = pathOverlapsAnyNode(segVthenH, e.from, e.to);
+                        const bulge = 22;
                         if (!overlapHthenV) {
-                            svg += `<path d="M ${x1} ${y1} Q ${x2} ${y1} ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
+                            const cy = Math.max(y1, y2) + bulge;
+                            svg += `<path d="M ${x1} ${y1} Q ${x2} ${cy} ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
                         } else if (!overlapVthenH) {
-                            svg += `<path d="M ${x1} ${y1} Q ${x1} ${y2} ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
+                            const cy = Math.max(y1, y2) + bulge;
+                            svg += `<path d="M ${x1} ${y1} Q ${x1} ${cy} ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
                         } else {
                             const dx = 10;
-                            const routeY = Math.max(a.y, b.y) + NODE_H + 6;
+                            const routeY = Math.max(a.y, b.y) + NODE_H + 6 + bulge;
                             svg += `<path d="M ${x1} ${y1} C ${x1 + dx} ${routeY} ${x2 - dx} ${routeY} ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
                         }
                     }
@@ -2683,12 +2687,12 @@
                     const pad = parts.length >= 2 ? 14 : 8;
                     nodesHtml += `<div class="absolute rounded border border-gray-300 bg-gray-50 dark:bg-gray-700 dark:border-gray-500 text-[10px] flex items-center justify-center py-0.5 text-center leading-tight whitespace-nowrap" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${NODE_H}px;padding-left:${pad}px;padding-right:${pad}px;box-sizing:border-box;">${labelHtml}</div>`;
                 });
-                return `<div class="mb-3"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${title}</h5><div class="relative" style="width:${W}px;height:${maxY + 18}px;">${svg}${nodesHtml}</div></div>`;
+                return `<div class="mb-3"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${title}</h5><div class="relative" style="width:${W}px;height:${maxY + svgExtra}px;">${svg}${nodesHtml}</div></div>`;
             };
             function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
             const mathHtml = renderGraph(MATH_CHAINS, '수학 위계', MATH_LEVEL_ORDER, { fixedStep: 144 });
             const scienceHtml = renderGraph(SCIENCE_CHAINS, '과학 위계', null, { variableWidth: true, perChar: 6, paddingX: 14, fixedStep: 144 });
-            return `<div class="space-y-3">${mathHtml}${scienceHtml}<p class="text-[10px] text-gray-500">굵은 글씨+파란색=이수(Config·신청 반영) / 회색=미이수</p></div>`;
+            return `<div class="space-y-3">${mathHtml}${scienceHtml}<p class="text-[10px] text-gray-500">굵은 글씨+파란색=이수 / 회색=미이수</p></div>`;
         }
 
         async function renderDetailedStudentReport(s) {
@@ -3386,7 +3390,7 @@
                 }).join('')
                 }
 
-    </tbody></table></div></div><!-- Right Bottom: AI Recommendations (same width as Validation in print) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="flex-1 text-sm space-y-3 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><!-- 학과별 권장과목 (섹션 한 행, 2열 균일) --><div class="mt-4 print:mt-2"><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid flex flex-col overflow-hidden"><h4 class="font-bold mb-2 theme-text print:text-black text-sm">🎓 학과별 권장과목</h4><p class="text-[10px] text-gray-500 dark:text-gray-400 mb-2">과목명을 클릭하면 공동교육과정 개설 여부를 확인할 수 있습니다.</p><div class="grid grid-cols-2 gap-4 flex-1 min-h-0 overflow-y-auto"><div id="recommended-courses-left" class="text-xs theme-text min-w-0">로딩 중...</div><div id="recommended-courses-right" class="text-xs theme-text min-w-0">로딩 중...</div></div></div></div><!-- 과목별 위계 이수 현황 (원래 너비, 별도 행) --><div class="mt-4 print:mt-2 w-full"><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 theme-text print:text-black text-sm">📐 과목별 위계 이수 현황</h4><div class="w-full overflow-x-auto overflow-y-auto text-xs custom-scrollbar max-h-56">${hierarchyHtml}</div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
+    </tbody></table></div></div><!-- Right Bottom: AI Recommendations (same width as Validation in print) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="flex-1 text-sm space-y-3 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><!-- 학과별 권장과목 (섹션 한 행, 2열 균일) --><div class="mt-4 print:mt-2"><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid flex flex-col overflow-hidden"><h4 class="font-bold mb-2 theme-text print:text-black text-sm">🎓 학과별 권장과목</h4><p class="text-[10px] text-gray-500 dark:text-gray-400 mb-2">과목명을 클릭하면 공동교육과정 개설 여부를 확인할 수 있습니다.</p><div class="grid grid-cols-2 gap-4 flex-1 min-h-0 overflow-y-auto"><div id="recommended-courses-left" class="text-xs theme-text min-w-0">로딩 중...</div><div id="recommended-courses-right" class="text-xs theme-text min-w-0">로딩 중...</div></div></div></div><!-- 과목별 위계 이수 현황 (원래 너비, 별도 행) --><div class="mt-4 print:mt-2 w-full"><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 theme-text print:text-black text-sm">📐 과목별 위계 이수 현황</h4><div class="w-full overflow-x-auto overflow-y-auto text-xs custom-scrollbar min-h-[200px] max-h-[420px]">${hierarchyHtml}</div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
     class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="showPrintOptions()"
     class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>출력</button></div></div>`;
             modalContent.innerHTML = html;
