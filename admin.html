@@ -2687,13 +2687,16 @@
                     const pad = parts.length >= 2 ? 14 : 8;
                     nodesHtml += `<div class="absolute rounded border border-gray-300 bg-gray-50 dark:bg-gray-700 dark:border-gray-500 text-[10px] flex items-center justify-center py-0.5 text-center leading-tight whitespace-nowrap" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${NODE_H}px;padding-left:${pad}px;padding-right:${pad}px;box-sizing:border-box;">${labelHtml}</div>`;
                 });
-                return `<div class="mb-3"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${title}</h5><div class="relative" style="width:${W}px;height:${maxY + svgExtra}px;">${svg}${nodesHtml}</div></div>`;
+                const titleTag = (opts && opts.subTitle) ? `<h6 class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1">${title}</h6>` : `<h5 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${title}</h5>`;
+                return `<div class="mb-3">${titleTag}<div class="relative" style="width:${W}px;height:${maxY + svgExtra}px;">${svg}${nodesHtml}</div></div>`;
             };
             function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-            const mathArea1Html = renderGraph(MATH_CHAINS_AREA1, '1. 일반·진로 선택과목', MATH_LEVEL_ORDER_AREA1, { fixedStep: 144 });
-            const mathArea2Html = renderGraph(MATH_CHAINS_AREA2, '2. 전문교과', MATH_LEVEL_ORDER_AREA2, { fixedStep: 144 });
+            const mathStep = 92;
+            const mathArea1Html = renderGraph(MATH_CHAINS_AREA1, '1. 일반·진로 선택과목', MATH_LEVEL_ORDER_AREA1, { fixedStep: mathStep, subTitle: true });
+            const mathArea2Html = renderGraph(MATH_CHAINS_AREA2, '2. 전문교과', MATH_LEVEL_ORDER_AREA2, { fixedStep: mathStep, subTitle: true });
+            const mathSectionHtml = `<div class="mb-3"><h4 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">수학 위계</h4><div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${mathArea1Html}${mathArea2Html}</div></div>`;
             const scienceHtml = renderGraph(SCIENCE_CHAINS, '과학 위계', null, { variableWidth: true, perChar: 6, paddingX: 14, fixedStep: 144 });
-            return `<div class="space-y-3">${mathArea1Html}${mathArea2Html}${scienceHtml}<p class="text-[10px] text-gray-500">굵은 글씨+파란색=이수 / 회색=미이수</p></div>`;
+            return `<div class="space-y-3">${mathSectionHtml}${scienceHtml}<p class="text-[10px] text-gray-500">굵은 글씨+파란색=이수 / 회색=미이수</p></div>`;
         }
 
         async function renderDetailedStudentReport(s) {
