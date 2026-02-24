@@ -2461,18 +2461,20 @@
             renderIndividualStatsTable();
         };
 
-        // 수학/과학 위계 시각화 데이터 (수형도: 선이수 -> 심화)
-        const MATH_CHAINS = [
-            ['수학', '수학1', '미적분', '고급수학1', '고급수학2'],
-            ['수학', '수학2', '미적분', '고급수학1', '고급수학2'],
-            ['수학', '기하', '고급수학1', '고급수학2'],
-            ['수학', '확률과 통계', '고급수학1', '고급수학2'],
-            ['수학', '심화수학1', '심화수학2', '고급수학1', '고급수학2'],
-            ['수학', '인공지능 수학'],
-            ['수학', '수학1', '경제 수학']
+        // 수학 위계: 1) 일반·진로 선택과목, 2) 전문교과
+        const MATH_CHAINS_AREA1 = [
+            ['수학', '수학1', '미적분'],
+            ['수학', '수학2', '미적분'],
+            ['수학', '확률과 통계'],
+            ['수학', '기하'],
+            ['수학', '수학과제탐구'],
+            ['수학', '인공지능 수학']
         ];
-        /** 수학 위계 레벨별 노드 표시 순서 (위→아래, 경제 수학·미적분 위치 반영) */
-        const MATH_LEVEL_ORDER = ['수학', '수학1', '수학2', '기하', '확률과 통계', '인공지능 수학', '심화수학1', '심화수학2', '경제 수학', '미적분', '고급수학1', '고급수학2'];
+        const MATH_LEVEL_ORDER_AREA1 = ['수학', '수학1', '수학2', '확률과 통계', '기하', '수학과제탐구', '인공지능 수학', '미적분'];
+        const MATH_CHAINS_AREA2 = [
+            ['수학', '심화수학1', '심화수학2', '고급수학1', '고급수학2']
+        ];
+        const MATH_LEVEL_ORDER_AREA2 = ['수학', '심화수학1', '심화수학2', '고급수학1', '고급수학2'];
         const SCIENCE_CHAINS = [
             ['통합과학/과학탐구실험', '물리학1', '물리학2', '고급 물리학/물리학 실험'],
             ['통합과학/과학탐구실험', '화학1', '화학2', '고급 화학/화학 실험'],
@@ -2688,9 +2690,10 @@
                 return `<div class="mb-3"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${title}</h5><div class="relative" style="width:${W}px;height:${maxY + svgExtra}px;">${svg}${nodesHtml}</div></div>`;
             };
             function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-            const mathHtml = renderGraph(MATH_CHAINS, '수학 위계', MATH_LEVEL_ORDER, { fixedStep: 144 });
+            const mathArea1Html = renderGraph(MATH_CHAINS_AREA1, '1. 일반·진로 선택과목', MATH_LEVEL_ORDER_AREA1, { fixedStep: 144 });
+            const mathArea2Html = renderGraph(MATH_CHAINS_AREA2, '2. 전문교과', MATH_LEVEL_ORDER_AREA2, { fixedStep: 144 });
             const scienceHtml = renderGraph(SCIENCE_CHAINS, '과학 위계', null, { variableWidth: true, perChar: 6, paddingX: 14, fixedStep: 144 });
-            return `<div class="space-y-3">${mathHtml}${scienceHtml}<p class="text-[10px] text-gray-500">굵은 글씨+파란색=이수 / 회색=미이수</p></div>`;
+            return `<div class="space-y-3">${mathArea1Html}${mathArea2Html}${scienceHtml}<p class="text-[10px] text-gray-500">굵은 글씨+파란색=이수 / 회색=미이수</p></div>`;
         }
 
         async function renderDetailedStudentReport(s) {
