@@ -133,6 +133,17 @@ const ExcelHandler = {
         ExcelHandler.downloadExcel(templateData, '공동교육과정_개설과목_양식.xlsx', '공동교육과정');
     },
 
+    /**
+     * 학과별 권장과목 템플릿 다운로드
+     */
+    downloadRecommendedCoursesTemplate: () => {
+        const templateData = [
+            { '출처': '예시 출처', '학과': '컴퓨터공학과', '핵심 권장과목': '수학I, 수학II, 물리학I', '권장과목': '미적분, 물리학II, 정보' },
+            { '출처': '', '학과': '간호학과', '핵심 권장과목': '수학I, 생명과학I, 화학I', '권장과목': '생명과학II, 화학II' }
+        ];
+        ExcelHandler.downloadExcel(templateData, '학과별_권장과목_양식.xlsx', '권장과목');
+    },
+
     downloadBulkEnrollmentTemplate: (optionalCourses) => {
         const list = (optionalCourses || []).filter(c => (c.subjectName || c.과목명 || '').toString().trim());
         const headers = list.map(c => {
