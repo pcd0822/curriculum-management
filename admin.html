@@ -2489,16 +2489,89 @@
                 });
             });
         }
+        function buildGraphFromChains(chains) {
+            const nodes = new Map();
+            const edges = [];
+            chains.forEach(chain => {
+                for (let i = 0; i < chain.length; i++) {
+                    const id = chain[i];
+                    if (!nodes.has(id)) nodes.set(id, { id, label: id.split('/').map(p => p.trim()).join(' / ') });
+                    if (i < chain.length - 1) edges.push({ from: chain[i], to: chain[i + 1] });
+                }
+            });
+            const parents = new Map();
+            edges.forEach(e => {
+                if (!parents.has(e.to)) parents.set(e.to, []);
+                parents.get(e.to).push(e.from);
+            });
+            const levels = new Map();
+            const queue = [...nodes.keys()].filter(id => !parents.has(id) || parents.get(id).length === 0);
+            queue.forEach(id => levels.set(id, 0));
+            const outEdges = new Map();
+            edges.forEach(e => {
+                if (!outEdges.has(e.from)) outEdges.set(e.from, []);
+                outEdges.get(e.from).push(e.to);
+            });
+            const inDeg = new Map();
+            nodes.forEach((_, id) => inDeg.set(id, (parents.get(id) || []).length));
+            let idx = 0;
+            while (idx < queue.length) {
+                const from = queue[idx++];
+                (outEdges.get(from) || []).forEach(to => {
+                    inDeg.set(to, inDeg.get(to) - 1);
+                    if (inDeg.get(to) === 0) queue.push(to);
+                });
+            }
+            queue.forEach(id => {
+                const preds = parents.get(id) || [];
+                levels.set(id, preds.length ? 1 + Math.max(...preds.map(p => levels.get(p) ?? 0)) : 0);
+            });
+            const byLevel = new Map();
+            levels.forEach((l, id) => {
+                if (!byLevel.has(l)) byLevel.set(l, []);
+                byLevel.get(l).push(id);
+            });
+            return { nodes, edges, levels, byLevel };
+        }
         function buildHierarchyHtml(completedNames) {
             const set = new Set([...(completedNames || [])].map(n => (n || '').trim()).filter(Boolean));
-            const renderChain = (chain) => chain.map(nodeStr => {
-                const done = nodeMatchesCompleted(nodeStr, set);
-                const label = nodeStr.split('/').map(p => p.trim()).join(' / ');
-                return `<span class="inline-block px-1.5 py-0.5 rounded text-xs border ${done ? 'bg-emerald-100 border-emerald-400 text-emerald-800 dark:bg-emerald-900/40 dark:border-emerald-600 dark:text-emerald-200' : 'bg-gray-100 border-gray-300 text-gray-600 dark:bg-gray-700 dark:border-gray-500 dark:text-gray-400'}">${label}</span>`;
-            }).join('<span class="text-gray-400 mx-0.5">→</span>');
-            const mathHtml = MATH_CHAINS.map(ch => `<div class="flex flex-wrap items-center gap-0.5 mb-1 text-xs">${renderChain(ch)}</div>`).join('');
-            const scienceHtml = SCIENCE_CHAINS.map(ch => `<div class="flex flex-wrap items-center gap-0.5 mb-1 text-xs">${renderChain(ch)}</div>`).join('');
-            return `<div class="space-y-2"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400">수학 위계</h5><div class="space-y-0.5">${mathHtml}</div></div><div class="space-y-2 mt-3"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400">과학 위계</h5><div class="space-y-0.5">${scienceHtml}</div></div><p class="text-[10px] text-gray-500 mt-2">■ 이수함 ■ 미이수</p>`;
+            const NODE_W = 72, NODE_H = 22, GAP_X = 8, GAP_Y = 24;
+            const renderGraph = (chains, title) => {
+                const g = buildGraphFromChains(chains);
+                const levels = [...g.byLevel.keys()].sort((a,b)=>a-b);
+                const pos = new Map();
+                let maxX = 0;
+                levels.forEach(l => {
+                    const ids = g.byLevel.get(l);
+                    ids.forEach((id, i) => {
+                        pos.set(id, { x: i * (NODE_W + GAP_X), y: l * (NODE_H + GAP_Y) });
+                        maxX = Math.max(maxX, (i + 1) * (NODE_W + GAP_X) - GAP_X);
+                    });
+                });
+                const W = maxX + NODE_W, H = levels.length * (NODE_H + GAP_Y) - GAP_Y + NODE_H;
+                let svg = `<svg class="absolute left-0 top-0 pointer-events-none" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">`;
+                g.edges.forEach(e => {
+                    const a = pos.get(e.from);
+                    const b = pos.get(e.to);
+                    if (a && b) {
+                        const x1 = a.x + NODE_W/2, y1 = a.y + NODE_H;
+                        const x2 = b.x + NODE_W/2, y2 = b.y;
+                        svg += `<path d="M ${x1} ${y1} C ${x1} ${(y1+y2)/2} ${x2} ${(y1+y2)/2} ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
+                    }
+                });
+                svg += '</svg>';
+                let nodesHtml = '';
+                g.nodes.forEach((n, id) => {
+                    const p = pos.get(id);
+                    if (!p) return;
+                    const done = nodeMatchesCompleted(id, set);
+                    nodesHtml += `<div class="absolute rounded border text-[10px] flex items-center justify-center px-1 text-center leading-tight ${done ? 'bg-emerald-100 border-emerald-400 text-emerald-800 dark:bg-emerald-900/40 dark:border-emerald-600 dark:text-emerald-200' : 'bg-gray-100 border-gray-300 text-gray-600 dark:bg-gray-700 dark:border-gray-500 dark:text-gray-400'}" style="left:${p.x}px;top:${p.y}px;width:${NODE_W}px;height:${NODE_H}px;">${n.label.length > 8 ? n.label.slice(0,7)+'…' : n.label}</div>`;
+                });
+                return `<div class="mb-2"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${title}</h5><div class="relative" style="width:${W}px;height:${H}px;">${svg}${nodesHtml}</div></div>`;
+            };
+            const mathHtml = renderGraph(MATH_CHAINS, '수학 위계');
+            const scienceHtml = renderGraph(SCIENCE_CHAINS, '과학 위계');
+            return `<div class="space-y-3">${mathHtml}${scienceHtml}<p class="text-[10px] text-gray-500">■ 이수함 ■ 미이수</p></div>`;
         }
 
         async function renderDetailedStudentReport(s) {
@@ -3202,28 +3275,46 @@
     class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>출력</button></div></div>`;
             modalContent.innerHTML = html;
 
-            // 학과별 권장과목 로드
+            // 학과별 권장과목 로드 (출처 표시, 유사학과 함께, 과목명 클릭 시 공동교육과정 조회)
             setTimeout(async () => {
                 const el = document.getElementById('recommended-courses-section');
                 if (!el) return;
                 try {
-                    const list = await (DB.fetchRecommendedCourses ? DB.fetchRecommendedCourses() : Promise.resolve([])).catch(() => []);
+                    const [list, jointList] = await Promise.all([
+                        (DB.fetchRecommendedCourses ? DB.fetchRecommendedCourses() : Promise.resolve([])).catch(() => []),
+                        (DB.fetchJointCurriculum ? DB.fetchJointCurriculum() : Promise.resolve([])).catch(() => [])
+                    ]);
+                    window._adminJointCurriculum = jointList || [];
                     const major = (s.Major || '').trim();
                     if (!major) {
                         el.innerHTML = '<p class="text-gray-500">진로 희망 정보가 없습니다.</p>';
                         return;
                     }
                     const exact = list.find(r => (r.학과 || '').trim() === major);
+                    const partial = list.filter(r => { const d = (r.학과 || '').trim(); return d && d !== major && (d.includes(major) || major.includes(d)); });
+                    const makeCourseSpans = (text) => {
+                        const items = (text || '').toString().split(/[,，]/).map(x => x.trim()).filter(Boolean);
+                        return items.length ? items.map(name => {
+                            const safe = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+                            return `<span class="cursor-pointer hover:underline text-blue-600 dark:text-blue-400" onclick="showJointCourseInfo('${safe}')" title="공동교육과정 개설 여부 조회">${name.replace(/</g,'&lt;')}</span>`;
+                        }).join(', ') : '-';
+                    };
+                    const renderRow = (r, showSource) => {
+                        const 출처 = (r.출처 || '').toString().trim();
+                        const sourceHtml = showSource && 출처 ? `<p class="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5">출처: ${출처.replace(/</g,'&lt;')}</p>` : '';
+                        return `<div class="mb-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded">${sourceHtml}<p class="font-semibold text-gray-700 dark:text-gray-300">${(r.학과||'').toString().replace(/</g,'&lt;')}</p><p class="text-xs mb-0.5"><span class="text-amber-600 dark:text-amber-400 font-medium">핵심 권장과목:</span> ${makeCourseSpans(r['핵심 권장과목'])}</p><p class="text-xs"><span class="text-blue-600 dark:text-blue-400 font-medium">권장과목:</span> ${makeCourseSpans(r['권장과목'])}</p></div>`;
+                    };
+                    let html = '';
                     if (exact) {
-                        el.innerHTML = `<p class="font-semibold text-gray-700 dark:text-gray-300 mb-1">${(exact.학과 || '').toString().replace(/</g,'&lt;')}</p><p class="mb-1"><span class="text-amber-600 dark:text-amber-400 font-medium">핵심 권장과목:</span> ${(exact['핵심 권장과목'] || '-').toString().replace(/</g,'&lt;')}</p><p><span class="text-blue-600 dark:text-blue-400 font-medium">권장과목:</span> ${(exact['권장과목'] || '-').toString().replace(/</g,'&lt;')}</p>`;
-                        return;
+                        html += '<p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">일치 학과</p>' + renderRow(exact, true);
                     }
-                    const partial = list.filter(r => { const d = (r.학과 || '').trim(); return d && (d.includes(major) || major.includes(d)); });
                     if (partial.length > 0) {
-                        el.innerHTML = '<p class="text-gray-500 mb-2">희망 학과와 정확히 일치하는 항목이 없습니다. 유사 학과 권장과목:</p>' + partial.map(r => `<div class="mb-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded"><p class="font-semibold">${(r.학과||'').toString().replace(/</g,'&lt;')}</p><p class="text-xs"><span class="text-amber-600">핵심:</span> ${(r['핵심 권장과목']||'-').toString().replace(/</g,'&lt;')}</p><p class="text-xs"><span class="text-blue-600">권장:</span> ${(r['권장과목']||'-').toString().replace(/</g,'&lt;')}</p></div>`).join('');
-                        return;
+                        html += '<p class="text-[10px] text-gray-500 dark:text-gray-400 mt-2 mb-1">유사 학과 (권장과목 함께 보기)</p>' + partial.map(r => renderRow(r, true)).join('');
                     }
-                    el.innerHTML = '<p class="text-gray-600 dark:text-gray-400">전공에 관련있는 과목을 적극 이수 권장함.</p>';
+                    if (!exact && partial.length === 0) {
+                        html = '<p class="text-gray-600 dark:text-gray-400">전공에 관련있는 과목을 적극 이수 권장함.</p>';
+                    }
+                    el.innerHTML = html || '<p class="text-gray-500">등록된 권장과목이 없습니다.</p>';
                 } catch (e) {
                     el.textContent = '권장과목 정보를 불러올 수 없습니다.';
                 }
