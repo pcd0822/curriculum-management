@@ -2612,13 +2612,37 @@
                     g.byLevel.get(l).forEach(id => { const p = pos.get(id); if (p) p.x = li * step; });
                 });
                 const W = levels.length * step - GAP_X;
+                const outDegree = new Map();
+                const inDegree = new Map();
+                g.nodes.forEach((_, id) => { outDegree.set(id, 0); inDegree.set(id, 0); });
+                g.edges.forEach(e => {
+                    outDegree.set(e.from, (outDegree.get(e.from) || 0) + 1);
+                    inDegree.set(e.to, (inDegree.get(e.to) || 0) + 1);
+                });
+                const segmentOverlapsRect = (sx1, sy1, sx2, sy2, rx, ry, rw, rh) => {
+                    const segMinX = Math.min(sx1, sx2), segMaxX = Math.max(sx1, sx2);
+                    const segMinY = Math.min(sy1, sy2), segMaxY = Math.max(sy1, sy2);
+                    return segMinX < rx + rw && segMaxX > rx && segMinY < ry + rh && segMaxY > ry;
+                };
                 let svg = `<svg class="absolute left-0 top-0 pointer-events-none" width="${W}" height="${maxY + 18}" xmlns="http://www.w3.org/2000/svg">`;
                 g.edges.forEach(e => {
                     const a = pos.get(e.from);
                     const b = pos.get(e.to);
-                    if (a && b) {
-                        const x1 = a.x + a.w, y1 = a.y + NODE_H/2;
-                        const x2 = b.x, y2 = b.y + NODE_H/2;
+                    if (!a || !b) return;
+                    const x1 = a.x + a.w, y1 = a.y + NODE_H/2;
+                    const x2 = b.x, y2 = b.y + NODE_H/2;
+                    const useBent = (outDegree.get(e.from) || 0) > 1 || (inDegree.get(e.to) || 0) > 1;
+                    let useStraight = !useBent;
+                    if (useStraight) {
+                        g.nodes.forEach((_, nid) => {
+                            if (nid === e.from || nid === e.to) return;
+                            const p = pos.get(nid);
+                            if (p && segmentOverlapsRect(x1, y1, x2, y2, p.x, p.y, p.w, NODE_H)) useStraight = false;
+                        });
+                    }
+                    if (useStraight) {
+                        svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#94a3b8" stroke-width="1"/>`;
+                    } else {
                         const dx = 10;
                         const routeY = Math.max(a.y, b.y) + NODE_H + 6;
                         svg += `<path d="M ${x1} ${y1} L ${x1 + dx} ${y1} L ${x1 + dx} ${routeY} L ${x2 - dx} ${routeY} L ${x2 - dx} ${y2} L ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
@@ -2640,8 +2664,8 @@
                 return `<div class="mb-3"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${title}</h5><div class="relative" style="width:${W}px;height:${maxY + 18}px;">${svg}${nodesHtml}</div></div>`;
             };
             function escapeHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-            const mathHtml = renderGraph(MATH_CHAINS, '수학 위계', MATH_LEVEL_ORDER, { fixedStep: 216 });
-            const scienceHtml = renderGraph(SCIENCE_CHAINS, '과학 위계', null, { variableWidth: true, perChar: 6, paddingX: 14, fixedStep: 216 });
+            const mathHtml = renderGraph(MATH_CHAINS, '수학 위계', MATH_LEVEL_ORDER, { fixedStep: 144 });
+            const scienceHtml = renderGraph(SCIENCE_CHAINS, '과학 위계', null, { variableWidth: true, perChar: 6, paddingX: 14, fixedStep: 144 });
             return `<div class="space-y-3">${mathHtml}${scienceHtml}<p class="text-[10px] text-gray-500">굵은 글씨+파란색=이수(Config·신청 반영) / 회색=미이수</p></div>`;
         }
 
