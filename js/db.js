@@ -223,6 +223,30 @@ const DB = {
         });
         if (!response.ok) throw new Error("Failed to save joint curriculum");
         return await response.json();
+    },
+
+    /**
+     * Fetches 학과별 권장과목 from RecommendedCourses sheet.
+     */
+    fetchRecommendedCourses: async () => {
+        if (!DB.apiUrl) throw new Error("API URL not configured");
+        const response = await fetch(`${DB.apiUrl}?action=getRecommendedCourses`);
+        if (!response.ok) throw new Error("Failed to fetch recommended courses");
+        return await response.json();
+    },
+
+    /**
+     * Saves 학과별 권장과목 to RecommendedCourses sheet.
+     */
+    saveRecommendedCourses: async (data) => {
+        if (!DB.apiUrl) throw new Error("API URL not configured");
+        const response = await fetch(DB.apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'saveRecommendedCourses', data })
+        });
+        if (!response.ok) throw new Error("Failed to save recommended courses");
+        return await response.json();
     }
 };
 
