@@ -785,6 +785,26 @@
                     <p class="text-sm theme-text-muted">개의 공동교육과정이 등록되어 있습니다.</p>
                     <button class="mt-4 text-sm text-blue-600 hover:underline" onclick="loadCourseCount()">새로고침</button>
                 </div>
+                <!-- 학과별 권장과목 업로드 -->
+                <div class="theme-card p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 theme-text">학과별 권장과목 엑셀 업로드</h2>
+                    <p class="text-sm mb-4 theme-text-muted">출처/학과/핵심 권장과목/권장과목을 엑셀로 업로드하세요. RecommendedCourses 시트에 저장됩니다.</p>
+                    <div class="space-y-4">
+                        <button onclick="ExcelHandler.downloadRecommendedCoursesTemplate()" class="text-blue-600 hover:underline text-sm flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            권장과목 템플릿 양식 다운로드
+                        </button>
+                        <input type="file" id="recommended-courses-excel-file" accept=".xlsx, .xls" class="block w-full text-sm theme-text-muted file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                        <button id="upload-recommended-courses-btn" class="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700 w-full">권장과목 데이터 업로드 및 저장</button>
+                    </div>
+                    <div id="recommended-courses-upload-status" class="mt-4 text-sm"></div>
+                </div>
+                <div class="theme-card p-6 rounded-lg shadow-md">
+                    <h2 class="text-xl font-semibold mb-4 theme-text">등록된 권장과목(학과)</h2>
+                    <div id="current-recommended-courses-count" class="text-3xl font-bold mb-2 theme-text">-</div>
+                    <p class="text-sm theme-text-muted">개 학과의 권장과목이 등록되어 있습니다.</p>
+                    <button class="mt-4 text-sm text-blue-600 hover:underline" onclick="loadCourseCount()">새로고침</button>
+                </div>
             </div>
         </div>
         <!-- 2.5 Selection Rules -->
@@ -1102,14 +1122,17 @@
             if (!DB.isConfigured()) return;
 
             try {
-                const [courses, jointCurriculum] = await Promise.all([
+                const [courses, jointCurriculum, recommendedCourses] = await Promise.all([
                     DB.fetchConfig(),
-                    DB.fetchJointCurriculum ? DB.fetchJointCurriculum().catch(() => []) : []
+                    DB.fetchJointCurriculum ? DB.fetchJointCurriculum().catch(() => []) : [],
+                    DB.fetchRecommendedCourses ? DB.fetchRecommendedCourses().catch(() => []) : []
                 ]);
                 allCourseData = courses || [];
                 document.getElementById('current-course-count').textContent = courses ? courses.length : 0;
                 const jointEl = document.getElementById('current-joint-curriculum-count');
                 if (jointEl) jointEl.textContent = Array.isArray(jointCurriculum) ? jointCurriculum.length : 0;
+                const recEl = document.getElementById('current-recommended-courses-count');
+                if (recEl) recEl.textContent = Array.isArray(recommendedCourses) ? recommendedCourses.length : 0;
             } catch (e) {
                 console.error('Failed to load course count', e);
             }
@@ -1287,6 +1310,37 @@
                 if (result && result.status === 'success') {
                     statusEl.textContent = '공동교육과정 업로드 성공! (' + mapped.length + '건)';
                     statusEl.className = 'mt-4 text-sm text-green-600';
+                } else throw new Error(result?.message || '업로드 실패');
+            } catch (e) {
+                statusEl.textContent = '업로드 실패: ' + e.message;
+                statusEl.className = 'mt-4 text-sm text-red-600';
+            }
+        });
+
+        // 학과별 권장과목 업로드
+        document.getElementById('upload-recommended-courses-btn').addEventListener('click', async () => {
+            const fileInput = document.getElementById('recommended-courses-excel-file');
+            const file = fileInput.files[0];
+            if (!file) return alert('파일을 선택해주세요.');
+            if (!DB.isConfigured()) return alert('API URL을 먼저 설정해주세요.');
+            const statusEl = document.getElementById('recommended-courses-upload-status');
+            statusEl.textContent = '업로드 중...';
+            statusEl.className = 'mt-4 text-sm text-blue-600';
+            try {
+                const jsonData = await ExcelHandler.readExcel(file);
+                if (jsonData.length === 0) throw new Error('데이터가 비어있습니다.');
+                const targetKeys = ['출처', '학과', '핵심 권장과목', '권장과목'];
+                const altMap = { source: '출처', major: '학과', core: '핵심 권장과목', recommended: '권장과목' };
+                const mapped = jsonData.map(row => {
+                    const out = {};
+                    targetKeys.forEach(k => { out[k] = row[k] ?? row[altMap[k]] ?? ''; });
+                    return out;
+                });
+                const result = await DB.saveRecommendedCourses(mapped);
+                if (result && result.status === 'success') {
+                    statusEl.textContent = '권장과목 업로드 성공! (' + mapped.length + '건)';
+                    statusEl.className = 'mt-4 text-sm text-green-600';
+                    loadCourseCount();
                 } else throw new Error(result?.message || '업로드 실패');
             } catch (e) {
                 statusEl.textContent = '업로드 실패: ' + e.message;
@@ -2407,6 +2461,46 @@
             renderIndividualStatsTable();
         };
 
+        // 수학/과학 위계 시각화 데이터 (수형도: 선이수 -> 심화)
+        const MATH_CHAINS = [
+            ['수학', '수학1', '미적분', '고급수학1', '고급수학2'],
+            ['수학', '수학2', '미적분', '고급수학1', '고급수학2'],
+            ['수학', '기하', '고급수학1', '고급수학2'],
+            ['수학', '확률과 통계', '고급수학1', '고급수학2'],
+            ['수학', '심화수학1', '심화수학2', '고급수학1', '고급수학2'],
+            ['수학', '인공지능 수학'],
+            ['수학', '수학1', '경제 수학']
+        ];
+        const SCIENCE_CHAINS = [
+            ['통합과학/과학탐구실험', '물리학1', '물리학2', '고급 물리학/물리학 실험'],
+            ['통합과학/과학탐구실험', '화학1', '화학2', '고급 화학/화학 실험'],
+            ['통합과학/과학탐구실험', '생명과학1', '생명과학2', '고급 생명과학/생명과학 실험'],
+            ['통합과학/과학탐구실험', '지구과학1', '지구과학2', '고급 지구과학/지구과학 실험'],
+            ['통합과학/과학탐구실험', '과학사/생활과 과학/융합과학/융합과학 탐구/과학과제 연구/생태와 환경']
+        ];
+        function nodeMatchesCompleted(nodeStr, completedSet) {
+            const parts = nodeStr.split('/').map(p => p.trim()).filter(Boolean);
+            const norm = (x) => (x || '').replace(/\s/g, '');
+            return parts.some(part => {
+                const nPart = norm(part);
+                return [...completedSet].some(c => {
+                    const nc = norm(c);
+                    return nc && (nc.includes(nPart) || nPart.includes(nc) || c.includes(part) || part.includes(c));
+                });
+            });
+        }
+        function buildHierarchyHtml(completedNames) {
+            const set = new Set([...(completedNames || [])].map(n => (n || '').trim()).filter(Boolean));
+            const renderChain = (chain) => chain.map(nodeStr => {
+                const done = nodeMatchesCompleted(nodeStr, set);
+                const label = nodeStr.split('/').map(p => p.trim()).join(' / ');
+                return `<span class="inline-block px-1.5 py-0.5 rounded text-xs border ${done ? 'bg-emerald-100 border-emerald-400 text-emerald-800 dark:bg-emerald-900/40 dark:border-emerald-600 dark:text-emerald-200' : 'bg-gray-100 border-gray-300 text-gray-600 dark:bg-gray-700 dark:border-gray-500 dark:text-gray-400'}">${label}</span>`;
+            }).join('<span class="text-gray-400 mx-0.5">→</span>');
+            const mathHtml = MATH_CHAINS.map(ch => `<div class="flex flex-wrap items-center gap-0.5 mb-1 text-xs">${renderChain(ch)}</div>`).join('');
+            const scienceHtml = SCIENCE_CHAINS.map(ch => `<div class="flex flex-wrap items-center gap-0.5 mb-1 text-xs">${renderChain(ch)}</div>`).join('');
+            return `<div class="space-y-2"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400">수학 위계</h5><div class="space-y-0.5">${mathHtml}</div></div><div class="space-y-2 mt-3"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400">과학 위계</h5><div class="space-y-0.5">${scienceHtml}</div></div><p class="text-[10px] text-gray-500 mt-2">■ 이수함 ■ 미이수</p>`;
+        }
+
         async function renderDetailedStudentReport(s) {
             const modalContent = document.getElementById('class-stats-content');
 
@@ -3045,6 +3139,8 @@
                 desc: `수학, 과학과목을 선택할 때 선이수과목에 맞춰서 이수했는지 검증합니다. ${uniquePrereqFailures.length > 0 ? '미이수: ' + uniquePrereqFailures.join(', ') : ''}`
             });
 
+            const completedNamesForHierarchy = courseList.map(c => c.name);
+            const hierarchyHtml = buildHierarchyHtml(completedNamesForHierarchy);
 
             const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full print:p-0"><!-- Header - Always visible in print --><div class="flex flex-row justify-between items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-2 print:pb-2 print:flex-row print:items-center"><div class="flex-1 print:flex-1"><div class="flex items-center gap-3 print:gap-3 print:mb-1"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border-0 print:bg-transparent print:text-black print:px-0 print:py-0 print:text-[9pt] print:font-bold print:shadow-none">학번: ${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}</span><h3 class="text-2xl font-bold theme-text print:text-black print:text-[12pt] print:m-0 print:inline-block print:ml-2 print:font-bold">이름: ${s.Name
                 }
@@ -3101,10 +3197,37 @@
                 }).join('')
                 }
 
-    </tbody></table></div></div><!-- Right Bottom: AI Recommendations (same width as Validation in print) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="flex-1 text-sm space-y-3 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
+    </tbody></table></div></div><!-- Right Bottom: AI Recommendations (same width as Validation in print) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="flex-1 text-sm space-y-3 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><!-- 위계 이수 현황 + 학과별 권장과목 --><div class="grid grid-cols-1 lg:grid-cols-2 gap-4 print:grid-cols-2 mt-4 print:mt-2"><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 theme-text print:text-black text-sm">📐 과목별 위계 이수 현황</h4><div class="max-h-48 overflow-y-auto text-xs custom-scrollbar">${hierarchyHtml}</div></div><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 theme-text print:text-black text-sm">🎓 학과별 권장과목</h4><div id="recommended-courses-section" class="text-xs theme-text">로딩 중...</div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
     class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="showPrintOptions()"
     class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>출력</button></div></div>`;
             modalContent.innerHTML = html;
+
+            // 학과별 권장과목 로드
+            setTimeout(async () => {
+                const el = document.getElementById('recommended-courses-section');
+                if (!el) return;
+                try {
+                    const list = await (DB.fetchRecommendedCourses ? DB.fetchRecommendedCourses() : Promise.resolve([])).catch(() => []);
+                    const major = (s.Major || '').trim();
+                    if (!major) {
+                        el.innerHTML = '<p class="text-gray-500">진로 희망 정보가 없습니다.</p>';
+                        return;
+                    }
+                    const exact = list.find(r => (r.학과 || '').trim() === major);
+                    if (exact) {
+                        el.innerHTML = `<p class="font-semibold text-gray-700 dark:text-gray-300 mb-1">${(exact.학과 || '').toString().replace(/</g,'&lt;')}</p><p class="mb-1"><span class="text-amber-600 dark:text-amber-400 font-medium">핵심 권장과목:</span> ${(exact['핵심 권장과목'] || '-').toString().replace(/</g,'&lt;')}</p><p><span class="text-blue-600 dark:text-blue-400 font-medium">권장과목:</span> ${(exact['권장과목'] || '-').toString().replace(/</g,'&lt;')}</p>`;
+                        return;
+                    }
+                    const partial = list.filter(r => { const d = (r.학과 || '').trim(); return d && (d.includes(major) || major.includes(d)); });
+                    if (partial.length > 0) {
+                        el.innerHTML = '<p class="text-gray-500 mb-2">희망 학과와 정확히 일치하는 항목이 없습니다. 유사 학과 권장과목:</p>' + partial.map(r => `<div class="mb-2 p-2 bg-gray-50 dark:bg-gray-700/50 rounded"><p class="font-semibold">${(r.학과||'').toString().replace(/</g,'&lt;')}</p><p class="text-xs"><span class="text-amber-600">핵심:</span> ${(r['핵심 권장과목']||'-').toString().replace(/</g,'&lt;')}</p><p class="text-xs"><span class="text-blue-600">권장:</span> ${(r['권장과목']||'-').toString().replace(/</g,'&lt;')}</p></div>`).join('');
+                        return;
+                    }
+                    el.innerHTML = '<p class="text-gray-600 dark:text-gray-400">전공에 관련있는 과목을 적극 이수 권장함.</p>';
+                } catch (e) {
+                    el.textContent = '권장과목 정보를 불러올 수 없습니다.';
+                }
+            }, 300);
 
             // Auto-fetch AI analysis if major is available
             if (s.Major) {
