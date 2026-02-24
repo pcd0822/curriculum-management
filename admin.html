@@ -2533,30 +2533,31 @@
             });
             return { nodes, edges, levels, byLevel };
         }
-        function buildHierarchyHtml(completedNames) {
+        function buildHierarchyHtml(completedNames, requiredNames) {
             const set = new Set([...(completedNames || [])].map(n => (n || '').trim()).filter(Boolean));
-            const NODE_W = 72, NODE_H = 22, GAP_X = 8, GAP_Y = 24;
+            if (requiredNames && requiredNames.length) requiredNames.forEach(n => set.add((n || '').trim()));
+            const NODE_W = 70, NODE_H = 22, GAP_X = 12, GAP_Y = 10;
             const renderGraph = (chains, title) => {
                 const g = buildGraphFromChains(chains);
                 const levels = [...g.byLevel.keys()].sort((a,b)=>a-b);
                 const pos = new Map();
-                let maxX = 0;
+                let maxY = 0;
                 levels.forEach(l => {
                     const ids = g.byLevel.get(l);
                     ids.forEach((id, i) => {
-                        pos.set(id, { x: i * (NODE_W + GAP_X), y: l * (NODE_H + GAP_Y) });
-                        maxX = Math.max(maxX, (i + 1) * (NODE_W + GAP_X) - GAP_X);
+                        pos.set(id, { x: l * (NODE_W + GAP_X), y: i * (NODE_H + GAP_Y) });
+                        maxY = Math.max(maxY, (i + 1) * (NODE_H + GAP_Y) - GAP_Y + NODE_H);
                     });
                 });
-                const W = maxX + NODE_W, H = levels.length * (NODE_H + GAP_Y) - GAP_Y + NODE_H;
+                const W = levels.length * (NODE_W + GAP_X) - GAP_X + NODE_W, H = maxY;
                 let svg = `<svg class="absolute left-0 top-0 pointer-events-none" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">`;
                 g.edges.forEach(e => {
                     const a = pos.get(e.from);
                     const b = pos.get(e.to);
                     if (a && b) {
-                        const x1 = a.x + NODE_W/2, y1 = a.y + NODE_H;
-                        const x2 = b.x + NODE_W/2, y2 = b.y;
-                        svg += `<path d="M ${x1} ${y1} C ${x1} ${(y1+y2)/2} ${x2} ${(y1+y2)/2} ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
+                        const x1 = a.x + NODE_W, y1 = a.y + NODE_H/2;
+                        const x2 = b.x, y2 = b.y + NODE_H/2;
+                        svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#94a3b8" stroke-width="1"/>`;
                     }
                 });
                 svg += '</svg>';
@@ -2567,11 +2568,11 @@
                     const done = nodeMatchesCompleted(id, set);
                     nodesHtml += `<div class="absolute rounded border text-[10px] flex items-center justify-center px-1 text-center leading-tight ${done ? 'bg-emerald-100 border-emerald-400 text-emerald-800 dark:bg-emerald-900/40 dark:border-emerald-600 dark:text-emerald-200' : 'bg-gray-100 border-gray-300 text-gray-600 dark:bg-gray-700 dark:border-gray-500 dark:text-gray-400'}" style="left:${p.x}px;top:${p.y}px;width:${NODE_W}px;height:${NODE_H}px;">${n.label.length > 8 ? n.label.slice(0,7)+'…' : n.label}</div>`;
                 });
-                return `<div class="mb-2"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${title}</h5><div class="relative" style="width:${W}px;height:${H}px;">${svg}${nodesHtml}</div></div>`;
+                return `<div class="mb-3"><h5 class="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${title}</h5><div class="relative" style="width:${W}px;height:${H}px;">${svg}${nodesHtml}</div></div>`;
             };
             const mathHtml = renderGraph(MATH_CHAINS, '수학 위계');
             const scienceHtml = renderGraph(SCIENCE_CHAINS, '과학 위계');
-            return `<div class="space-y-3">${mathHtml}${scienceHtml}<p class="text-[10px] text-gray-500">■ 이수함 ■ 미이수</p></div>`;
+            return `<div class="space-y-3">${mathHtml}${scienceHtml}<p class="text-[10px] text-gray-500">■ 이수함(선택+학교지정) ■ 미이수</p></div>`;
         }
 
         async function renderDetailedStudentReport(s) {
@@ -2624,12 +2625,9 @@
             }
 
             // 2. Base Credits from REQUIRED Courses (index.html과 동일한 로직)
-            // Add required credits to stats ensure Chart matches Total
-            // Note: index.html에서는 모든 학년의 required courses를 포함하므로, 여기서도 모든 학년 포함
+            // Config 시트에서 required=true인 과목은 학교 지정 과목(이수 완료)으로 간주하여 교과 영역별 이수 현황에 포함
             allCourseData.forEach(c => {
                 const isRequired = c.required === true || String(c.required).toLowerCase() === 'true';
-                // index.html과 동일하게 모든 학년의 required courses 포함 (1학년 포함)
-                // 단, 학생이 선택한 과목 목록에 포함된 required courses만 계산
                 if (isRequired) {
                     const subjectName = c.subjectName || c.name || '';
                     
@@ -3213,7 +3211,8 @@
             });
 
             const completedNamesForHierarchy = courseList.map(c => c.name);
-            const hierarchyHtml = buildHierarchyHtml(completedNamesForHierarchy);
+            const requiredSubjectNames = (allCourseData || []).filter(c => c.required === true || String(c.required).toLowerCase() === 'true').map(c => (c.subjectName || c.name || '').trim()).filter(Boolean);
+            const hierarchyHtml = buildHierarchyHtml(completedNamesForHierarchy, requiredSubjectNames);
 
             const html = ` <div id="student-report-card" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm print:shadow-none print:border-none print:w-full print:p-0"><!-- Header - Always visible in print --><div class="flex flex-row justify-between items-center mb-6 border-b pb-4 theme-border gap-4 print:mb-2 print:pb-2 print:flex-row print:items-center"><div class="flex-1 print:flex-1"><div class="flex items-center gap-3 print:gap-3 print:mb-1"><span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold print:border-0 print:bg-transparent print:text-black print:px-0 print:py-0 print:text-[9pt] print:font-bold print:shadow-none">학번: ${s.Grade}${String(s.Class).padStart(2, '0')}${String(s.Number).padStart(2, '0')}</span><h3 class="text-2xl font-bold theme-text print:text-black print:text-[12pt] print:m-0 print:inline-block print:ml-2 print:font-bold">이름: ${s.Name
                 }
@@ -3224,7 +3223,7 @@
     </span></p></div><div class="flex flex-row gap-4 text-center bg-gray-50 dark:bg-gray-700 p-3 rounded-lg print:bg-white print:border print:text-black print:gap-3 print:p-2 print:flex-shrink-0"><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">선택 과목</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${courseList.length
                 }
 
-    </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${totalCredits}</div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1 print:mb-1 items-stretch"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📊 교과 영역별 이수 현황</h4><div class="flex-1 flex items-stretch justify-stretch min-h-[192px] print:h-[100px] print:min-h-[100px] print:max-h-[140px]"><div class="w-full h-full relative flex-1"><canvas id="individualCreditChart"></canvas></div></div><div class="mt-2 min-h-[260px] print:min-h-[100px]" id="subcategory-chart-wrap" style="height: 260px;"><canvas id="individualSubCategoryChart"></canvas></div><table class="w-full text-xs mt-2 print:text-[6pt] print:mt-1 border-collapse" id="subcategory-credits-table"><thead><tr><th class="border p-1 text-left print:p-0.5">교과군</th><th class="border p-1 text-right print:p-0.5">신청학점</th><th class="border p-1 text-left print:p-0.5">교과군</th><th class="border p-1 text-right print:p-0.5">신청학점</th></tr></thead><tbody>${subCategoryTableRows}</tbody></table></div><!-- Right Top: Validation Detail --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1.5 print:p-1.5 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-2 p-2 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
+    </div></div><div class="w-px bg-gray-300 print:hidden"></div><div class="px-2 print:px-2"><div class="text-xs text-gray-500 print:text-black print:text-[7pt]">총 학점</div><div class="text-2xl font-bold theme-text print:text-black print:text-[14pt]">${totalCredits}</div></div></div></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2 print:gap-1 print:mb-1 items-stretch"><!-- Left Top: Credit Chart --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📊 교과 영역별 이수 현황</h4><div class="flex-1 flex items-stretch justify-stretch min-h-[192px] print:h-[100px] print:min-h-[100px] print:max-h-[140px]"><div class="w-full h-full relative flex-1"><canvas id="individualCreditChart"></canvas></div></div><div class="mt-2 min-h-[260px] print:min-h-[100px]" id="subcategory-chart-wrap" style="height: 260px;"><canvas id="individualSubCategoryChart"></canvas></div><table class="w-full text-xs mt-2 print:text-[6pt] print:mt-1 border-collapse" id="subcategory-credits-table"><thead><tr><th class="border p-1 text-left print:p-0.5">교과군</th><th class="border p-1 text-right print:p-0.5">신청학점</th><th class="border p-1 text-left print:p-0.5">교과군</th><th class="border p-1 text-right print:p-0.5">신청학점</th></tr></thead><tbody>${subCategoryTableRows}</tbody></table></div><!-- Right Top: Validation + 권장과목 --><div class="flex flex-col gap-2"><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1.5 flex flex-col max-h-36 overflow-hidden"><h4 class="font-bold mb-1 theme-text print:text-black print:text-[8pt] print:mb-0.75">✅ 수강신청 검증 상세</h4><div class="overflow-hidden rounded border ${vBg} mb-1 p-1.5 print:mb-1 print:p-1"><p class="font-bold text-center ${vColor} text-sm print:text-black print:text-[7pt]">${isPass ? 'PASS' : '확인 필요'
                 }
 
     </p></div><div class="flex-1 overflow-y-auto"><table class="w-full text-xs print:text-[7pt]"><thead class="hidden print:table-header-group"><tr><th class="text-left print:p-0.75 print:text-[7pt]">항목</th><th class="text-right print:p-0.75 print:text-[7pt]">상태</th></tr></thead><tbody>${validationChecklist.map((v, idx) => {
@@ -3262,7 +3261,7 @@
         </p > ` : ''
                 }
 
-    </div></div></div><!-- Bottom Row: Course List and AI Recommendations --><div class="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-2 print:gap-1 print:mb-1 mt-6 print:mt-1 items-stretch"><!-- Left Bottom: Selected Course List (same width as Chart in print) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 lg:col-span-2 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📚 선택 과목 목록 (${courseList.length
+    </div></div><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 theme-text print:text-black text-sm">🎓 학과별 권장과목</h4><p class="text-[10px] text-gray-500 dark:text-gray-400 mb-1">과목명을 클릭하면 공동교육과정 개설 여부를 확인할 수 있습니다.</p><div id="recommended-courses-section" class="text-xs theme-text">로딩 중...</div></div></div><!-- Bottom Row: Course List and AI Recommendations --><div class="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-2 print:gap-1 print:mb-1 mt-6 print:mt-1 items-stretch"><!-- Left Bottom: Selected Course List (same width as Chart in print) --><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid print:mb-1 print:p-1 lg:col-span-2 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 theme-text print:text-black print:text-[7pt] print:mb-0.5">📚 선택 과목 목록 (${courseList.length
 
                 })</h4><div class="flex-1 overflow-y-auto custom-scrollbar print:overflow-visible print:max-h-none min-h-0"><table class="w-full text-xs text-left print:text-[8pt]"><thead class="bg-gray-50 dark:bg-gray-700 text-gray-500 font-medium print:bg-gray-100 print:text-black"><tr><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학년</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학기</th><th class="p-2 print:p-0.5 print:text-[9pt]" style="width: 50% !important;">과목명</th><th class="p-2 w-10 text-center print:p-0.5 print:text-[8pt]">학점</th></tr></thead><tbody class="divide-y divide-gray-100">${courseList.map(c => {
                     const [grade, sem] = c.semester.includes('-') ? c.semester.split('-') : ['?', '?'];
@@ -3270,7 +3269,7 @@
                 }).join('')
                 }
 
-    </tbody></table></div></div><!-- Right Bottom: AI Recommendations (same width as Validation in print) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="flex-1 text-sm space-y-3 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><!-- 위계 이수 현황 + 학과별 권장과목 --><div class="grid grid-cols-1 lg:grid-cols-2 gap-4 print:grid-cols-2 mt-4 print:mt-2"><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 theme-text print:text-black text-sm">📐 과목별 위계 이수 현황</h4><div class="max-h-48 overflow-y-auto text-xs custom-scrollbar">${hierarchyHtml}</div></div><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 theme-text print:text-black text-sm">🎓 학과별 권장과목</h4><div id="recommended-courses-section" class="text-xs theme-text">로딩 중...</div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
+    </tbody></table></div></div><!-- Right Bottom: AI Recommendations (same width as Validation in print) --><div class="theme-card rounded border p-4 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 print:bg-white print:border-gray-300 print:break-inside-avoid lg:col-span-1 print:col-span-1 flex flex-col"><h4 class="font-bold mb-2 text-indigo-800 dark:text-indigo-300 flex items-center gap-2 print:text-black print:text-[8pt] print:mb-0.75">🤖 AI 추천 탐구활동</h4><div id="ai-analysis-container" class="flex-1 text-sm space-y-3 print:overflow-visible"><div class="text-center py-4 print:hidden"><div class="text-xs text-indigo-400 mt-2">AI가 선택 과목과 진로를 분석하여<br>추천 탐구 활동과 키워드를 제안합니다.</div></div><div class="print:block text-gray-600 text-xs p-2 print:text-black print:text-[7pt]">${s.Major ? 'AI 분석 결과가 여기에 표시됩니다.' : '진로 희망 정보가 없어 AI 분석을 실행할 수 없습니다.'}</div></div></div></div></div><!-- 위계 이수 현황 (모달 가로 전체) --><div class="mt-4 print:mt-2 w-full"><div class="theme-card rounded border p-4 print:border-gray-300 print:break-inside-avoid"><h4 class="font-bold mb-2 theme-text print:text-black text-sm">📐 과목별 위계 이수 현황</h4><div class="w-full overflow-x-auto overflow-y-auto text-xs custom-scrollbar max-h-56">${hierarchyHtml}</div></div></div></div><div class="mt-6 text-center print:hidden flex justify-center gap-4"><button onclick="document.getElementById('modal-select-number').value='all'; renderIndividualStatsTable();"
     class="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors shadow">목록으로 돌아가기 </button><button onclick="showPrintOptions()"
     class="px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors shadow flex items-center gap-2"><span>🖨️</span>출력</button></div></div>`;
             modalContent.innerHTML = html;
