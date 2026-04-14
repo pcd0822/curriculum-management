@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <title>수강신청 - 고교학점제</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Noto Sans KR"', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        primary: { 50:'#eef2ff', 100:'#e0e7ff', 200:'#c7d2fe', 300:'#a5b4fc', 400:'#818cf8', 500:'#6366f1', 600:'#4f46e5', 700:'#4338ca', 800:'#3730a3', 900:'#312e81' },
+                    }
+                }
+            }
+        };
+    </script>
+    <script src="js/db.js"></script>
+    <script src="js/student-code.js"></script>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Noto Sans KR', system-ui, sans-serif; background: #f7f9fb; color: #191c1e; overscroll-behavior: none; }
+        .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+        .semester-tab { scroll-snap-align: center; }
+        .semester-tabs { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+        .course-card { transition: all 0.2s ease; }
+        .course-card.selected { background: #eef2ff; box-shadow: inset 0 0 0 2px #4f46e5; }
+        .course-card:active { transform: scale(0.98); }
+        .step-line { height: 3px; transition: background-color 0.3s; }
+        .bottom-bar { box-shadow: 0 -4px 20px rgba(0,0,0,0.06); }
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .slide-up { animation: slideUp 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .fade-in { animation: fadeIn 0.3s ease; }
+    </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ===== APP SHELL ===== -->
+<div id="app" class="max-w-lg mx-auto relative min-h-screen flex flex-col">
+
+    <!-- ===== STEP 1: 학생 인증 ===== -->
+    <div id="step-auth" class="flex-1 flex flex-col">
+        <!-- Header -->
+        <div class="px-5 pt-12 pb-6 text-center">
+            <div class="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                </svg>
+            </div>
+            <h1 id="school-title" class="text-xl font-bold text-gray-900">고교학점제</h1>
+            <p class="text-sm text-gray-500 mt-1">수강신청 도우미</p>
+        </div>
+
+        <!-- Progress Steps -->
+        <div class="px-8 mb-8">
+            <div class="flex items-center justify-between">
+                <div class="flex flex-col items-center flex-1">
+                    <div id="step-dot-1" class="w-9 h-9 rounded-full bg-primary-600 text-white flex items-center justify-center text-sm font-bold">1</div>
+                    <span class="text-xs font-medium text-primary-600 mt-1.5">학생인증</span>
+                </div>
+                <div id="step-line-1" class="step-line flex-1 bg-gray-200 mx-1 rounded-full -mt-5"></div>
+                <div class="flex flex-col items-center flex-1">
+                    <div id="step-dot-2" class="w-9 h-9 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center text-sm font-bold">2</div>
+                    <span class="text-xs font-medium text-gray-400 mt-1.5">과목선택</span>
+                </div>
+                <div id="step-line-2" class="step-line flex-1 bg-gray-200 mx-1 rounded-full -mt-5"></div>
+                <div class="flex flex-col items-center flex-1">
+                    <div id="step-dot-3" class="w-9 h-9 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center text-sm font-bold">3</div>
+                    <span class="text-xs font-medium text-gray-400 mt-1.5">제출완료</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Auth Form -->
+        <div class="px-5 flex-1">
+            <div class="bg-white rounded-2xl p-6 shadow-sm">
+                <h2 class="text-base font-bold text-gray-800 mb-1">학생 본인 확인</h2>
+                <p class="text-xs text-gray-400 mb-5">관리자에게 발급받은 학생 코드와 학번, 이름을 입력하세요.</p>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1.5">학생 코드 (영문+숫자 10자리)</label>
+                        <input type="text" id="auth-code" class="w-full h-12 px-4 bg-gray-50 rounded-xl text-base font-mono tracking-wider uppercase focus:outline-none focus:ring-2 focus:ring-primary-300 focus:bg-white transition" maxlength="10" placeholder="A3K9M2X7P1" inputmode="text" autocomplete="one-time-code">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1.5">학번 (5자리)</label>
+                        <input type="text" id="auth-id" class="w-full h-12 px-4 bg-gray-50 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-primary-300 focus:bg-white transition" maxlength="5" placeholder="20513" inputmode="numeric">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1.5">이름</label>
+                        <input type="text" id="auth-name" class="w-full h-12 px-4 bg-gray-50 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-primary-300 focus:bg-white transition" placeholder="홍길동" autocomplete="name">
+                    </div>
+                    <div id="auth-error" class="hidden text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-xl"></div>
+                    <button id="auth-btn" class="w-full h-13 py-3.5 bg-gradient-to-r from-primary-700 to-primary-600 text-white font-bold rounded-xl active:scale-[0.98] transition-transform text-base">
+                        본인 확인
+                    </button>
+                </div>
+            </div>
+            <p class="text-center text-xs text-gray-400 mt-4">학생 코드가 없다면 담임 선생님에게 문의하세요.</p>
+        </div>
+    </div>
+
+    <!-- ===== STEP 2: 과목 선택 ===== -->
+    <div id="step-select" class="hidden flex-1 flex flex-col pb-40">
+        <!-- Top Bar -->
+        <div class="sticky top-0 z-30 bg-white/90 backdrop-blur-xl safe-top">
+            <div class="px-5 pt-4 pb-2 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-400">수강신청</p>
+                    <h2 class="text-lg font-bold text-gray-900">과목 선택</h2>
+                </div>
+                <div id="student-badge" class="flex items-center gap-2 bg-primary-50 px-3 py-1.5 rounded-full">
+                    <div class="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center text-white text-xs font-bold" id="student-initial">홍</div>
+                    <span class="text-xs font-medium text-primary-700" id="student-name-badge">홍길동</span>
+                </div>
+            </div>
+
+            <!-- Semester Tabs -->
+            <div class="semester-tabs flex gap-2 px-5 py-3 overflow-x-auto no-scrollbar">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Course List -->
+        <div id="course-list" class="px-5 pt-2 space-y-3 flex-1">
+            <!-- Loading -->
+            <div id="course-loading" class="flex flex-col items-center justify-center py-16">
+                <div class="w-10 h-10 border-3 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+                <p class="text-sm text-gray-400 mt-3">과목을 불러오는 중...</p>
+            </div>
+        </div>
+
+        <!-- Bottom Sticky Bar -->
+        <div class="bottom-bar fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl safe-bottom slide-up">
+            <div class="max-w-lg mx-auto px-5 pt-3 pb-4">
+                <!-- Credit Progress -->
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-gray-500">이수 학점</span>
+                    <span class="text-xs font-bold">
+                        <span id="credit-current" class="text-primary-600">0</span>
+                        <span class="text-gray-400"> / 174학점</span>
+                    </span>
+                </div>
+                <div class="w-full h-1.5 bg-gray-100 rounded-full mb-3 overflow-hidden">
+                    <div id="credit-bar" class="h-full bg-gradient-to-r from-primary-600 to-primary-400 rounded-full transition-all duration-300" style="width:0%"></div>
+                </div>
+                <!-- Action Row -->
+                <div class="flex items-center gap-3">
+                    <div class="flex-1">
+                        <p class="text-sm font-bold text-gray-800">
+                            <span id="selected-count">0</span>과목 선택
+                        </p>
+                        <p class="text-xs text-gray-400">
+                            총 <span id="credit-total">0</span>학점
+                        </p>
+                    </div>
+                    <button id="next-btn" class="flex-1 h-12 bg-gradient-to-r from-primary-700 to-primary-600 text-white font-bold rounded-xl active:scale-[0.98] transition-transform disabled:from-gray-300 disabled:to-gray-300" disabled>
+                        다음 단계
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== STEP 3: 제출 확인 ===== -->
+    <div id="step-confirm" class="hidden flex-1 flex flex-col pb-32">
+        <div class="sticky top-0 z-30 bg-white/90 backdrop-blur-xl px-5 pt-4 pb-3">
+            <button id="back-btn" class="flex items-center gap-1 text-sm text-gray-500 mb-2">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                과목선택으로
+            </button>
+            <h2 class="text-lg font-bold text-gray-900">수강신청 확인</h2>
+            <p class="text-xs text-gray-400 mt-0.5">선택한 과목을 확인하고 제출하세요.</p>
+        </div>
+
+        <!-- Student Info Summary -->
+        <div class="px-5 pt-3 space-y-3">
+            <div class="bg-white rounded-2xl p-5 shadow-sm">
+                <h3 class="text-sm font-bold text-gray-700 mb-3">학생 정보</h3>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div><span class="text-gray-400">학번</span><p id="confirm-id" class="font-semibold text-gray-800 mt-0.5">20513</p></div>
+                    <div><span class="text-gray-400">이름</span><p id="confirm-name" class="font-semibold text-gray-800 mt-0.5">홍길동</p></div>
+                    <div class="col-span-2"><span class="text-gray-400">희망 진로</span><p id="confirm-major" class="font-semibold text-gray-800 mt-0.5">-</p></div>
+                </div>
+            </div>
+
+            <!-- Major Input (in confirm step) -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm">
+                <label class="text-sm font-bold text-gray-700 mb-2 block">희망 진로 입력</label>
+                <input type="text" id="major-input" class="w-full h-12 px-4 bg-gray-50 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-primary-300 focus:bg-white transition" placeholder="예: 컴퓨터공학, 간호학, 경영학">
+            </div>
+
+            <!-- Validation Messages -->
+            <div id="confirm-validation" class="bg-white rounded-2xl p-5 shadow-sm">
+                <h3 class="text-sm font-bold text-gray-700 mb-3">검증 결과</h3>
+                <div id="validation-list" class="space-y-2"></div>
+            </div>
+
+            <!-- Selected Courses by Category -->
+            <div id="confirm-courses" class="bg-white rounded-2xl p-5 shadow-sm">
+                <h3 class="text-sm font-bold text-gray-700 mb-3">선택 과목</h3>
+                <div id="confirm-course-list" class="space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl safe-bottom bottom-bar">
+            <div class="max-w-lg mx-auto px-5 pt-3 pb-4">
+                <button id="submit-btn" class="w-full h-13 py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold rounded-xl active:scale-[0.98] transition-transform text-base disabled:from-gray-300 disabled:to-gray-300">
+                    수강신청 제출하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== STEP 4: 완료 ===== -->
+    <div id="step-done" class="hidden flex-1 flex flex-col items-center justify-center px-8 text-center">
+        <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
+            <svg class="w-10 h-10 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">제출 완료!</h2>
+        <p class="text-sm text-gray-500 mb-1">수강신청이 성공적으로 제출되었습니다.</p>
+        <p class="text-xs text-gray-400 mb-8">수정이 필요하면 담임 선생님에게 문의하세요.</p>
+        <div id="done-summary" class="bg-white rounded-2xl p-5 shadow-sm w-full text-left mb-6">
+            <p class="text-sm font-bold text-gray-700 mb-2">제출 요약</p>
+            <div class="text-sm text-gray-600 space-y-1" id="done-details"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ===== SCRIPTS ===== -->
+<script>
+(function() {
+    'use strict';
+
+    // ─── State ───
+    let currentStep = 1;
+    let verifiedStudent = null; // { studentId, name, grade, classNum, number }
+    let courses = [];           // ConfigRow[]
+    let settings = {};
+    let selectionRules = {};
+    let selectedSlugs = new Set();
+    let activeSemester = null;
+
+    const CATEGORY_COLORS = {
+        '기초교과': { bg: 'bg-indigo-50', text: 'text-indigo-700', stripe: 'bg-indigo-500', badge: 'bg-indigo-100 text-indigo-700' },
+        '탐구교과': { bg: 'bg-violet-50', text: 'text-violet-700', stripe: 'bg-violet-500', badge: 'bg-violet-100 text-violet-700' },
+        '예술교과': { bg: 'bg-amber-50', text: 'text-amber-700', stripe: 'bg-amber-500', badge: 'bg-amber-100 text-amber-700' },
+        '교양교과': { bg: 'bg-emerald-50', text: 'text-emerald-700', stripe: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700' },
+        '체육교과': { bg: 'bg-sky-50', text: 'text-sky-700', stripe: 'bg-sky-500', badge: 'bg-sky-100 text-sky-700' },
+    };
+    const DEFAULT_CAT = { bg: 'bg-gray-50', text: 'text-gray-700', stripe: 'bg-gray-400', badge: 'bg-gray-100 text-gray-700' };
+
+    // ─── Elements ───
+    const $ = (id) => document.getElementById(id);
+
+    // ─── Init ───
+    async function init() {
+        const apiUrl = localStorage.getItem('apiUrl');
+        if (apiUrl) DB.init(apiUrl);
+
+        // Bind auth
+        $('auth-btn').addEventListener('click', handleAuth);
+        $('auth-code').addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10);
+        });
+        $('auth-id').addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 5);
+        });
+        // Enter key support
+        ['auth-code', 'auth-id', 'auth-name'].forEach(id => {
+            $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAuth(); });
+        });
+
+        $('next-btn').addEventListener('click', goToConfirm);
+        $('back-btn').addEventListener('click', () => goToStep(2));
+        $('submit-btn').addEventListener('click', handleSubmit);
+
+        // Load settings for school name
+        try {
+            if (DB.isConfigured()) {
+                settings = await DB.fetchSettings();
+                if (settings.schoolName) $('school-title').textContent = settings.schoolName;
+                selectionRules = settings.selectionRules || {};
+            }
+        } catch (e) { /* ignore */ }
+
+        // Skip auth if not required
+        if (!DB.isConfigured()) {
+            // Demo mode: skip auth
+            verifiedStudent = { studentId: '00000', name: '체험모드', grade: 0, classNum: 0, number: 0 };
+            goToStep(2);
+        }
+    }
+
+    // ─── Authentication ───
+    async function handleAuth() {
+        const code = $('auth-code').value.trim();
+        const id = $('auth-id').value.trim();
+        const name = $('auth-name').value.trim();
+        const errEl = $('auth-error');
+        errEl.classList.add('hidden');
+
+        if (code.length !== 10) return showAuthError('학생 코드는 영문+숫자 10자리입니다.');
+        if (id.length !== 5) return showAuthError('학번 5자리를 입력해주세요.');
+        if (!name) return showAuthError('이름을 입력해주세요.');
+
+        const btn = $('auth-btn');
+        btn.disabled = true;
+        btn.textContent = '확인 중...';
+
+        try {
+            const res = await DB.verifyStudent({ studentCode: code, studentId: id, name });
+            if (res.status === 'success') {
+                const grade = parseInt(id[0]);
+                const classNum = parseInt(id.substring(1, 3));
+                const number = parseInt(id.substring(3, 5));
+                verifiedStudent = { studentId: id, name: res.student?.이름 || name, grade, classNum, number };
+                goToStep(2);
+            } else {
+                showAuthError(res.message || '인증에 실패했습니다.');
+            }
+        } catch (e) {
+            showAuthError(e.message || '서버 연결에 실패했습니다.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '본인 확인';
+        }
+    }
+
+    function showAuthError(msg) {
+        const el = $('auth-error');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+
+    // ─── Step Navigation ───
+    function goToStep(step) {
+        currentStep = step;
+        ['step-auth', 'step-select', 'step-confirm', 'step-done'].forEach((id, i) => {
+            $(id).classList.toggle('hidden', i + 1 !== step);
+        });
+
+        // Update progress dots
+        for (let i = 1; i <= 3; i++) {
+            const dot = $(`step-dot-${i}`);
+            const line = $(`step-line-${i}`);
+            if (i < step) {
+                dot.className = 'w-9 h-9 rounded-full bg-primary-600 text-white flex items-center justify-center text-sm font-bold';
+                dot.innerHTML = '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
+                if (line) line.classList.replace('bg-gray-200', 'bg-primary-600');
+            } else if (i === step) {
+                dot.className = 'w-9 h-9 rounded-full bg-primary-600 text-white flex items-center justify-center text-sm font-bold';
+                dot.textContent = i;
+            } else {
+                dot.className = 'w-9 h-9 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center text-sm font-bold';
+                dot.textContent = i;
+                if (line) line.classList.replace('bg-primary-600', 'bg-gray-200');
+            }
+        }
+
+        if (step === 2) loadCourses();
+        if (step === 3) buildConfirmView();
+        window.scrollTo(0, 0);
+    }
+
+    // ─── Load Courses ───
+    async function loadCourses() {
+        $('student-initial').textContent = verifiedStudent.name.charAt(0);
+        $('student-name-badge').textContent = verifiedStudent.name;
+
+        $('course-loading').classList.remove('hidden');
+
+        try {
+            if (DB.isConfigured()) {
+                courses = await DB.fetchConfig();
+            } else {
+                // Mock data for demo
+                courses = [
+                    { 과목명:'문학', 영문ID:'munhag', 학년:2, 학기:1, 학점:4, 교과군:'기초교과', 세부교과:'국어', 필수여부:'TRUE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'미적분', 영문ID:'miguebun', 학년:2, 학기:1, 학점:4, 교과군:'기초교과', 세부교과:'수학', 필수여부:'TRUE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'영어Ⅱ', 영문ID:'english2', 학년:2, 학기:1, 학점:4, 교과군:'기초교과', 세부교과:'영어', 필수여부:'TRUE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'한국사', 영문ID:'khistory', 학년:2, 학기:1, 학점:4, 교과군:'기초교과', 세부교과:'사회', 필수여부:'TRUE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'물리학Ⅰ', 영문ID:'physics1', 학년:2, 학기:1, 학점:4, 교과군:'탐구교과', 세부교과:'과학', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'화학Ⅰ', 영문ID:'chem1', 학년:2, 학기:2, 학점:4, 교과군:'탐구교과', 세부교과:'과학', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'세계사', 영문ID:'worldhist', 학년:2, 학기:2, 학점:4, 교과군:'탐구교과', 세부교과:'사회', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'음악', 영문ID:'music', 학년:2, 학기:1, 학점:4, 교과군:'예술교과', 세부교과:'예술', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'미술', 영문ID:'art', 학년:2, 학기:2, 학점:4, 교과군:'예술교과', 세부교과:'예술', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'기술가정', 영문ID:'techfam', 학년:2, 학기:1, 학점:4, 교과군:'교양교과', 세부교과:'교양', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'제2외국어', 영문ID:'lang2', 학년:2, 학기:2, 학점:4, 교과군:'교양교과', 세부교과:'제2외국어', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'정보', 영문ID:'info', 학년:3, 학기:1, 학점:4, 교과군:'교양교과', 세부교과:'정보', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'확률과 통계', 영문ID:'probstat', 학년:3, 학기:1, 학점:4, 교과군:'기초교과', 세부교과:'수학', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'miguebun' },
+                    { 과목명:'생명과학Ⅰ', 영문ID:'bio1', 학년:3, 학기:1, 학점:4, 교과군:'탐구교과', 세부교과:'과학', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'' },
+                    { 과목명:'영어 회화', 영문ID:'engconv', 학년:3, 학기:2, 학점:4, 교과군:'기초교과', 세부교과:'영어', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'english2' },
+                    { 과목명:'윤리와 사상', 영문ID:'ethics', 학년:3, 학기:2, 학점:4, 교과군:'탐구교과', 세부교과:'사회', 필수여부:'FALSE', 개설여부:'TRUE', 선수과목:'' },
+                ];
+            }
+
+            courses = courses.filter(c => c.개설여부 === 'TRUE');
+            buildSemesterTabs();
+            renderCourses();
+        } catch (e) {
+            $('course-loading').innerHTML = '<p class="text-sm text-red-500">과목 로드에 실패했습니다. 새로고침해 주세요.</p>';
+        }
+    }
+
+    // ─── Semester Tabs ───
+    function buildSemesterTabs() {
+        const semesters = new Set();
+        courses.forEach(c => semesters.add(`${c.학년}-${c.학기}`));
+        const sorted = Array.from(semesters).sort();
+        activeSemester = sorted[0] || null;
+
+        const container = document.querySelector('.semester-tabs');
+        container.innerHTML = '';
+
+        // "전체" tab
+        const allBtn = createTabBtn('전체', null);
+        container.appendChild(allBtn);
+
+        sorted.forEach(s => {
+            const [g, sem] = s.split('-');
+            const btn = createTabBtn(`${g}학년 ${sem}학기`, s);
+            container.appendChild(btn);
+        });
+
+        // Default: show all
+        activeSemester = null;
+        container.firstChild.classList.add('bg-primary-600', 'text-white');
+        container.firstChild.classList.remove('bg-gray-100', 'text-gray-600');
+    }
+
+    function createTabBtn(label, semester) {
+        const btn = document.createElement('button');
+        btn.className = 'semester-tab shrink-0 px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-600 transition-colors whitespace-nowrap';
+        btn.textContent = label;
+        btn.addEventListener('click', () => {
+            activeSemester = semester;
+            document.querySelectorAll('.semester-tab').forEach(t => {
+                t.classList.remove('bg-primary-600', 'text-white');
+                t.classList.add('bg-gray-100', 'text-gray-600');
+            });
+            btn.classList.add('bg-primary-600', 'text-white');
+            btn.classList.remove('bg-gray-100', 'text-gray-600');
+            renderCourses();
+        });
+        return btn;
+    }
+
+    // ─── Render Course Cards ───
+    function renderCourses() {
+        $('course-loading').classList.add('hidden');
+        const list = $('course-list');
+
+        // Remove old cards
+        list.querySelectorAll('.course-card').forEach(c => c.remove());
+
+        const filtered = activeSemester
+            ? courses.filter(c => `${c.학년}-${c.학기}` === activeSemester)
+            : courses;
+
+        if (filtered.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'text-center text-sm text-gray-400 py-12 course-card';
+            empty.textContent = '해당 학기에 개설된 과목이 없습니다.';
+            list.appendChild(empty);
+            return;
+        }
+
+        // Group by category
+        const groups = {};
+        filtered.forEach(c => {
+            const cat = c.교과군 || '기타';
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(c);
+        });
+
+        Object.entries(groups).forEach(([cat, items]) => {
+            const colors = CATEGORY_COLORS[cat] || DEFAULT_CAT;
+
+            // Category header
+            const header = document.createElement('div');
+            header.className = 'course-card flex items-center gap-2 mt-2 mb-1';
+            header.innerHTML = `<div class="w-2 h-2 rounded-full ${colors.stripe}"></div><span class="text-xs font-semibold ${colors.text}">${cat}</span><span class="text-xs text-gray-300">${items.length}개</span>`;
+            list.appendChild(header);
+
+            items.forEach(c => {
+                const isSelected = selectedSlugs.has(c.영문ID);
+                const isRequired = c.필수여부 === 'TRUE';
+                const card = document.createElement('div');
+                card.className = `course-card bg-white rounded-2xl overflow-hidden shadow-sm flex items-stretch cursor-pointer ${isSelected ? 'selected' : ''}`;
+                card.dataset.slug = c.영문ID;
+
+                card.innerHTML = `
+                    <div class="w-1.5 ${colors.stripe} shrink-0"></div>
+                    <div class="flex-1 px-4 py-3.5 flex items-center justify-between gap-3 min-h-[60px]">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-gray-800 truncate">${c.과목명}</p>
+                            <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                                <span class="text-[11px] px-2 py-0.5 rounded-full ${colors.badge} font-medium">${c.학점}학점</span>
+                                ${isRequired ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-600 font-medium">필수</span>' : ''}
+                                <span class="text-[11px] text-gray-400">${c.세부교과}</span>
+                            </div>
+                        </div>
+                        <div class="shrink-0 w-11 h-7 rounded-full transition-colors flex items-center ${isSelected ? 'bg-primary-600 justify-end' : 'bg-gray-200 justify-start'}">
+                            <div class="w-5 h-5 bg-white rounded-full shadow mx-1 transition-transform"></div>
+                        </div>
+                    </div>
+                `;
+
+                card.addEventListener('click', () => toggleCourse(c.영문ID, card));
+                list.appendChild(card);
+            });
+        });
+
+        // Auto-select required courses
+        courses.filter(c => c.필수여부 === 'TRUE').forEach(c => {
+            if (!selectedSlugs.has(c.영문ID)) {
+                selectedSlugs.add(c.영문ID);
+            }
+        });
+        updateBottomBar();
+        // Re-render toggle states
+        list.querySelectorAll('.course-card[data-slug]').forEach(card => {
+            const slug = card.dataset.slug;
+            if (selectedSlugs.has(slug)) {
+                card.classList.add('selected');
+                const toggle = card.querySelector('.w-11');
+                if (toggle) {
+                    toggle.classList.add('bg-primary-600', 'justify-end');
+                    toggle.classList.remove('bg-gray-200', 'justify-start');
+                }
+            }
+        });
+    }
+
+    function toggleCourse(slug, card) {
+        if (selectedSlugs.has(slug)) {
+            selectedSlugs.delete(slug);
+            card.classList.remove('selected');
+            const toggle = card.querySelector('.w-11');
+            toggle.classList.remove('bg-primary-600', 'justify-end');
+            toggle.classList.add('bg-gray-200', 'justify-start');
+        } else {
+            selectedSlugs.add(slug);
+            card.classList.add('selected');
+            const toggle = card.querySelector('.w-11');
+            toggle.classList.add('bg-primary-600', 'justify-end');
+            toggle.classList.remove('bg-gray-200', 'justify-start');
+        }
+        updateBottomBar();
+    }
+
+    function updateBottomBar() {
+        const selected = courses.filter(c => selectedSlugs.has(c.영문ID));
+        const totalCredits = selected.reduce((s, c) => s + Number(c.학점), 0);
+        $('selected-count').textContent = selected.length;
+        $('credit-total').textContent = totalCredits;
+        $('credit-current').textContent = totalCredits;
+        const pct = Math.min((totalCredits / 174) * 100, 100);
+        $('credit-bar').style.width = pct + '%';
+        $('next-btn').disabled = selected.length === 0;
+    }
+
+    // ─── Confirm View ───
+    function goToConfirm() {
+        goToStep(3);
+    }
+
+    function buildConfirmView() {
+        const s = verifiedStudent;
+        $('confirm-id').textContent = s.studentId;
+        $('confirm-name').textContent = s.name;
+
+        const selected = courses.filter(c => selectedSlugs.has(c.영문ID));
+        const totalCredits = selected.reduce((sum, c) => sum + Number(c.학점), 0);
+
+        // Validation
+        const msgs = [];
+        if (totalCredits < 174) msgs.push({ ok: false, text: `총 이수 학점이 부족합니다 (${totalCredits}/174학점)` });
+        else msgs.push({ ok: true, text: `총 이수 학점 충족 (${totalCredits}/174학점)` });
+
+        const catCredits = {};
+        selected.forEach(c => { catCredits[c.교과군] = (catCredits[c.교과군] || 0) + Number(c.학점); });
+        const totalConfigCredits = selected.reduce((s, c) => s + Number(c.학점), 0);
+        const basicRatio = totalConfigCredits > 0 ? ((catCredits['기초교과'] || 0) / totalConfigCredits * 100) : 0;
+        if (basicRatio > 50) msgs.push({ ok: false, text: `기초교과 비율 초과 (${Math.round(basicRatio)}% > 50%)` });
+        else msgs.push({ ok: true, text: `기초교과 비율 적합 (${Math.round(basicRatio)}%)` });
+
+        if ((catCredits['예술교과'] || 0) < 10) msgs.push({ ok: false, text: `예술교과 학점 부족 (${catCredits['예술교과'] || 0}/10학점)` });
+        else msgs.push({ ok: true, text: `예술교과 학점 충족 (${catCredits['예술교과'] || 0}/10학점)` });
+
+        if ((catCredits['교양교과'] || 0) < 16) msgs.push({ ok: false, text: `교양교과 학점 부족 (${catCredits['교양교과'] || 0}/16학점)` });
+        else msgs.push({ ok: true, text: `교양교과 학점 충족 (${catCredits['교양교과'] || 0}/16학점)` });
+
+        const vList = $('validation-list');
+        vList.innerHTML = msgs.map(m => `
+            <div class="flex items-center gap-2 text-sm ${m.ok ? 'text-emerald-600' : 'text-red-500'}">
+                <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    ${m.ok
+                        ? '<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>'
+                        : '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>'
+                    }
+                </svg>
+                <span>${m.text}</span>
+            </div>
+        `).join('');
+
+        // Courses grouped by category
+        const groups = {};
+        selected.forEach(c => {
+            const cat = c.교과군 || '기타';
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(c);
+        });
+
+        const courseList = $('confirm-course-list');
+        courseList.innerHTML = Object.entries(groups).map(([cat, items]) => {
+            const colors = CATEGORY_COLORS[cat] || DEFAULT_CAT;
+            const totalCat = items.reduce((s, c) => s + Number(c.학점), 0);
+            return `
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-xs font-semibold ${colors.text}">${cat}</span>
+                        <span class="text-xs text-gray-400">${totalCat}학점</span>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5">
+                        ${items.map(c => `<span class="text-xs px-2.5 py-1 rounded-full ${colors.badge}">${c.과목명} (${c.학점})</span>`).join('')}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const allPassed = msgs.every(m => m.ok);
+        $('submit-btn').disabled = false; // Allow submission even with warnings
+        $('confirm-major').textContent = $('major-input').value || '-';
+    }
+
+    // ─── Submit ───
+    async function handleSubmit() {
+        const btn = $('submit-btn');
+        btn.disabled = true;
+        btn.textContent = '제출 중...';
+
+        const selected = courses.filter(c => selectedSlugs.has(c.영문ID));
+        const totalCredits = selected.reduce((s, c) => s + Number(c.학점), 0);
+        const major = $('major-input').value.trim() || '-';
+
+        // Build validation result
+        const msgs = [];
+        if (totalCredits >= 174) msgs.push('총 이수 학점 충족');
+        else msgs.push(`총 이수 학점 부족(${totalCredits}/174)`);
+
+        const catCredits = {};
+        selected.forEach(c => { catCredits[c.교과군] = (catCredits[c.교과군] || 0) + Number(c.학점); });
+        const allOk = totalCredits >= 174 && (catCredits['예술교과'] || 0) >= 10 && (catCredits['교양교과'] || 0) >= 16;
+
+        const responseData = {
+            Grade: String(verifiedStudent.grade),
+            Class: String(verifiedStudent.classNum).padStart(2, '0'),
+            Number: String(verifiedStudent.number).padStart(2, '0'),
+            Name: verifiedStudent.name,
+            Major: major,
+            SelectedCourses: selected.map(c => c.과목명).join(', '),
+            JointCourses: '',
+            TotalCredits: totalCredits,
+            ValidationResult: allOk ? '모든 검증을 통과하였습니다.' : msgs.join(', '),
+            AiRecommendation: ''
+        };
+
+        try {
+            if (DB.isConfigured()) {
+                await DB.submitResponse(responseData);
+            }
+            // Show done
+            $('done-details').innerHTML = `
+                <p>이름: <strong>${verifiedStudent.name}</strong></p>
+                <p>선택 과목: <strong>${selected.length}개</strong></p>
+                <p>총 이수 학점: <strong>${totalCredits}학점</strong></p>
+                <p>희망 진로: <strong>${major}</strong></p>
+            `;
+            goToStep(4);
+        } catch (e) {
+            alert('제출에 실패했습니다: ' + e.message);
+            btn.disabled = false;
+            btn.textContent = '수강신청 제출하기';
+        }
+    }
+
+    // ─── Start ───
+    document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
