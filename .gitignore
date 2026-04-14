@@ -26,3 +26,6 @@ yarn-error.log*
 # Legacy Files (contain secrets)
 개인별 과목선택 현황표.html
 학급통계.html
+
+# Local Netlify folder
+.netlify
