@@ -70,11 +70,13 @@ const ExcelHandler = {
         const templateData = [
             {
                 "학번": "20513",
-                "이름": "홍길동"
+                "이름": "홍길동",
+                "학생코드": ""
             },
             {
                 "학번": "20514",
-                "이름": "이순신"
+                "이름": "이순신",
+                "학생코드": ""
             }
         ];
         ExcelHandler.downloadExcel(templateData, 'student_registry_template.xlsx', 'Registry');

@@ -7,21 +7,51 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="manifest.json" />
     <title>고교학점제 수강신청 도우미</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet" />
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans KR"', 'system-ui', 'sans-serif'],
+                        display: ['Outfit', '"Noto Sans KR"', 'sans-serif'],
+                    },
+                },
+            },
+        };
+    </script>
     <!-- html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- Custom Modules -->
     <script src="js/db.js"></script>
+    <script src="js/student-code.js"></script>
+    <script src="js/roadmap.js"></script>
     <script src="js/theme.js"></script>
 
     <style>
         body {
-            font-family: 'Noto Sans KR', sans-serif;
+            font-family: 'Noto Sans KR', system-ui, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             transition: background-color 0.3s, color 0.3s;
+        }
+
+        .font-display {
+            font-family: Outfit, 'Noto Sans KR', sans-serif;
+        }
+
+        .app-shell {
+            padding-bottom: env(safe-area-inset-bottom, 0);
         }
 
         /* Custom styles for theme compatibility */
@@ -92,20 +122,49 @@
     </style>
 </head>
 
-<body class="min-h-screen p-4 md:p-8">
-    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+<body class="min-h-screen p-4 md:p-8 app-shell pb-24 md:pb-8">
+    <!-- 학생 코드·학번·이름 확인 (배포 링크로 접속한 경우) -->
+    <div id="student-login-gate" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div class="theme-card p-8 rounded-xl shadow-xl max-w-md w-full border">
+            <h2 class="text-xl font-bold mb-2 theme-text">학생 본인 확인</h2>
+            <p class="text-sm theme-text-muted mb-6">관리자에게 발급받은 <strong>학생 코드</strong>(영문·숫자 10자리)와 학번·이름을 입력하세요.</p>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1 theme-text" for="gate-student-code">학생 코드</label>
+                    <input type="text" id="gate-student-code" class="w-full p-2 border rounded font-mono tracking-wider uppercase"
+                        maxlength="10" placeholder="예: A3K9M2X7P1" autocomplete="one-time-code" inputmode="text" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 theme-text" for="gate-student-id">학번 (5자리)</label>
+                    <input type="text" id="gate-student-id" class="w-full p-2 border rounded" maxlength="5" placeholder="20513" inputmode="numeric" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 theme-text" for="gate-student-name">이름</label>
+                    <input type="text" id="gate-student-name" class="w-full p-2 border rounded" placeholder="홍길동" autocomplete="name" />
+                </div>
+                <div id="gate-error" class="hidden text-sm text-red-500"></div>
+                <button type="button" id="gate-submit-btn" class="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
 
         <!-- Left Column: Student Info & Course Selection -->
         <div class="lg:col-span-2 space-y-6">
             <!-- Header -->
-            <header class="flex justify-between items-center mb-4">
-                <h1 class="text-2xl font-bold theme-text">🎓 수강신청 도우미</h1>
-                <div class="text-sm theme-text-muted">2025학년도 교육과정</div>
+            <header class="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2 mb-2">
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-widest text-indigo-500 dark:text-indigo-400 mb-1">Student</p>
+                    <h1 class="text-2xl sm:text-3xl font-display font-bold theme-text tracking-tight">수강신청 도우미</h1>
+                </div>
+                <div class="text-sm theme-text-muted">교육과정 편제 기반 선택</div>
             </header>
 
             <!-- Student Info Input -->
             <div class="theme-card p-6 rounded-lg shadow-md">
                 <h2 class="text-lg font-semibold mb-4 theme-text">학생 정보 입력</h2>
+                <p id="student-info-hint" class="text-sm theme-text-muted mb-3 hidden">본인 확인이 완료되면 학번·이름은 수정할 수 없습니다. 희망 진로만 입력해 주세요.</p>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div class="md:col-span-3">
                         <input type="text" id="student-id" class="w-full p-2 border rounded"
@@ -183,30 +242,45 @@
 
         <!-- Right Column: Validation & AI Helper -->
         <div class="lg:col-span-1 space-y-6">
-            <!-- AI Helper (Swapped: Now Top) -->
+            <!-- AI + 커리어넷 + 로드맵 -->
             <div
-                class="theme-card p-6 rounded-lg shadow-md bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 border-purple-100 dark:border-gray-700">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-bold text-purple-700 dark:text-purple-400">🤖 AI 과목 추천 도우미</h2>
-                    <span class="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full">Beta</span>
-                </div>
-                <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                    희망 진로를 입력하고 과목을 추천받아보세요.
-                </p>
-                <div id="ai-helper-content"
-                    class="bg-white dark:bg-gray-800 p-4 rounded border border-purple-100 dark:border-gray-600 h-[300px] overflow-y-auto custom-scrollbar shadow-inner">
-                    <div id="helper-msg" class="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-                        진로를 입력하면 AI가 관련 과목을 추천해줍니다.
+                class="theme-card p-5 sm:p-6 rounded-2xl shadow-sm border border-violet-200/60 dark:border-violet-900/40 bg-gradient-to-br from-violet-50/90 to-indigo-50/80 dark:from-slate-900/80 dark:to-indigo-950/60">
+                <div class="flex justify-between items-start mb-3 gap-2">
+                    <div>
+                        <h2 class="text-lg font-display font-bold text-violet-800 dark:text-violet-300">진로 추천 & 로드맵</h2>
+                        <p class="text-xs theme-text-muted mt-1 leading-relaxed">
+                            AI 추천과 커리어넷(연동 시) 학과·진로 기반 추천을 함께 받고, <strong>개설 과목명이 일치하는 항목만</strong> 편제표에 맞춰 체크합니다. 이후 직접 수정한 뒤 제출하세요.
+                        </p>
                     </div>
-                    <div id="ai-loader" class="hidden flex justify-center items-center h-full">
-                        <div class="loader ease-linear rounded-full border-4 border-t-4 border-purple-200 h-8 w-8">
-                        </div>
-                    </div>
+                    <span class="text-[10px] uppercase tracking-wider bg-violet-200/80 dark:bg-violet-900/50 text-violet-900 dark:text-violet-200 px-2 py-1 rounded-full shrink-0">AI · CareerNet</span>
                 </div>
-                <button onclick="getAiRecommendation()"
-                    class="w-full mt-4 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition-colors hidden">
-                    AI 추천 받기
+                <button type="button" id="btn-combined-recommendation"
+                    class="w-full mb-4 bg-violet-600 hover:bg-violet-700 text-white font-medium py-3 rounded-xl shadow-md transition-colors text-sm">
+                    AI + 커리어넷 추천 받기
                 </button>
+                <p id="selection-rules-summary" class="text-[11px] theme-text-muted mb-3 leading-snug border-l-2 border-violet-300 pl-2"></p>
+                <div id="ai-helper-content"
+                    class="bg-white/90 dark:bg-slate-900/90 p-4 rounded-xl border border-violet-100 dark:border-slate-600 min-h-[200px] max-h-[340px] overflow-y-auto custom-scrollbar shadow-inner">
+                    <div id="helper-msg" class="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+                        희망 진로를 입력한 뒤 위 버튼을 누르면 AI·커리어넷 추천과 로드맵 초안이 표시됩니다.
+                    </div>
+                    <div id="careernet-msg" class="hidden text-sm mt-3 pt-3 border-t border-gray-200 dark:border-slate-600"></div>
+                    <div id="roadmap-preview" class="hidden text-sm mt-3 space-y-2"></div>
+                    <div id="ai-loader" class="hidden flex justify-center items-center py-12">
+                        <div class="loader ease-linear rounded-full border-4 border-t-4 border-violet-300 h-10 w-10"></div>
+                    </div>
+                </div>
+                <div id="roadmap-actions" class="hidden mt-4 flex flex-col gap-2">
+                    <p class="text-xs theme-text-muted">편제표에 있는 과목만 자동 체크됩니다. 규칙 미충족 시 검증 영역에서 안내합니다.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button type="button" id="apply-roadmap-merge"
+                            class="py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">통합 로드맵 적용</button>
+                        <button type="button" id="apply-roadmap-ai"
+                            class="py-2.5 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200 text-sm font-medium hover:bg-indigo-200 dark:hover:bg-indigo-900">AI 추천만</button>
+                        <button type="button" id="apply-roadmap-cn"
+                            class="py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700">커리어넷만</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Validation Status (Swapped: Now Bottom & Sticky) -->
@@ -235,11 +309,23 @@
                 </div>
 
                 <button id="submit-btn" disabled
-                    class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">
+                    class="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-md">
                     수강신청 완료 및 제출
                 </button>
             </div>
         </div>
+    </div>
+
+    <!-- 모바일: 하단 고정 제출 (학생 앱 UX) -->
+    <div
+        class="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t theme-border bg-[var(--card-bg)]/95 backdrop-blur-md px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,.08)]">
+        <button
+            type="button"
+            id="submit-btn-mobile"
+            disabled
+            class="w-full bg-green-600 text-white py-3.5 rounded-xl font-bold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">
+            수강신청 제출
+        </button>
     </div>
 
     <!-- Submit Modal -->
@@ -273,8 +359,9 @@
         let selectionRules = {};
         let multiSemesterRules = {};
         let allowMultiSemesterDuplicate = false;
-        let registryData = [];
         let duplicateCourseSlugs = []; // 설정에서 로드 가능 (슬러그 또는 과목명)
+        let studentSessionVerified = false;
+        let requiresStudentGate = false;
         const jointSubCategoryToCategoryMap = {
             '국어': '기초교과', '수학': '기초교과', '영어': '기초교과', '한국사': '기초교과',
             '사회': '탐구교과', '과학': '탐구교과',
@@ -312,10 +399,81 @@
 
         const saveImgBtn = document.getElementById('save-img-btn');
         const submitBtn = document.getElementById('submit-btn');
+        const submitBtnMobile = document.getElementById('submit-btn-mobile');
         const submitModalEl = document.getElementById('submit-modal');
         const cancelBtn = document.getElementById('cancel-submit-btn');
         const confirmBtn = document.getElementById('confirm-submit-btn');
         const finalSelectionEl = document.getElementById('final-selection-preview');
+
+        let gateHandlersBound = false;
+        function bindLoginGateHandlers() {
+            if (gateHandlersBound) return;
+            gateHandlersBound = true;
+            const gateEl = document.getElementById('student-login-gate');
+            const codeIn = document.getElementById('gate-student-code');
+            const idIn = document.getElementById('gate-student-id');
+            const nameIn = document.getElementById('gate-student-name');
+            const errEl = document.getElementById('gate-error');
+            const btn = document.getElementById('gate-submit-btn');
+
+            codeIn.addEventListener('input', (e) => {
+                e.target.value = normalizeStudentCodeInput(e.target.value).slice(0, STUDENT_CODE_LENGTH);
+            });
+            idIn.addEventListener('input', (e) => {
+                let val = e.target.value.replace(/[^0-9]/g, '');
+                if (val.length > 5) val = val.slice(0, 5);
+                e.target.value = val;
+            });
+
+            btn.addEventListener('click', async () => {
+                errEl.classList.add('hidden');
+                errEl.textContent = '';
+                const studentCode = normalizeStudentCodeInput(codeIn.value);
+                const sid = (idIn.value || '').trim();
+                const name = (nameIn.value || '').trim();
+                if (studentCode.length !== STUDENT_CODE_LENGTH) {
+                    errEl.textContent = '학생 코드는 영문·숫자 10자리입니다.';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+                if (sid.length !== 5) {
+                    errEl.textContent = '학번 5자리를 입력해주세요.';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+                if (!name) {
+                    errEl.textContent = '이름을 입력해주세요.';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+                btn.disabled = true;
+                btn.textContent = '확인 중...';
+                try {
+                    const res = await DB.verifyStudent({ studentCode, studentId: sid, name });
+                    if (res.status === 'success') {
+                        studentSessionVerified = true;
+                        studentIdEl.value = sid;
+                        studentNameEl.value = res.student && res.student.이름 ? res.student.이름 : name;
+                        studentIdEl.readOnly = true;
+                        studentNameEl.readOnly = true;
+                        studentIdEl.classList.add('bg-gray-100');
+                        studentNameEl.classList.add('bg-gray-100');
+                        document.getElementById('student-info-hint').classList.remove('hidden');
+                        gateEl.classList.add('hidden');
+                        await loadData();
+                    } else {
+                        errEl.textContent = (res && res.message) ? res.message : '인증에 실패했습니다.';
+                        errEl.classList.remove('hidden');
+                    }
+                } catch (e) {
+                    errEl.textContent = e.message || '인증에 실패했습니다.';
+                    errEl.classList.remove('hidden');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = '확인';
+                }
+            });
+        }
 
         // Initialization
         async function init() {
@@ -329,15 +487,18 @@
                         throw new Error('Invalid key');
                     }
                     DB.init(decodedUrl);
+                    requiresStudentGate = true;
                     window.location.hash = '';
-                    await loadData();
+                    document.getElementById('student-login-gate').classList.remove('hidden');
+                    courseListEl.innerHTML = '<div class="text-center py-8 theme-text-muted"><p class="font-medium">학생 본인 확인 후 과목 목록이 표시됩니다.</p><p class="text-sm mt-2">관리자가 발급한 학생 코드로 로그인해 주세요.</p></div>';
+                    bindLoginGateHandlers();
                 } catch (e) {
                     console.error('Invalid Key', e);
                     alert('유효하지 않은 접근 키입니다. 배포 링크를 확인해주세요.');
                 }
             } else {
                 console.warn('No API Key provided');
-                courseListEl.innerHTML = '<div class="text-center py-8 theme-text-muted"><p class="font-medium">배포 링크로 접속해주세요.</p><p class="text-sm mt-2">관리자가 공유한 수강신청 링크(QR코드 또는 URL)를 통해 접속하면 바로 수강신청 페이지가 열립니다.</p></div>';
+                courseListEl.innerHTML = '<div class="text-center py-8 theme-text-muted"><p class="font-medium">배포 링크로 접속해주세요.</p><p class="text-sm mt-2">관리자가 공유한 수강신청 링크(QR코드 또는 URL)를 통해 접속한 뒤, 발급받은 학생 코드로 로그인합니다.</p></div>';
             }
 
             initJointCourses();
@@ -354,27 +515,14 @@
                 } else {
                     errorEl.classList.add('hidden');
                 }
-
-                if (val.length === 5) {
-                    // Auto-fill name from registry
-                    const found = registryData.find(r => String(r.학번) === val);
-                    if (found && found.이름) {
-                        studentNameEl.value = found.이름;
-                        studentNameEl.readOnly = true;
-                        studentNameEl.classList.add('bg-gray-100');
-                    } else {
-                        studentNameEl.readOnly = false;
-                        studentNameEl.classList.remove('bg-gray-100');
-                    }
-                } else {
-                    studentNameEl.value = '';
-                    studentNameEl.readOnly = false;
-                    studentNameEl.classList.remove('bg-gray-100');
-                }
             });
         }
 
         async function loadData() {
+            courseListEl.innerHTML = `<div class="text-center py-8 theme-text-muted">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4 mx-auto"></div>
+                    데이터를 불러오는 중입니다...
+                </div>`;
             const loader = document.querySelector('.loader');
             if (loader) loader.classList.remove('hidden');
 
@@ -387,19 +535,17 @@
                     if (settings.allowMultiSemesterDuplicate !== undefined) allowMultiSemesterDuplicate = !!settings.allowMultiSemesterDuplicate;
                     if (settings.duplicateCourseSlugs && Array.isArray(settings.duplicateCourseSlugs)) duplicateCourseSlugs = settings.duplicateCourseSlugs;
 
+                    const sumEl = document.getElementById('selection-rules-summary');
+                    if (sumEl) {
+                        sumEl.textContent = '선택 규칙: ' + summarizeSelectionRules(selectionRules);
+                    }
+
                     // Migration for old format
                     if (settings.selectionLimits && !settings.selectionRules) {
                         Object.keys(settings.selectionLimits).forEach(key => {
                             selectionRules[key] = [{ credits: 'all', count: settings.selectionLimits[key].maxCount }];
                         });
                     }
-                }
-
-                // Fetch Registry
-                try {
-                    registryData = await DB.fetchRegistry();
-                } catch (err) {
-                    console.warn('Failed to fetch registry:', err);
                 }
 
                 // Fetch Courses
@@ -975,6 +1121,7 @@
             const allValid = !hasErrors && basicCreditsValid && prerequisitesValid && ruleValidation.valid;
 
             submitBtn.disabled = !allValid;
+            if (submitBtnMobile) submitBtnMobile.disabled = !allValid;
         }
 
         function applyLimits() {
@@ -1443,8 +1590,24 @@
         };
 
         // Submit Logic
-        submitBtn.addEventListener('click', () => {
+        function openSubmitModal() {
             submitModalEl.classList.remove('hidden');
+        }
+        submitBtn.addEventListener('click', openSubmitModal);
+        if (submitBtnMobile) submitBtnMobile.addEventListener('click', openSubmitModal);
+
+        document.getElementById('btn-combined-recommendation')?.addEventListener('click', runCombinedRecommendation);
+        document.getElementById('apply-roadmap-merge')?.addEventListener('click', () => {
+            const m = window.__roadmapStore.matchedMerge || [];
+            applyRoadmapCourseIds(m.map((c) => c.id));
+        });
+        document.getElementById('apply-roadmap-ai')?.addEventListener('click', () => {
+            const m = window.__roadmapStore.matchedAi || [];
+            applyRoadmapCourseIds(m.map((c) => c.id));
+        });
+        document.getElementById('apply-roadmap-cn')?.addEventListener('click', () => {
+            const m = window.__roadmapStore.matchedCn || [];
+            applyRoadmapCourseIds(m.map((c) => c.id));
         });
 
         cancelBtn.addEventListener('click', () => {
@@ -1453,6 +1616,11 @@
 
         confirmBtn.addEventListener('click', async () => {
             if (!confirm('정말 제출하시겠습니까?')) return;
+
+            if (requiresStudentGate && !studentSessionVerified) {
+                alert('학생 본인 확인(학생 코드)을 먼저 완료해주세요.');
+                return;
+            }
 
             const selected = [...getSelected(), ...jointCourses];
             // Use ID instead of SubjectName for submission as requested
@@ -1530,41 +1698,128 @@
             });
         });
 
-        // AI Recommendation
+        // AI Recommendation (단독 — 레거시)
         function getAiRecommendation() {
-            const major = majorInput.value.trim();
-            if (!major) return alert('희망 진로를 입력해주세요.');
-            getAiRecs(major);
+            runCombinedRecommendation();
         }
 
-        async function getAiRecs(major) {
+        window.__roadmapStore = { matchedAi: [], matchedCn: [], matchedMerge: [] };
+
+        function applyRoadmapCourseIds(ids) {
+            const set = new Set(ids);
+            courseListEl.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+                if (cb.disabled) return;
+                cb.checked = set.has(cb.value);
+            });
+            validateSelections();
+        }
+
+        function renderRoadmapPreviewFromCourses(courses) {
+            const el = document.getElementById('roadmap-preview');
+            const grouped = groupCoursesBySemester(courses);
+            const keys = Object.keys(grouped).sort();
+            if (!el) return;
+            if (keys.length === 0) {
+                el.innerHTML =
+                    '<p class="text-amber-600 dark:text-amber-400 text-xs">편제표와 매칭된 추천 과목이 없습니다. 진로 문구를 바꾸거나 과목을 직접 선택하세요.</p>';
+                el.classList.remove('hidden');
+                return;
+            }
+            el.innerHTML =
+                '<div class="font-semibold text-xs text-violet-800 dark:text-violet-200 mb-1">학기별 로드맵 초안 (선택 과목)</div>' +
+                keys
+                    .map((k) => {
+                        const [g, s] = k.split('-');
+                        const names = grouped[k].map((c) => c.subjectName).join(', ');
+                        return `<div class="rounded-lg bg-white/70 dark:bg-slate-800/80 px-2 py-1.5 text-xs theme-text border border-violet-100 dark:border-slate-600"><span class="font-semibold text-indigo-600 dark:text-indigo-400">${g}학년 ${s}학기</span> — ${names}</div>`;
+                    })
+                    .join('');
+            el.classList.remove('hidden');
+        }
+
+        async function runCombinedRecommendation() {
+            const major = majorInput.value.trim();
+            if (!major) return alert('희망 진로를 입력해주세요.');
+            if (!PROCESSED_COURSES || PROCESSED_COURSES.length === 0) return alert('과목 목록이 없습니다. 접속·로그인을 확인해주세요.');
+
+            const availableCourses = PROCESSED_COURSES.filter((c) => !c.required)
+                .map((c) => c.subjectName)
+                .join(', ');
+            const careerEl = document.getElementById('careernet-msg');
+            const roadmapAct = document.getElementById('roadmap-actions');
+
             helperMsgEl.classList.add('hidden');
+            if (careerEl) careerEl.classList.add('hidden');
+            if (roadmapAct) roadmapAct.classList.add('hidden');
+            document.getElementById('roadmap-preview')?.classList.add('hidden');
             aiLoader.classList.remove('hidden');
 
-            const availableCourses = PROCESSED_COURSES.filter(c => !c.required).map(c => c.subjectName).join(', ');
-
             try {
-                const response = await fetch('/.netlify/functions/ai-recommendation', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ major, availableCourses })
-                });
+                const [aiRes, cnRes] = await Promise.all([
+                    fetch('/.netlify/functions/ai-recommendation', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ major, availableCourses })
+                    }),
+                    fetch('/.netlify/functions/careernet-recommendation', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ major, keyword: major })
+                    })
+                ]);
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error ? errorData.error.message : 'API 요청 실패');
-                }
-
-                const result = await response.json();
-                if (result.choices && result.choices.length > 0) {
-                    const recommendationText = result.choices[0].message.content;
-                    showHelperMsg(`<strong>[${major}] 맞춤 과목 추천:</strong><br><br>${recommendationText.replace(/\n/g, '<br>')}`, 'info');
+                let aiText = '';
+                if (aiRes.ok) {
+                    const result = await aiRes.json();
+                    if (result.choices && result.choices[0]) {
+                        aiText = result.choices[0].message.content || '';
+                    }
                 } else {
-                    throw new Error("API로부터 유효한 응답을 받지 못했습니다.");
+                    const err = await aiRes.json().catch(() => ({}));
+                    aiText = `(AI 응답 없음: ${err.error?.message || 'OPENAI_API_KEY 등을 확인하세요'})`;
                 }
+
+                const cnJson = cnRes.ok ? await cnRes.json() : { source: 'error', subjects: [], message: '커리어넷 함수 호출 실패' };
+                const cnSubjects = Array.isArray(cnJson.subjects) ? cnJson.subjects : [];
+                const cnNames = cnSubjects.map((s) => (typeof s === 'string' ? s : s.name || '')).filter(Boolean);
+
+                const aiNames = parseAiSubjectLines(aiText);
+                const matchedAi = matchRecommendedToCourses(aiNames, PROCESSED_COURSES);
+                const matchedCn = matchRecommendedToCourses(cnNames, PROCESSED_COURSES);
+                const mergeNames = [...new Set([...aiNames, ...cnNames])];
+                const matchedMerge = matchRecommendedToCourses(mergeNames, PROCESSED_COURSES);
+
+                window.__roadmapStore = {
+                    matchedAi,
+                    matchedCn,
+                    matchedMerge
+                };
+
+                showHelperMsg(
+                    `<strong class="text-violet-800 dark:text-violet-200">[${major}] AI 추천</strong><br><br>${(aiText || '내용 없음').replace(/\n/g, '<br>')}`,
+                    'info'
+                );
+
+                if (careerEl) {
+                    const src = cnJson.source === 'api' ? '커리어넷 API' : cnJson.source === 'mock' ? '커리어넷(샘플)' : '커리어넷';
+                    const reasons = cnSubjects
+                        .map((s) => {
+                            if (typeof s === 'string') return `<li>${s}</li>`;
+                            return `<li><strong>${s.name || ''}</strong> — ${s.reason || ''}</li>`;
+                        })
+                        .join('');
+                    careerEl.innerHTML = `<div class="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">${src}</div><ul class="list-disc pl-4 space-y-0.5 text-xs">${reasons || '<li>추천 과목 없음</li>'}</ul>${cnJson.message ? `<p class="text-[10px] theme-text-muted mt-2">${cnJson.message}</p>` : ''}`;
+                    careerEl.classList.remove('hidden');
+                }
+
+                renderRoadmapPreviewFromCourses(matchedMerge);
+                if (roadmapAct) roadmapAct.classList.remove('hidden');
             } catch (error) {
-                console.error('AI 추천 기능 오류:', error);
-                showHelperMsg(`AI 추천 기능 오류: ${error.message}<br><br>Netlify 환경변수(OPENAI_API_KEY)가 설정되었는지 확인해주세요.`, 'error');
+                console.error('통합 추천 오류:', error);
+                showHelperMsg(
+                    `추천 오류: ${error.message}<br><br>Netlify에 배포된 경우 OPENAI_API_KEY 및 Functions 경로를 확인하세요.`,
+                    'error'
+                );
             } finally {
                 aiLoader.classList.add('hidden');
                 helperMsgEl.classList.remove('hidden');

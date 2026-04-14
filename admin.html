@@ -718,6 +718,25 @@
                 </div>
                 <div id="connection-status" class="mt-4 text-sm"></div>
             </div>
+            <div class="theme-card p-6 rounded-lg shadow-md max-w-2xl mt-6">
+                <h2 class="text-xl font-semibold mb-4 theme-text">진로 추천 · 커리어넷 (Netlify)</h2>
+                <p class="text-sm mb-3 theme-text-muted leading-relaxed">
+                    학생 화면의 <strong>AI + 커리어넷 추천</strong>은 정적 호스팅이 아닌 <strong>Netlify</strong> 등에 배포할 때 Functions로 동작합니다.
+                    OpenAI 연동은 환경변수 <code class="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">OPENAI_API_KEY</code>를 설정하세요.
+                </p>
+                <p class="text-sm mb-2 theme-text-muted leading-relaxed">
+                    커리어넷 실제 API를 쓰려면 Netlify에 다음을 설정합니다(없으면 진로 키워드 기반 <strong>샘플 과목</strong>이 표시됩니다).
+                </p>
+                <ul class="text-sm theme-text-muted list-disc pl-5 space-y-1 mb-4">
+                    <li><code class="text-xs">CAREERNET_API_BASE_URL</code> — API 호스트(예: <code class="text-xs">https://api.example.go.kr</code>)</li>
+                    <li><code class="text-xs">CAREERNET_API_KEY</code> — 발급 키</li>
+                    <li><code class="text-xs">CAREERNET_API_PATH</code> — 선택, 기본 <code class="text-xs">/recommend</code></li>
+                </ul>
+                <p class="text-xs theme-text-muted border-l-2 border-indigo-300 pl-3">
+                    관리자 웹은 학교 시트·Apps Script와 통신하고, AI·커리어넷 호출만 Netlify Functions를 경유합니다. API 키는 클라이언트에 넣지 마세요.
+                    커리어넷 API의 정확한 URL·요청/응답 형식은 확정되는 대로 <code class="text-xs">netlify/functions/careernet-recommendation.js</code>에 맞춰 수정하면 됩니다.
+                </p>
+            </div>
         </div>
         <!-- 2. Course Data Management -->
         <div id="tab-courses" class="tab-content hidden">
@@ -743,8 +762,8 @@
                 <!-- Student Registry Upload -->
                 <div class="theme-card p-6 rounded-lg shadow-md">
                     <h2 class="text-xl font-semibold mb-4 theme-text">학적 정보 업로드</h2>
-                    <p class="text-sm mb-4 theme-text-muted">학번(5자리)과 이름이 포함된 엑셀 파일을 업로드하세요.<br>(기존
-                        데이터에 추가/갱신됩니다)</p>
+                    <p class="text-sm mb-4 theme-text-muted">학번(5자리)과 이름이 포함된 엑셀 파일을 업로드하세요.<br>열
+                        <strong>학생코드</strong>는 비워 두면 영문 대문자·숫자 10자리가 자동 발급되며, 동일 학생은 재업로드 시 기존 코드가 유지됩니다.</p>
                     <div class="space-y-4"><button onclick="ExcelHandler.downloadRegistryTemplate()"
                             class="text-blue-600 hover:underline text-sm flex items-center"><svg class="w-4 h-4 mr-1"
                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -828,9 +847,10 @@
         <!-- 3. Share & Deploy -->
         <div id="tab-share" class="tab-content hidden">
             <div class="theme-card p-6 rounded-lg shadow-md max-w-2xl">
-                <h2 class="text-xl font-semibold mb-4 theme-text">학생용 링크 생성</h2>
-                <p class="text-sm mb-4 theme-text-muted">아래 QR 코드 또는 링크를 학생들에게 공유하세요. 링크에는 API URL
-                    정보가 포함되어 있어 학생들이 별도의 설정 없이 바로 접속할 수 있습니다.</p>
+                <h2 class="text-xl font-semibold mb-4 theme-text">학생용 접속 링크</h2>
+                <p class="text-sm mb-4 theme-text-muted">아래 QR 코드 또는 링크를 학생들에게 공유하세요. 링크로 접속한 뒤 <strong>관리자가
+                        학적에 등록할 때 발급되는 학생 코드</strong>(영문·숫자 10자리)와 학번·이름으로 본인 확인을 합니다. 학적 업로드 시 학생 코드는
+                    비워 두면 자동으로 생성됩니다.</p>
                 <div id="share-container" class="hidden">
                     <div class="flex flex-col items-center p-4 rounded border mb-4 theme-border"
                         style="background-color: var(--card-bg)">
@@ -933,6 +953,7 @@
                             <th class="px-4 py-3">시간</th>
                             <th class="px-4 py-3">학번</th>
                             <th class="px-4 py-3">이름</th>
+                            <th class="px-4 py-3 whitespace-nowrap">학생 코드</th>
                             <th class="px-4 py-3">진로</th>
                             <th class="px-4 py-3">총 학점</th>
                             <th class="px-4 py-3">검증 결과</th>
@@ -940,11 +961,27 @@
                     </thead>
                     <tbody id="student-table-body">
                         <tr>
-                            <td colspan="7" class="px-4 py-4 text-center theme-text-muted">데이터를 불러오는
+                            <td colspan="8" class="px-4 py-4 text-center theme-text-muted">데이터를 불러오는
                                 중...</td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+            <!-- 학적·학생 코드 (Registry) -->
+            <div id="registry-codes-panel" class="theme-card p-6 rounded-lg shadow-md mt-6 border theme-border">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
+                    <div>
+                        <h3 class="font-bold theme-text text-lg">학적 · 학생 코드</h3>
+                        <p class="text-sm theme-text-muted mt-1">학적 시트에 등록된 학생과 발급 코드입니다. 학생에게 개별 안내할 때 사용하세요.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="downloadRegistryCsv()"
+                            class="bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-800 text-sm">CSV 내보내기</button>
+                    </div>
+                </div>
+                <div id="registry-codes-table-wrap" class="overflow-x-auto text-sm theme-text-muted">
+                    학적을 불러오는 중…
+                </div>
             </div>
         </div>
     </div>
@@ -1241,6 +1278,9 @@
                     if (result.status === 'success') {
                         statusEl.textContent = '학적 정보 업로드 성공!';
                         statusEl.className = 'mt-4 text-sm text-green-600';
+                        if (DB.isConfigured()) {
+                            loadStudentData().catch(() => {});
+                        }
                     }
 
                     else {
@@ -1891,10 +1931,23 @@
         // let allStudentData = []; // Removed to avoid conflict
         let registryData = [];
 
+        function lookupStudentCode(d) {
+            const sid = `${d.Grade}${String(d.Class).padStart(2, '0')}${String(d.Number).padStart(2, '0')}`;
+            const name = String(d.Name || d.name || '').trim();
+            if (!registryData || !registryData.length) return '—';
+            const r = registryData.find((row) => {
+                const id = String(row['학번'] || row.studentId || '').replace(/\s/g, '');
+                const nm = String(row['이름'] || row.name || '').trim();
+                return id === sid && nm === name;
+            });
+            const c = r && (r['학생코드'] || r['StudentCode']);
+            return c ? String(c) : '—';
+        }
+
         async function loadStudentData() {
             if (!DB.isConfigured()) return;
             const tbody = document.getElementById('student-table-body');
-            tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center theme-text-muted">데이터 로딩 중...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-4 text-center theme-text-muted">데이터 로딩 중...</td></tr>';
 
             // Also ensure course data is loaded for headers
             if (allCourseData.length === 0) {
@@ -1940,18 +1993,76 @@
 
             명 제출됨`;
                 renderStudentTable();
+                renderRegistryCodesPanel();
                 updateClassFilter();
             }
 
             catch (e) {
                 console.error("Failed to load data:", e);
 
-                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-red-500">데이터 로드 실패: ${e.message
+                tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-4 text-center text-red-500">데이터 로드 실패: ${e.message
                     }
 
             </td></tr>`;
             }
         }
+
+        function renderRegistryCodesPanel() {
+            const wrap = document.getElementById('registry-codes-table-wrap');
+            if (!wrap) return;
+            if (!registryData || registryData.length === 0) {
+                wrap.innerHTML =
+                    '<p class="text-sm theme-text-muted py-2">등록된 학적이 없습니다. <strong>과목 데이터 관리</strong> 탭에서 학적 엑셀을 업로드하면 학생 코드(10자리)가 자동 발급됩니다.</p>';
+                return;
+            }
+            const sorted = [...registryData].sort((a, b) => String(a['학번'] || '').localeCompare(String(b['학번'] || '')));
+            wrap.innerHTML = `
+<table class="w-full border-collapse text-left text-sm">
+<thead><tr class="theme-border border-b" style="color: var(--text-muted)">
+<th class="py-2 pr-3">학번</th><th class="py-2 pr-3">이름</th><th class="py-2 pr-3">학생 코드</th><th class="py-2 w-16">복사</th>
+</tr></thead>
+<tbody class="theme-text">
+${sorted
+    .map((r) => {
+        const sid = String(r['학번'] ?? r.studentId ?? '');
+        const name = String(r['이름'] ?? r.name ?? '');
+        const code = String(r['학생코드'] ?? r['StudentCode'] ?? '—');
+        const safe = code.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        return `<tr class="border-b theme-border">
+<td class="py-2 pr-3 font-mono">${sid}</td>
+<td class="py-2 pr-3">${name}</td>
+<td class="py-2 pr-3 font-mono tracking-wider">${code}</td>
+<td class="py-2"><button type="button" class="text-blue-600 hover:underline text-xs" data-code="${safe}" onclick="copyStudentCodeFromBtn(this)">복사</button></td>
+</tr>`;
+    })
+    .join('')}
+</tbody></table>`;
+        }
+
+        window.copyStudentCodeFromBtn = function (btn) {
+            const c = btn.getAttribute('data-code');
+            if (!c || c === '—') return alert('복사할 코드가 없습니다.');
+            navigator.clipboard.writeText(c).then(() => alert('학생 코드가 복사되었습니다.'));
+        };
+
+        window.downloadRegistryCsv = function () {
+            if (!registryData || registryData.length === 0) return alert('내보낼 학적 데이터가 없습니다.');
+            const rows = registryData.map((r) => {
+                const a = String(r['학번'] ?? r.studentId ?? '');
+                const b = String(r['이름'] ?? r.name ?? '');
+                const c = String(r['학생코드'] ?? r['StudentCode'] ?? '');
+                return [a, b, c].map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',');
+            });
+            const bom = '\ufeff';
+            const csv = bom + ['학번', '이름', '학생코드'].join(',') + '\n' + rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `학적_학생코드_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
 
         function renderStudentTable() {
             const tbody = document.getElementById('student-table-body');
@@ -1965,7 +2076,7 @@
             if (classFilter) filtered = filtered.filter(d => String(d.Class) === String(classFilter));
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-4 text-center theme-text-muted">데이터가 없습니다.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-4 text-center theme-text-muted">데이터가 없습니다.</td></tr>';
                 return;
             }
 
@@ -1978,11 +2089,11 @@
 
             tbody.innerHTML = filtered.map(d => {
                 const date = new Date(d.Timestamp).toLocaleString();
-                const isValid = true; // Assuming valid for now
                 // Use Timestamp as unique ID for deletion, fallback to Student ID string
                 const uniqueId = d.Timestamp || `${d.Grade}-${d.Class}-${d.Number}`;
+                const codeCell = lookupStudentCode(d);
 
-                return ` <tr class="border-b hover:bg-opacity-50" style="background-color: var(--card-bg); border-color: var(--border-color)" > <td class="px-4 py-2 text-center" > <input type="checkbox" class="student-checkbox" value="${uniqueId}" > </td> <td class="px-4 py-2 theme-text" >${date}</td> <td class="px-4 py-2 theme-text font-mono" >${d.Grade}${String(d.Class).padStart(2, '0')}${String(d.Number).padStart(2, '0')}</td> <td class="px-4 py-2 font-medium theme-text" >${d.Name}</td> <td class="px-4 py-2 theme-text" >${d.Major}</td> <td class="px-4 py-2 theme-text" >${d.TotalCredits}</td> <td class="px-4 py-2 text-green-600" >제출완료</td> </tr> `;
+                return ` <tr class="border-b hover:bg-opacity-50" style="background-color: var(--card-bg); border-color: var(--border-color)" > <td class="px-4 py-2 text-center" > <input type="checkbox" class="student-checkbox" value="${uniqueId}" > </td> <td class="px-4 py-2 theme-text" >${date}</td> <td class="px-4 py-2 theme-text font-mono" >${d.Grade}${String(d.Class).padStart(2, '0')}${String(d.Number).padStart(2, '0')}</td> <td class="px-4 py-2 font-medium theme-text" >${d.Name}</td> <td class="px-4 py-2 theme-text font-mono text-xs" >${codeCell}</td> <td class="px-4 py-2 theme-text" >${d.Major}</td> <td class="px-4 py-2 theme-text" >${d.TotalCredits}</td> <td class="px-4 py-2 text-green-600" >제출완료</td> </tr> `;
             }).join('');
         }
 
@@ -2283,13 +2394,19 @@
                         Class: cls,
                         Number: num,
                         Name: r['이름'] || r.name,
-                        isRegistry: true
+                        isRegistry: true,
+                        studentCode: r['학생코드'] || r['StudentCode'] || '—'
                     };
                 });
                 usingRegistry = true;
             } else {
                 // Fallback to only submitted students
-                targetStudents = allStudentData.filter(s => s.Grade == grade && s.Class == cls);
+                targetStudents = allStudentData
+                    .filter((s) => s.Grade == grade && s.Class == cls)
+                    .map((s) => ({
+                        ...s,
+                        studentCode: lookupStudentCode(s)
+                    }));
             }
 
             // 2. Filter by Number if specific one selected
@@ -2350,6 +2467,7 @@
                 <tr>
                     <th class="border p-2">번호</th>
                     <th class="border p-2">이름</th>
+                    <th class="border p-2 whitespace-nowrap">학생코드</th>
                     <th class="border p-2">진로</th>
                     <th class="border p-2">과목수</th>
                     <th class="border p-2">총학점</th>
@@ -2384,17 +2502,19 @@
                     rowClass = 'bg-white';
                 }
 
+                const scode = s.studentCode != null ? s.studentCode : lookupStudentCode(s);
                 return `
                         <tr class="${rowClass} hover:bg-gray-50 cursor-pointer" onclick="openDetailedReportByNum(${s.Number})">
                             <td class="border p-2 text-center">${s.Number}</td>
                             <td class="border p-2 text-center font-medium">${s.Name}</td>
+                            <td class="border p-2 text-center font-mono text-xs">${scode}</td>
                             <td class="border p-2 text-center truncate max-w-[100px]">${major}</td>
                             <td class="border p-2 text-center">${courseCount}</td>
                             <td class="border p-2 text-center">${credits}</td>
                             <td class="border p-2 text-center">${statusBadge}</td>
                         </tr>
                     `;
-            }).join('') : '<tr><td colspan="6" class="p-4 text-center">학생 데이터가 없습니다.</td></tr>'}
+            }).join('') : '<tr><td colspan="7" class="p-4 text-center">학생 데이터가 없습니다.</td></tr>'}
             </tbody>
         </table>
     `;

@@ -1,0 +1,19 @@
+{
+  "name": "고교학점제 수강신청",
+  "short_name": "수강신청",
+  "description": "학생 코드 로그인 후 교육과정 편제 기반 과목 선택 및 제출",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f4f5",
+  "theme_color": "#4f46e5",
+  "lang": "ko",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-app.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

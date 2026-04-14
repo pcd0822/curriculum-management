@@ -223,6 +223,36 @@ const DB = {
         });
         if (!response.ok) throw new Error("Failed to save joint curriculum");
         return await response.json();
+    },
+
+    /**
+     * 학생 코드 + 학번 + 이름으로 Registry와 대조합니다. (학생 페이지 로그인)
+     */
+    verifyStudent: async ({ studentCode, studentId, name }) => {
+        if (!DB.apiUrl) throw new Error("API URL not configured");
+        const response = await fetch(DB.apiUrl, {
+            method: 'POST',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                action: 'verifyStudent',
+                data: { studentCode, studentId, name }
+            })
+        });
+        const text = await response.text();
+        try {
+            const json = JSON.parse(text);
+            if (json.status === 'error') throw new Error(json.message || '인증에 실패했습니다.');
+            return json;
+        } catch (e) {
+            if (e instanceof SyntaxError || (e.name === 'SyntaxError')) {
+                if (text.indexOf('<!DOCTYPE html>') !== -1) {
+                    throw new Error('서버(Google Apps Script) 응답 오류입니다. 배포 상태를 확인해주세요.');
+                }
+                throw new Error('서버 응답을 처리할 수 없습니다.');
+            }
+            throw e;
+        }
     }
 };
 
