@@ -147,20 +147,33 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
       const content = data?.choices?.[0]?.message?.content || '';
       if (!content) throw new Error('AI 응답이 비어 있습니다.');
 
-      // Parse "과목명: 이유" format lines
+      // Parse "과목명: 이유" format lines + DB 매칭으로 학년/학기/학점 추가
       const lines = content.split('\n').filter(l => l.trim());
       const recs = [];
       for (const line of lines) {
         const match = line.match(/^[\d.)\-*]*\s*(.+?)\s*[:：]\s*(.+)$/);
         if (match) {
-          recs.push({ name: match[1].trim(), description: match[2].trim(), category: '교과' });
+          const name = match[1].trim();
+          // DB 과목과 매칭
+          const dbMatch = dbCourses.find(c => {
+            const dbName = (c.과목명 || c.subjectName || '').trim();
+            return dbName === name || dbName.includes(name) || name.includes(dbName);
+          });
+          recs.push({
+            name,
+            description: match[2].trim(),
+            category: dbMatch ? (dbMatch.교과군 || dbMatch.category || '교과') : '교과',
+            subCategory: dbMatch ? (dbMatch.세부교과 || dbMatch.subCategory || '') : '',
+            grade: dbMatch ? (dbMatch.학년 || dbMatch.grade || '') : '',
+            semester: dbMatch ? (dbMatch.학기 || dbMatch.semester || '') : '',
+            credits: dbMatch ? (dbMatch.학점 || dbMatch.credits || '') : '',
+          });
         }
       }
       if (recs.length > 0) {
         setRecommendations(recs);
         setAiTip(`"${inputValue.trim()}" 진로에 맞춰 AI가 ${recs.length}개 과목을 추천했습니다. 추천 과목을 참고하여 수강신청에 반영하세요.`);
       } else {
-        // If not parseable as structured lines, show raw text
         setRecommendations([{ name: 'AI 추천 결과', description: content, category: '전체' }]);
         setAiTip(content.substring(0, 150));
       }
@@ -240,13 +253,25 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-slate-800 font-bold text-sm">{rec.name || rec.subject}</h3>
-                    <p className="text-slate-400 text-xs mt-0.5">{rec.category || '교과'}</p>
+                    <p className="text-slate-400 text-xs mt-0.5">{rec.subCategory || rec.category || '교과'}</p>
                     <p className="text-slate-500 text-xs mt-1.5 leading-relaxed">{rec.description || rec.reason}</p>
-                    {(rec.credits || rec.credit) && (
-                      <span className="inline-block mt-2 bg-slate-100 text-slate-600 text-xs font-medium px-2 py-0.5 rounded-full">
-                        {rec.credits || rec.credit}학점
-                      </span>
-                    )}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {rec.grade && rec.semester && (
+                        <span className="bg-indigo-50 text-indigo-600 text-[0.65rem] font-semibold px-2 py-0.5 rounded-full">
+                          {rec.grade}학년 {rec.semester}학기
+                        </span>
+                      )}
+                      {rec.credits && (
+                        <span className="bg-slate-100 text-slate-600 text-[0.65rem] font-medium px-2 py-0.5 rounded-full">
+                          {rec.credits}학점
+                        </span>
+                      )}
+                      {rec.category && rec.category !== '교과' && rec.category !== '전체' && (
+                        <span className="bg-emerald-50 text-emerald-600 text-[0.65rem] font-medium px-2 py-0.5 rounded-full">
+                          {rec.category}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -347,15 +372,16 @@ function TestsView() {
     if (testState.step !== 'submitting') return;
     const doSubmit = async () => {
       try {
-        // Build answer string: "B1=1 B2=2 ..."
+        // Build answer string: "1=score 2=score ..." (v1 형식, B 접두사 없음)
         const answerStr = Object.entries(testState.answers)
-          .map(([k, v]) => `B${k}=${v}`)
+          .sort(([a], [b]) => Number(a) - Number(b))
+          .map(([k, v]) => `${k}=${v}`)
           .join(' ');
 
         const payload = {
           qestrnSeq: String(testState.testId),
-          trgetSe: '100209', // 고등학생
-          name: '학생',
+          trgetSe: '100207', // 고등학생 코드
+          name: '',
           gender: String(testState.gender),
           grade: '1',
           startDtm: testState.startDtm,
@@ -363,10 +389,12 @@ function TestsView() {
         };
 
         const data = await submitReport(payload);
-        const url = data.RESULT?.url || data.url || null;
-        setTestState((s) => ({ ...s, step: 'result', resultUrl: url }));
+        // v1 응답: { SUCC_YN: "Y", RESULT: { inspctSeq: ..., url: "..." } }
+        const url = data?.RESULT?.url || null;
+        const seq = data?.RESULT?.inspctSeq || null;
+        setTestState((s) => ({ ...s, step: 'result', resultUrl: url, inspctSeq: seq }));
       } catch (err) {
-        setTestState((s) => ({ ...s, step: 'list', error: err.message }));
+        setTestState((s) => ({ ...s, step: 'list', error: '결과 제출 실패: ' + err.message }));
       }
     };
     doSubmit();
@@ -429,17 +457,16 @@ function TestsView() {
     const q = testState.questions[testState.currentQ];
     const progress = ((testState.currentQ) / testState.questions.length) * 100;
 
-    // Parse answer options from the question
+    // Parse answer options: answer01~answer10 (label) + answerScore01~answerScore10 (value)
     const options = [];
-    for (let i = 1; i <= 5; i++) {
-      const key = `answer0${i}`;
-      if (q[key]) options.push({ value: i, label: q[key] });
+    for (let i = 1; i <= 10; i++) {
+      const padded = String(i).padStart(2, '0');
+      const label = q[`answer${padded}`];
+      const score = q[`answerScore${padded}`];
+      if (label && score) options.push({ value: score, label });
     }
-    // fallback if no labeled options
     if (options.length === 0) {
-      for (let i = 1; i <= (q.answerCount || 2); i++) {
-        options.push({ value: i, label: `${i}` });
-      }
+      for (let i = 1; i <= 4; i++) options.push({ value: String(i), label: `${i}` });
     }
 
     return (
@@ -471,7 +498,7 @@ function TestsView() {
           {options.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => answerQuestion(q.qNumber || q.qNo || (testState.currentQ + 1), opt.value)}
+              onClick={() => answerQuestion(testState.currentQ + 1, opt.value)}
               className="w-full text-left bg-white rounded-xl px-4 py-3.5 text-sm text-slate-700 shadow-sm hover:ring-2 hover:ring-indigo-400 transition"
             >
               {opt.label}
@@ -502,22 +529,36 @@ function TestsView() {
               <path d="M20 6L9 17l-5-5" />
             </svg>
           </div>
-          <h3 className="text-slate-800 font-bold text-lg mb-2">검사가 완료되었습니다!</h3>
-          <p className="text-slate-500 text-sm mb-5">아래 버튼을 눌러 상세 결과를 확인하세요.</p>
+          <h3 className="text-slate-800 font-bold text-lg mb-2">{testState.testName} 완료!</h3>
+          <p className="text-slate-500 text-sm mb-5">검사가 성공적으로 완료되었습니다.</p>
+          {testState.inspctSeq && (
+            <p className="text-xs text-slate-400 mb-3" style={{ fontFamily: "'Inter', sans-serif" }}>검사번호: {testState.inspctSeq}</p>
+          )}
           {testState.resultUrl ? (
             <a
               href={testState.resultUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block w-full py-3 rounded-xl text-white font-bold text-sm"
+              className="inline-block w-full py-3 rounded-xl text-white font-bold text-sm mb-2"
               style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
             >
-              결과 확인하기
+              📊 결과 보고서 보기
             </a>
           ) : (
-            <p className="text-red-500 text-sm">결과 URL을 가져오지 못했습니다.</p>
+            <div className="space-y-2 mb-2">
+              <p className="text-amber-600 text-sm">결과 URL을 직접 확인하세요.</p>
+              <a
+                href={`https://www.career.go.kr/inspct/entr/inspctResult.do`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block w-full py-3 rounded-xl text-white font-bold text-sm"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+              >
+                커리어넷 검사 결과 페이지 →
+              </a>
+            </div>
           )}
-          <button onClick={resetTest} className="mt-4 text-slate-500 text-sm underline">
+          <button onClick={resetTest} className="mt-3 text-slate-500 text-sm underline">
             다른 검사 하기
           </button>
         </div>
@@ -580,14 +621,16 @@ function MajorsView() {
     setLoading(true);
     try {
       const data = await getMajorList(activeSubject, currentPage, perPage, searchQuery);
-      // API returns { dataSearch: { content: [...] }, totalCount }
       const content = data?.dataSearch?.content || [];
       const items = Array.isArray(content) ? content : [content];
       setMajorList(items);
-      setTotalCount(Number(data?.dataSearch?.totalCount || 0));
+      // totalCount는 각 항목 안에 있음
+      const tc = items.length > 0 ? Number(items[0]?.totalCount || 0) : 0;
+      setTotalCount(tc);
     } catch (err) {
       console.error(err);
       setMajorList([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }

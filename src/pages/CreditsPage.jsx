@@ -116,7 +116,7 @@ export default function CreditsPage() {
                 className="text-2xl font-bold text-slate-900"
                 style={{ fontFamily: "'Manrope', sans-serif" }}
               >
-                학점 이수 현황
+                {localStorage.getItem('school_name') || 'OO고등학교'} 학점 이수 현황
               </h1>
               <p className="text-sm text-slate-500 mt-0.5">
                 실시간 학점 상태 및 졸업 요건 진단 시스템

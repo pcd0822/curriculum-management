@@ -9,11 +9,14 @@ import CourseCard from '../components/CourseCard';
 const FIELD_MAP = {
   '과목명': 'subjectName',
   '학점': 'credits',
+  '교과군': 'category',
   '교과영역': 'category',
   '교과(군)': 'subCategory',
+  '세부교과': 'subCategory',
   '학년': 'grade',
   '학기': 'semester',
   '필수여부': 'required',
+  '영문ID': 'slug',
   '과목코드': 'code',
   '추천': 'recommended',
 };
@@ -28,7 +31,8 @@ function normaliseCourse(raw) {
   out.credits = Number(out.credits) || 0;
   out.grade = Number(out.grade) || 0;
   out.semester = Number(out.semester) || 0;
-  out.required = out.required === true || out.required === '필수' || out.required === 'Y';
+  const req = String(out.required || '').toUpperCase().trim();
+  out.required = req === 'TRUE' || req === 'Y' || req === '1' || req === '필수' || out.required === true;
   out.recommended = out.recommended === true || out.recommended === '추천' || out.recommended === 'Y';
   return out;
 }
@@ -60,6 +64,7 @@ export default function CoursesPage() {
   }, []);
 
   const avatarLabel = student.name ? student.name.charAt(0) : '?';
+  const schoolName = settings?.schoolName || localStorage.getItem('school_name') || 'OO고등학교';
 
   /* ── Data fetch ── */
   useEffect(() => {
@@ -130,17 +135,74 @@ export default function CoursesPage() {
   const maxCourses = courses.length || 1;
   const progress = Math.round((selectedIds.size / maxCourses) * 100);
 
+  /* ── Selection rule check ── */
+  const selectionRules = settings?.selectionRules || {};
+
+  // 특정 학기에서 특정 학점의 선택(비필수) 과목 수 계산
+  function countSelected(semKey, creditFilter, excludeId) {
+    return courses.filter(c => {
+      if (c.required) return false;
+      if (!selectedIds.has(c.id)) return false;
+      if (c.id === excludeId) return false;
+      if (`${c.grade}-${c.semester}` !== semKey) return false;
+      if (creditFilter !== 'all' && c.credits !== Number(creditFilter)) return false;
+      return true;
+    }).length;
+  }
+
+  // 과목이 선택 규칙에 의해 비활성화되어야 하는지 확인
+  function isDisabledByRule(course) {
+    if (course.required) return false; // 필수 과목은 항상 활성
+    if (selectedIds.has(course.id)) return false; // 이미 선택된 건 체크 해제 가능
+    const semKey = `${course.grade}-${course.semester}`;
+    const rules = selectionRules[semKey];
+    if (!rules || !Array.isArray(rules)) return false;
+    for (const rule of rules) {
+      const creditMatch = rule.credits === 'all' || course.credits === Number(rule.credits);
+      if (creditMatch) {
+        const currentCount = countSelected(semKey, rule.credits, null);
+        if (currentCount >= Number(rule.count)) return true;
+      }
+    }
+    return false;
+  }
+
   /* ── Handlers ── */
   const toggleCourse = useCallback(
     (id) => {
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          // 선택 시 규칙 체크
+          const course = courses.find(c => c.id === id);
+          if (course) {
+            const semKey = `${course.grade}-${course.semester}`;
+            const rules = selectionRules[semKey];
+            if (rules && Array.isArray(rules)) {
+              for (const rule of rules) {
+                const creditMatch = rule.credits === 'all' || course.credits === Number(rule.credits);
+                if (creditMatch) {
+                  // 현재 선택된 수 계산 (next 기준)
+                  const currentCount = courses.filter(c => {
+                    if (c.required) return false;
+                    if (!next.has(c.id)) return false;
+                    if (`${c.grade}-${c.semester}` !== semKey) return false;
+                    if (rule.credits !== 'all' && c.credits !== Number(rule.credits)) return false;
+                    return true;
+                  }).length;
+                  if (currentCount >= Number(rule.count)) return prev; // 초과 → 선택 불가
+                }
+              }
+            }
+          }
+          next.add(id);
+        }
         return next;
       });
     },
-    [],
+    [courses, selectionRules],
   );
 
   /* ── Render ── */
@@ -161,7 +223,7 @@ export default function CoursesPage() {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f7f9fb' }}>
       {/* ── Header ── */}
-      <Header title="OO고등학교" avatarLabel={avatarLabel} />
+      <Header title={schoolName} avatarLabel={avatarLabel} />
 
       {/* ── Stepper ── */}
       <div className="px-5 pt-4 pb-2">
@@ -239,6 +301,25 @@ export default function CoursesPage() {
         </span>
       </div>
 
+      {/* ── Selection rule hint ── */}
+      {selectionRules[activeSemester] && (
+        <div className="px-5 pb-2">
+          <div className="bg-indigo-50 rounded-xl px-3 py-2 flex items-start gap-2">
+            <span className="text-indigo-500 text-xs mt-0.5">📏</span>
+            <div className="text-xs text-indigo-700">
+              <span className="font-semibold">선택 규칙: </span>
+              {selectionRules[activeSemester].map((r, i) => (
+                <span key={i}>
+                  {r.credits === 'all' ? '모든' : `${r.credits}학점`} 과목 {r.count}개
+                  {i < selectionRules[activeSemester].length - 1 ? ', ' : ''}
+                </span>
+              ))}
+              <span className="text-indigo-400"> (초과 선택 불가)</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Course list ── */}
       <div
         className="flex-1 overflow-y-auto px-5 pb-40"
@@ -259,7 +340,7 @@ export default function CoursesPage() {
                 selected={selectedIds.has(course.id)}
                 recommended={course.recommended}
                 required={course.required}
-                disabled={course.required}
+                disabled={course.required || isDisabledByRule(course)}
                 onToggle={() => toggleCourse(course.id)}
               />
             ))

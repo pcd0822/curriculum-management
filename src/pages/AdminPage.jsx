@@ -91,6 +91,14 @@ const TABS = [
 
 const PER_PAGE = 8;
 
+/* ── Stable sub-components (정의를 함수 외부에 두어 re-render 시 재생성 방지) ── */
+function Card({ children, className = '' }) {
+  return <div className={`bg-white rounded-2xl shadow-sm p-6 ${className}`}>{children}</div>;
+}
+function SectionTitle({ children }) {
+  return <h2 className="text-base font-bold text-slate-800 mb-4" style={{ fontFamily: "'Manrope', sans-serif" }}>{children}</h2>;
+}
+
 /* ═══════════════════════ Export Modal ═══════════════════════ */
 function ExportModal({ open, onClose, registry }) {
   const [dlMode, setDlMode] = useState('individual');
@@ -191,9 +199,6 @@ function ShareTab({ apiUrl, shareUrl, registry, setRegistry, loadData }) {
       catch (e) { setCodeGenMsg(m => m + ' ⚠️ 서버 저장 실패: ' + e.message); }
     }
   }
-
-  const Card = ({ children, className = '' }) => <div className={`bg-white rounded-2xl shadow-sm p-6 ${className}`}>{children}</div>;
-  const SectionTitle = ({ children }) => <h2 className="text-base font-bold text-slate-800 mb-4" style={{ fontFamily: "'Manrope', sans-serif" }}>{children}</h2>;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -331,10 +336,12 @@ export default function AdminPage() {
   async function saveSchoolName() {
     if (!schoolName.trim()) return;
     localStorage.setItem('school_name', schoolName.trim());
-    // Settings DB에도 저장
     if (DB.isConfigured()) {
       try {
-        const newSettings = { ...(settings || {}), schoolName: schoolName.trim() };
+        // 기존 settings를 먼저 최신으로 가져온 뒤 병합
+        let current = settings || {};
+        try { const fresh = await DB.fetchSettings(); if (fresh && typeof fresh === 'object') current = fresh; } catch {}
+        const newSettings = { ...current, schoolName: schoolName.trim() };
         await DB.saveSettings(newSettings);
         setSettings(newSettings);
         alert('학교 이름이 저장되었습니다!');
@@ -466,13 +473,7 @@ export default function AdminPage() {
   const semesterKeys = Object.keys(coursesBySemester).sort();
   const allSemesters = ['2-1', '2-2', '3-1', '3-2'];
 
-  const Card = ({ children, className = '' }) => (
-    <div className={`bg-white rounded-2xl shadow-sm p-6 ${className}`}>{children}</div>
-  );
-  const SectionTitle = ({ children }) => (
-    <h2 className="text-base font-bold text-slate-800 mb-4" style={{ fontFamily: "'Manrope', sans-serif" }}>{children}</h2>
-  );
-  const StatusMsg = ({ msgKey }) => uploadMsg[msgKey] ? <p className="mt-3 text-sm">{uploadMsg[msgKey]}</p> : null;
+  const statusMsg = (key) => uploadMsg[key] ? <p className="mt-3 text-sm">{uploadMsg[key]}</p> : null;
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -497,7 +498,7 @@ export default function AdminPage() {
             <>
               <div className="flex items-end justify-between mb-6">
                 <div>
-                  <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: "'Manrope', sans-serif" }}>OO고등학교 학점 이수 현황</h1>
+                  <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: "'Manrope', sans-serif" }}>{schoolName || 'OO고등학교'} 학점 이수 현황</h1>
                   <p className="text-sm text-slate-500 mt-0.5">실시간 데이터 기준</p>
                 </div>
                 <button onClick={loadData} className="px-5 py-2.5 border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50 text-sm font-semibold rounded-xl transition-colors">새로고침</button>
@@ -640,7 +641,7 @@ export default function AdminPage() {
                   <input type="file" id="course-file" accept=".xlsx,.xls" className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
                   <button onClick={() => handleUpload('course-file', 'saveConfig', '과목')} className="w-full bg-emerald-600 text-white py-2.5 rounded-xl hover:bg-emerald-700 text-sm font-semibold">과목 데이터 업로드 및 저장</button>
                 </div>
-                <StatusMsg msgKey="saveConfig" />
+                {statusMsg('saveConfig')}
               </Card>
 
               {/* 학적 업로드 */}
@@ -655,7 +656,7 @@ export default function AdminPage() {
                   <input type="file" id="registry-file" accept=".xlsx,.xls" className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
                   <button onClick={() => handleUpload('registry-file', 'saveRegistry', '학적')} className="w-full bg-indigo-600 text-white py-2.5 rounded-xl hover:bg-indigo-700 text-sm font-semibold">학적 데이터 업로드 및 저장</button>
                 </div>
-                <StatusMsg msgKey="saveRegistry" />
+                {statusMsg('saveRegistry')}
               </Card>
 
               {/* 공동교육과정 */}
@@ -670,7 +671,7 @@ export default function AdminPage() {
                   <input type="file" id="joint-file" accept=".xlsx,.xls" className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
                   <button onClick={() => handleUpload('joint-file', 'saveJointCurriculum', '공동교육과정')} className="w-full bg-teal-600 text-white py-2.5 rounded-xl hover:bg-teal-700 text-sm font-semibold">공동교육과정 업로드 및 저장</button>
                 </div>
-                <StatusMsg msgKey="saveJointCurriculum" />
+                {statusMsg('saveJointCurriculum')}
               </Card>
 
               {/* 현황 카드들 */}
