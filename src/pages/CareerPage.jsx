@@ -9,6 +9,7 @@ import {
   getMajorList,
   getMajorDetail,
 } from '../api/careernet';
+import { fetchConfig, fetchSettings, isConfigured } from '../api/db';
 
 /* ───────────────────────── constants ───────────────────────── */
 
@@ -105,10 +106,23 @@ function TabBar({ view, onChange }) {
 /* ───────── View 1 : AI 추천 (Home) ───────── */
 
 function HomeView({ major, setMajor, recommendations, setRecommendations, loading, setLoading }) {
-  const [inputValue, setInputValue] = useState(major || '데이터사이언티스트');
-
+  const [inputValue, setInputValue] = useState(major || '');
   const [aiTip, setAiTip] = useState('');
   const [aiError, setAiError] = useState('');
+  const [dbCourses, setDbCourses] = useState([]);
+  const [selectionRules, setSelectionRules] = useState(null);
+
+  // DB에서 과목 목록 + 선택 규칙 로드
+  useEffect(() => {
+    if (!isConfigured()) return;
+    fetchConfig().then(cfg => {
+      const arr = Array.isArray(cfg) ? cfg : cfg?.data || [];
+      setDbCourses(arr);
+    }).catch(() => {});
+    fetchSettings().then(stg => {
+      if (stg?.selectionRules) setSelectionRules(stg.selectionRules);
+    }).catch(() => {});
+  }, []);
 
   const handleSearch = async () => {
     if (!inputValue.trim()) return;
@@ -117,8 +131,19 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
     setAiError('');
     setAiTip('');
     try {
-      const data = await getAiRecommendation(inputValue.trim(), '');
-      // OpenAI returns { choices: [{ message: { content: "..." } }] }
+      // DB 등록 과목명만 전달 → AI가 이 중에서만 추천
+      const courseNames = dbCourses.map(c => c.과목명 || c.subjectName || '').filter(Boolean);
+      const rulesText = selectionRules ? Object.entries(selectionRules).map(([k, rules]) =>
+        `${k}학기: ${rules.map(r => `${r.credits === 'all' ? '모든' : r.credits + '학점'} ${r.count}개`).join(', ')}`
+      ).join(' / ') : '';
+      const coursesStr = courseNames.length > 0
+        ? courseNames.join(', ')
+        : '(과목 목록이 등록되지 않았습니다)';
+      const fullPrompt = rulesText
+        ? `${coursesStr}\n\n[선택 규칙] ${rulesText}`
+        : coursesStr;
+
+      const data = await getAiRecommendation(inputValue.trim(), fullPrompt);
       const content = data?.choices?.[0]?.message?.content || '';
       if (!content) throw new Error('AI 응답이 비어 있습니다.');
 

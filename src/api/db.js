@@ -1,17 +1,33 @@
 /**
  * Database API Module (ES Module)
- * Mirrors js/db.js but as ES module exports for the React SPA.
+ * Mirrors js/db.js — communicates with Google Apps Script Web App.
  */
 
+const STORAGE_KEY = 'gas_api_url';
 let apiUrl = null;
+
+// 앱 시작 시 localStorage에서 자동 복원
+try {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) apiUrl = saved;
+} catch { /* SSR or blocked storage */ }
 
 /* ─── helpers ─── */
 
 async function gasGet(action) {
   if (!apiUrl) throw new Error('API URL not configured');
-  const res = await fetch(`${apiUrl}?action=${action}`);
-  if (!res.ok) throw new Error(`Failed to ${action}`);
-  return res.json();
+  const url = `${apiUrl}?action=${action}`;
+  // GAS Web App은 302 redirect를 반환하므로 반드시 redirect: 'follow'
+  const res = await fetch(url, { redirect: 'follow' });
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (text.includes('<!DOCTYPE html>')) {
+      throw new Error('GAS 배포 URL을 확인해주세요. HTML 응답이 반환되었습니다.');
+    }
+    throw new Error('서버 응답 파싱 실패: ' + text.substring(0, 100));
+  }
 }
 
 async function gasPost(action, data) {
@@ -31,9 +47,9 @@ async function gasPost(action, data) {
   } catch (e) {
     if (e instanceof SyntaxError) {
       if (text.includes('<!DOCTYPE html>')) {
-        throw new Error('서버(Google Apps Script) 응답 오류입니다. 배포 상태를 확인해주세요.');
+        throw new Error('GAS 배포 URL을 확인해주세요. HTML 응답이 반환되었습니다.');
       }
-      throw new Error('서버 응답을 처리할 수 없습니다: ' + text.substring(0, 100));
+      throw new Error('서버 응답 파싱 실패: ' + text.substring(0, 100));
     }
     throw e;
   }
@@ -43,10 +59,15 @@ async function gasPost(action, data) {
 
 export function init(url) {
   apiUrl = url;
+  try { localStorage.setItem(STORAGE_KEY, url); } catch { /* ignore */ }
 }
 
 export function isConfigured() {
   return !!apiUrl;
+}
+
+export function getApiUrl() {
+  return apiUrl || '';
 }
 
 export function fetchConfig() {
@@ -95,12 +116,4 @@ export function saveJointCurriculum(data) {
 
 export function verifyStudent({ studentCode, studentId, name }) {
   return gasPost('verifyStudent', { studentCode, studentId, name });
-}
-
-export function fetchRecommendedCourses() {
-  return gasGet('getRecommendedCourses');
-}
-
-export function saveRecommendedCourses(data) {
-  return gasPost('saveRecommendedCourses', data);
 }
