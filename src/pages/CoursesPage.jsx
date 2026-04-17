@@ -247,7 +247,7 @@ export default function CoursesPage() {
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-200">
             <div
               className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[0.6rem] font-bold"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+              style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
             >
               2
             </div>
@@ -274,7 +274,7 @@ export default function CoursesPage() {
                 }`}
                 style={
                   active
-                    ? { background: 'linear-gradient(135deg, #6366f1, #4f46e5)', fontFamily: "'Inter', sans-serif" }
+                    ? { background: 'linear-gradient(135deg, #3525cd, #4f46e5)', fontFamily: "'Inter', sans-serif" }
                     : { fontFamily: "'Inter', sans-serif" }
                 }
               >
@@ -373,7 +373,7 @@ export default function CoursesPage() {
                 className="h-full rounded-full transition-all"
                 style={{
                   width: `${Math.min(progress, 100)}%`,
-                  background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                  background: 'linear-gradient(135deg, #3525cd, #4f46e5)',
                 }}
               />
             </div>
@@ -381,7 +381,7 @@ export default function CoursesPage() {
             <button
               className="px-4 py-2 rounded-xl text-white text-xs font-bold tracking-tight transition-opacity"
               style={{
-                background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                background: 'linear-gradient(135deg, #3525cd, #4f46e5)',
                 fontFamily: "'Manrope', sans-serif",
               }}
             >

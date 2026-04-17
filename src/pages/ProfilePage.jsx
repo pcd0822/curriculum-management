@@ -4,6 +4,17 @@ import MobileNav from '../components/MobileNav';
 import GaugeChart from '../components/GaugeChart';
 import { isConfigured, fetchResponses, fetchConfig, fetchSettings } from '../api/db';
 
+function Card({ children, className = '' }) {
+  return (
+    <div
+      className={`bg-white rounded-2xl p-5 ${className}`}
+      style={{ boxShadow: '0 1px 3px rgba(25,28,30,0.04), 0 4px 12px rgba(25,28,30,0.03)' }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const [responses, setResponses] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -63,10 +74,6 @@ export default function ProfilePage() {
   const major = latestResponse ? (latestResponse.Major || latestResponse.major || '') : '';
   const creditProgress = Math.min(Math.round((totalCredits / 174) * 100), 100);
 
-  const Card = ({ children, className = '' }) => (
-    <div className={`bg-white rounded-2xl shadow-sm p-5 ${className}`}>{children}</div>
-  );
-
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f7f9fb' }}>
       <Header title={schoolName || '내 정보'} avatarLabel={avatarLabel} />
@@ -76,7 +83,7 @@ export default function ProfilePage() {
         <Card className="mb-4">
           <div className="flex items-center gap-4 mb-5">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}>
+              style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}>
               {avatarLabel}
             </div>
             <div>

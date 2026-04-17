@@ -68,16 +68,16 @@ export default function LoginPage() {
       style={{ backgroundColor: '#f7f9fb', fontFamily: "'Manrope', sans-serif" }}
     >
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-2 px-4 py-3">
+      <div className="flex items-center gap-2 px-5 py-4">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-white/70 transition-colors"
+          className="w-9 h-9 rounded-xl flex items-center justify-center text-[#464555] hover:bg-white/70 transition-colors"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <span className="text-sm font-bold text-slate-700 tracking-tight">학생 인증</span>
+        <span className="text-sm font-extrabold text-[#191c1e] tracking-tight" style={{ fontFamily: "'Manrope', sans-serif" }}>학생 인증</span>
       </div>
 
       {/* ── Main content ── */}
@@ -86,7 +86,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center mb-6">
           <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+            style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
           >
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
@@ -116,7 +116,7 @@ export default function LoginPage() {
         <form
           onSubmit={handleSubmit}
           className="w-full max-w-sm bg-white rounded-2xl p-5"
-          style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}
+          style={{ boxShadow: '0 4px 24px rgba(25,28,30,0.06), 0 10px 40px rgba(25,28,30,0.04)' }}
         >
           {/* Card header */}
           <div className="flex items-center gap-2 mb-5">
@@ -214,7 +214,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-4 rounded-2xl text-white text-sm font-bold tracking-tight transition-opacity disabled:opacity-60"
             style={{
-              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+              background: 'linear-gradient(135deg, #3525cd, #4f46e5)',
               fontFamily: "'Manrope', sans-serif",
             }}
           >

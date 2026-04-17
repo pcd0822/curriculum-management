@@ -151,7 +151,7 @@ export default function CreditsPage() {
                     className="w-full rounded-t-lg"
                     style={{
                       height: `${(s.value / 100) * 160}px`,
-                      background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
+                      background: 'linear-gradient(180deg, #4f46e5 0%, #3525cd 100%)',
                     }}
                   />
                   <span className="text-[0.65rem] text-slate-500 font-medium mt-1">

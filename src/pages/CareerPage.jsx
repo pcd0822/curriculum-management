@@ -232,7 +232,7 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
           onClick={handleSearch}
           disabled={loading || !inputValue.trim()}
           className="px-5 py-3 rounded-xl text-white text-sm font-semibold shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+          style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
         >
           {loading ? (
             <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
@@ -346,7 +346,7 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
           {/* CTA */}
           <button
             className="w-full py-3.5 rounded-xl text-white font-bold text-sm shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+            style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
           >
             추천과목 모두 선택하기
           </button>
@@ -539,7 +539,7 @@ function TestsView() {
           <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #6366f1, #7c3aed)' }}
+              style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #3525cd, #7c3aed)' }}
             />
           </div>
         </div>
@@ -594,7 +594,7 @@ function TestsView() {
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block w-full py-3 rounded-xl text-white font-bold text-sm mb-2"
-              style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+              style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
             >
               📊 결과 보고서 보기
             </a>
@@ -606,7 +606,7 @@ function TestsView() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block w-full py-3 rounded-xl text-white font-bold text-sm"
-                style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+                style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
               >
                 커리어넷 검사 결과 페이지 →
               </a>
@@ -992,7 +992,7 @@ export default function CareerPage() {
   return (
     <div className="flex flex-col min-h-screen bg-[#f7f9fb]">
       {/* Header */}
-      <Header title="Scholaris Core" />
+      <Header title={localStorage.getItem('school_name') || '진로탐색'} />
 
       {/* Tab bar */}
       <TabBar view={view} onChange={setView} />

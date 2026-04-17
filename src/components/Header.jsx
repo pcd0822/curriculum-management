@@ -1,16 +1,19 @@
 export default function Header({
-  title = 'Scholaris Core',
+  title = '고교학점제',
   avatarLabel = '?',
   onAvatarClick,
 }) {
   return (
-    <header className="bg-white flex items-center justify-between px-5 py-4">
+    <header
+      className="bg-white/90 backdrop-blur-xl flex items-center justify-between px-5 py-4 sticky top-0 z-30"
+      style={{ boxShadow: '0 1px 3px rgba(25, 28, 30, 0.04)' }}
+    >
       {/* Left: logo + title */}
       <div className="flex items-center gap-3">
         <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{
-            background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+            background: 'linear-gradient(135deg, #3525cd, #4f46e5)',
           }}
         >
           <svg
@@ -19,16 +22,15 @@ export default function Header({
             viewBox="0 0 24 24"
             fill="none"
             stroke="white"
-            strokeWidth="2"
+            strokeWidth="2.5"
             strokeLinecap="round"
-            strokeLinejoin="round"
           >
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
           </svg>
         </div>
         <span
-          className="text-slate-800 font-bold text-base tracking-tight"
+          className="text-[#191c1e] font-extrabold text-base tracking-tight"
           style={{ fontFamily: "'Manrope', sans-serif" }}
         >
           {title}
@@ -38,7 +40,7 @@ export default function Header({
       {/* Right: avatar */}
       <button
         onClick={onAvatarClick}
-        className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+        className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 transition-transform hover:scale-105"
         style={{
           background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
           fontFamily: "'Inter', sans-serif",

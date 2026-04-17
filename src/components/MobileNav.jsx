@@ -49,26 +49,35 @@ export default function MobileNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.06)] z-50"
+      className="fixed bottom-0 left-0 right-0 z-50"
       style={{
-        height: '60px',
+        height: '64px',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        background: 'rgba(255,255,255,0.88)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        boxShadow: '0 -1px 3px rgba(25,28,30,0.04)',
       }}
     >
-      <div className="flex items-center justify-around h-[60px] max-w-lg mx-auto px-2">
+      <div className="flex items-center justify-around h-[64px] max-w-lg mx-auto px-2">
         {tabs.map((tab) => {
           const isActive = location.pathname.startsWith(tab.path);
           return (
             <Link
               key={tab.path}
               to={tab.path}
-              className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
-                isActive ? 'text-[#4f46e5]' : 'text-slate-400'
+              className={`flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all ${
+                isActive ? 'text-[#4f46e5]' : 'text-[#777587] hover:text-slate-600'
               }`}
             >
-              {tab.icon}
+              <div className="relative">
+                {tab.icon}
+                {isActive && (
+                  <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#4f46e5]" />
+                )}
+              </div>
               <span
-                className="text-[0.625rem] font-medium leading-tight"
+                className={`text-[0.625rem] leading-tight ${isActive ? 'font-bold' : 'font-medium'}`}
                 style={{ fontFamily: 'Inter, sans-serif' }}
               >
                 {tab.label}
