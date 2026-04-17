@@ -343,11 +343,13 @@ export default function AdminPage() {
       alert('학교 이름이 로컬에 저장되었습니다. (API 연결 시 서버에도 저장됩니다)');
     }
   }
-  // Settings에서 학교 이름 복원
+  // Settings에서 학교 이름 복원 (최초 1회만)
+  const schoolNameLoaded = useRef(false);
   useEffect(() => {
-    if (settings?.schoolName && !schoolName) {
+    if (settings?.schoolName && !schoolNameLoaded.current) {
+      schoolNameLoaded.current = true;
       setSchoolName(settings.schoolName);
-      localStorage.setItem('school_name', settings.schoolName);
+      try { localStorage.setItem('school_name', settings.schoolName); } catch {}
     }
   }, [settings]);
   async function testConnection() {

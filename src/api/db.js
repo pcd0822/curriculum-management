@@ -1,6 +1,6 @@
 /**
  * Database API Module (ES Module)
- * Mirrors js/db.js — communicates with Google Apps Script Web App.
+ * Exact mirror of js/db.js patterns for GAS compatibility.
  */
 
 const STORAGE_KEY = 'gas_api_url';
@@ -11,49 +11,6 @@ try {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) apiUrl = saved;
 } catch { /* SSR or blocked storage */ }
-
-/* ─── helpers ─── */
-
-async function gasGet(action) {
-  if (!apiUrl) throw new Error('API URL not configured');
-  const url = `${apiUrl}?action=${action}`;
-  // GAS Web App은 302 redirect를 반환하므로 반드시 redirect: 'follow'
-  const res = await fetch(url, { redirect: 'follow' });
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch {
-    if (text.includes('<!DOCTYPE html>')) {
-      throw new Error('GAS 배포 URL을 확인해주세요. HTML 응답이 반환되었습니다.');
-    }
-    throw new Error('서버 응답 파싱 실패: ' + text.substring(0, 100));
-  }
-}
-
-async function gasPost(action, data) {
-  if (!apiUrl) throw new Error('API URL not configured');
-  const res = await fetch(apiUrl, {
-    method: 'POST',
-    redirect: 'follow',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, data }),
-  });
-
-  const text = await res.text();
-  try {
-    const json = JSON.parse(text);
-    if (json.status === 'error') throw new Error(json.message || 'Server error');
-    return json;
-  } catch (e) {
-    if (e instanceof SyntaxError) {
-      if (text.includes('<!DOCTYPE html>')) {
-        throw new Error('GAS 배포 URL을 확인해주세요. HTML 응답이 반환되었습니다.');
-      }
-      throw new Error('서버 응답 파싱 실패: ' + text.substring(0, 100));
-    }
-    throw e;
-  }
-}
 
 /* ─── public API ─── */
 
@@ -70,24 +27,70 @@ export function getApiUrl() {
   return apiUrl || '';
 }
 
-export function fetchConfig() {
-  return gasGet('getConfig');
+/* ── GET helpers (same pattern as original js/db.js) ── */
+
+export async function fetchConfig() {
+  if (!apiUrl) throw new Error('API URL not configured');
+  const response = await fetch(`${apiUrl}?action=getConfig`);
+  return await response.json();
+}
+
+export async function fetchSettings() {
+  if (!apiUrl) throw new Error('API URL not configured');
+  const response = await fetch(`${apiUrl}?action=getSettings`);
+  return await response.json();
+}
+
+export async function fetchResponses() {
+  if (!apiUrl) throw new Error('API URL not configured');
+  const response = await fetch(`${apiUrl}?action=getResponses`);
+  return await response.json();
+}
+
+export async function fetchRegistry() {
+  if (!apiUrl) throw new Error('API URL not configured');
+  const response = await fetch(`${apiUrl}?action=getRegistry`);
+  return await response.json();
+}
+
+export async function fetchJointCurriculum() {
+  if (!apiUrl) throw new Error('API URL not configured');
+  const response = await fetch(`${apiUrl}?action=getJointCurriculum`);
+  return await response.json();
+}
+
+/* ── POST helpers (exact same pattern as original js/db.js) ── */
+
+async function gasPost(action, data) {
+  if (!apiUrl) throw new Error('API URL not configured');
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, data }),
+  });
+  const text = await response.text();
+  try {
+    const json = JSON.parse(text);
+    if (json.status === 'error') throw new Error(json.message || 'Server error');
+    return json;
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      if (text.includes('<!DOCTYPE html>')) {
+        throw new Error('GAS 배포 URL을 확인해주세요. HTML 응답이 반환되었습니다.');
+      }
+      throw new Error('서버 응답 파싱 실패: ' + text.substring(0, 200));
+    }
+    throw e;
+  }
 }
 
 export function saveConfig(courses) {
   return gasPost('saveConfig', courses);
 }
 
-export function fetchSettings() {
-  return gasGet('getSettings');
-}
-
 export function saveSettings(settings) {
   return gasPost('saveSettings', settings);
-}
-
-export function fetchResponses() {
-  return gasGet('getResponses');
 }
 
 export function submitResponse(responseData) {
@@ -98,16 +101,8 @@ export function deleteResponse(ids) {
   return gasPost('deleteResponse', ids);
 }
 
-export function fetchRegistry() {
-  return gasGet('getRegistry');
-}
-
 export function saveRegistry(registry) {
   return gasPost('saveRegistry', registry);
-}
-
-export function fetchJointCurriculum() {
-  return gasGet('getJointCurriculum');
 }
 
 export function saveJointCurriculum(data) {

@@ -1,21 +1,45 @@
 @import 'tailwindcss';
 
-/* Stitch Design System — Base Styles */
+/* ═══════════════════════════════════════════════════════
+   Stitch Design System: "Academic Precision & Fluidity"
+   ═══════════════════════════════════════════════════════ */
 
 @theme {
+  /* ── Core Palette ── */
   --color-primary: #4f46e5;
+  --color-primary-deep: #3525cd;
+  --color-primary-fixed: #e2dfff;
+  --color-primary-fixed-dim: #c3c0ff;
   --color-secondary: #7c3aed;
+  --color-secondary-container: #8a4cfc;
+  --color-secondary-fixed: #eaddff;
   --color-tertiary: #10b981;
-  --color-surface: #f7f9fb;
-  --color-on-surface: #191c1e;
-  --color-outline: #777587;
+  --color-tertiary-container: #006e4b;
   --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
 
+  /* ── Surface Architecture ── */
+  --color-surface: #f7f9fb;
+  --color-surface-low: #f2f4f6;
+  --color-surface-container: #eceef0;
+  --color-surface-high: #e6e8ea;
+  --color-surface-highest: #e0e3e5;
+  --color-surface-dim: #d8dadc;
+  --color-card: #ffffff;
+
+  /* ── On-surfaces ── */
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #464555;
+  --color-outline: #777587;
+  --color-outline-variant: #c7c4d8;
+
+  /* ── Typography Families ── */
   --font-sans: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
-  --font-display: 'Manrope', sans-serif;
-  --font-label: 'Inter', sans-serif;
+  --font-display: 'Manrope', 'Noto Sans KR', sans-serif;
+  --font-label: 'Inter', 'Noto Sans KR', sans-serif;
 }
 
+/* ── Reset & Base ── */
 *,
 *::before,
 *::after {
@@ -30,17 +54,49 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Smooth rounded corners by default */
-button,
-input,
-select,
-textarea,
-[class*='rounded'] {
+/* ── No-Line Rule: smooth rounded corners ── */
+button, input, select, textarea {
   border-radius: 0.75rem;
 }
 
-/* Focus ring — primary color, no harsh border */
+/* ── Focus: primary ring, no harsh border ── */
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* ── Ambient Shadow utilities ── */
+.shadow-ambient {
+  box-shadow: 0 10px 40px rgba(25, 28, 30, 0.06);
+}
+
+/* ── Gradient Button ── */
+.btn-gradient {
+  background: linear-gradient(135deg, var(--color-primary-deep), var(--color-primary));
+  color: white;
+  font-weight: 600;
+}
+.btn-gradient:hover {
+  opacity: 0.92;
+}
+
+/* ── Glass Effect ── */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* ── Scrollbar (minimal) ── */
+.scrollbar-thin::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: var(--color-outline-variant); border-radius: 2px; }
+
+/* ── Typography scale helpers ── */
+.font-display { font-family: var(--font-display); }
+.font-label { font-family: var(--font-label); }
+.text-display { font-family: var(--font-display); font-size: 3.5rem; font-weight: 800; }
+.text-headline { font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; }
+.text-title { font-family: var(--font-sans); font-size: 1.125rem; font-weight: 600; }
+.text-body { font-family: var(--font-sans); font-size: 0.875rem; }
+.text-label { font-family: var(--font-label); font-size: 0.75rem; font-weight: 500; }

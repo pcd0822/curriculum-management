@@ -268,8 +268,8 @@ function verifyStudent(data) {
     return createJSONOutput({ status: 'error', message: '학적에 학생코드 열이 없습니다. 관리자에서 학적을 다시 등록해주세요.' });
   }
   var wantCode = normalizeStudentCode_(data.studentCode || data.student_code);
-  if (wantCode.length !== 10) {
-    return createJSONOutput({ status: 'error', message: '학생 코드는 10자리 영문·숫자입니다.' });
+  if (wantCode.length < 6) {
+    return createJSONOutput({ status: 'error', message: '학생 코드는 6자리 이상 영문·숫자입니다.' });
   }
   var wantId = normalizeStudentId_(data.studentId || data.student_id || data.학번);
   var wantName = normalizeName_(data.name || data.Name || data.이름);
