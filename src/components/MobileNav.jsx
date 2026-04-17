@@ -2,7 +2,7 @@ import { useLocation, Link } from 'react-router-dom';
 
 const tabs = [
   {
-    label: '강의',
+    label: '수강신청',
     path: '/courses',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

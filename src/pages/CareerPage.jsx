@@ -173,6 +173,12 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
       if (recs.length > 0) {
         setRecommendations(recs);
         setAiTip(`"${inputValue.trim()}" 진로에 맞춰 AI가 ${recs.length}개 과목을 추천했습니다. 추천 과목을 참고하여 수강신청에 반영하세요.`);
+        // AI 추천 이력 저장
+        try {
+          const history = JSON.parse(localStorage.getItem('aiHistory') || '[]');
+          history.push({ major: inputValue.trim(), date: new Date().toLocaleDateString('ko-KR'), courses: recs.map(r => r.name) });
+          localStorage.setItem('aiHistory', JSON.stringify(history.slice(-20)));
+        } catch {}
       } else {
         setRecommendations([{ name: 'AI 추천 결과', description: content, category: '전체' }]);
         setAiTip(content.substring(0, 150));
@@ -203,22 +209,43 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
         </p>
       </div>
 
-      {/* Input */}
-      <div className="relative mb-5">
-        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-500">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7.5L12 22l-3-5.5C7 14.5 5 12 5 9a7 7 0 0 1 7-7z" />
-            <circle cx="12" cy="9" r="2.5" />
-          </svg>
+      {/* Input + Search button */}
+      <div className="flex gap-2 mb-5">
+        <div className="relative flex-1">
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-500">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7.5L12 22l-3-5.5C7 14.5 5 12 5 9a7 7 0 0 1 7-7z" />
+              <circle cx="12" cy="9" r="2.5" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="희망 직업 또는 전공 입력"
+            disabled={loading}
+            className="w-full bg-white rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
+          />
         </div>
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="희망 직업 또는 전공 입력"
-          className="w-full bg-white rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-        />
+        <button
+          onClick={handleSearch}
+          disabled={loading || !inputValue.trim()}
+          className="px-5 py-3 rounded-xl text-white text-sm font-semibold shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}
+        >
+          {loading ? (
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          )}
+          {loading ? '분석 중' : '추천'}
+        </button>
       </div>
 
       {/* Section header */}
@@ -232,7 +259,28 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
       </div>
 
       {loading ? (
-        <Spinner />
+        <div className="flex flex-col items-center py-12 gap-4">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center">
+              <svg className="animate-spin h-7 w-7 text-indigo-600" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            </div>
+            <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center animate-pulse">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z" /></svg>
+            </div>
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-slate-700" style={{ fontFamily: "'Manrope', sans-serif" }}>AI가 과목을 분석하고 있습니다</p>
+            <p className="text-xs text-slate-400 mt-1">등록된 교과 데이터와 진로를 매칭 중...</p>
+          </div>
+          <div className="flex gap-1">
+            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </div>
       ) : (
         <>
           {/* Error */}
@@ -393,6 +441,12 @@ function TestsView() {
         const url = data?.RESULT?.url || null;
         const seq = data?.RESULT?.inspctSeq || null;
         setTestState((s) => ({ ...s, step: 'result', resultUrl: url, inspctSeq: seq }));
+        // 이력 저장
+        try {
+          const history = JSON.parse(localStorage.getItem('testHistory') || '[]');
+          history.push({ testName: testState.testName, date: new Date().toLocaleDateString('ko-KR'), resultUrl: url, inspctSeq: seq });
+          localStorage.setItem('testHistory', JSON.stringify(history.slice(-20)));
+        } catch {}
       } catch (err) {
         setTestState((s) => ({ ...s, step: 'list', error: '결과 제출 실패: ' + err.message }));
       }

@@ -4,6 +4,7 @@ import CoursesPage from './pages/CoursesPage';
 import CreditsPage from './pages/CreditsPage';
 import AdminPage from './pages/AdminPage';
 import CareerPage from './pages/CareerPage';
+import ProfilePage from './pages/ProfilePage';
 
 function Layout() {
   return (
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="/courses" element={<CoursesPage />} />
           <Route path="/career" element={<CareerPage />} />
           <Route path="/credits" element={<CreditsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Routes>
