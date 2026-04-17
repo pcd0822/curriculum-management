@@ -1,0 +1,46 @@
+@import 'tailwindcss';
+
+/* Stitch Design System — Base Styles */
+
+@theme {
+  --color-primary: #4f46e5;
+  --color-secondary: #7c3aed;
+  --color-tertiary: #10b981;
+  --color-surface: #f7f9fb;
+  --color-on-surface: #191c1e;
+  --color-outline: #777587;
+  --color-error: #ba1a1a;
+
+  --font-sans: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
+  --font-display: 'Manrope', sans-serif;
+  --font-label: 'Inter', sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  border-color: transparent;
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth rounded corners by default */
+button,
+input,
+select,
+textarea,
+[class*='rounded'] {
+  border-radius: 0.75rem;
+}
+
+/* Focus ring — primary color, no harsh border */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

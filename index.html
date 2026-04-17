@@ -38,6 +38,8 @@
     <script src="js/roadmap.js"></script>
     <script src="js/theme.js"></script>
 
+    <!-- Google Fonts for Stitch design system -->
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
         body {
             font-family: 'Noto Sans KR', system-ui, sans-serif;
@@ -119,13 +121,658 @@
                 transform: rotate(360deg);
             }
         }
+
+        /* ===== Compact Mobile View (Stitch Design System) ===== */
+        .compact-view {
+            display: none;
+            font-family: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
+            background: #f7f9fb;
+            min-height: 100vh;
+            padding-bottom: 140px;
+        }
+        .compact-view .cv-font-headline { font-family: 'Manrope', 'Noto Sans KR', sans-serif; }
+        .compact-view .cv-font-label { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
+
+        /* Show compact view on mobile, hide desktop */
+        @media (max-width: 767px) {
+            .compact-view { display: block; }
+            .desktop-view { display: none !important; }
+            .compact-view ~ .fixed.bottom-6 { display: none !important; } /* hide theme button on compact */
+        }
+        @media (min-width: 768px) {
+            .compact-view { display: none !important; }
+        }
+
+        /* Compact Header */
+        .cv-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px 12px;
+            background: #ffffff;
+            border-bottom: none;
+        }
+        .cv-header-brand {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .cv-header-logo {
+            width: 32px; height: 32px; border-radius: 10px;
+            background: linear-gradient(135deg, #3525cd, #4f46e5);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .cv-header-logo svg { width: 18px; height: 18px; }
+        .cv-header-title {
+            font-family: 'Manrope', sans-serif;
+            font-weight: 700; font-size: 1.1rem; color: #191c1e;
+        }
+        .cv-header-avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: linear-gradient(135deg, #8a4cfc, #4f46e5);
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: 600; font-size: 0.8rem;
+        }
+
+        /* Compact Hero Section */
+        .cv-hero { padding: 20px 20px 8px; }
+        .cv-hero h1 {
+            font-family: 'Manrope', 'Noto Sans KR', sans-serif;
+            font-size: 1.75rem; font-weight: 800; color: #191c1e;
+            margin: 0 0 4px;
+        }
+        .cv-hero p { font-size: 0.8rem; color: #777587; margin: 0; }
+
+        /* AI Recommendation CTA */
+        .cv-ai-cta {
+            margin: 16px 20px;
+            background: linear-gradient(135deg, #3525cd, #4f46e5);
+            border-radius: 1.5rem;
+            padding: 16px 20px;
+            display: flex; align-items: center; gap: 14px;
+            cursor: pointer;
+            box-shadow: 0 10px 40px rgba(25, 28, 30, 0.12);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .cv-ai-cta:active { transform: scale(0.98); }
+        .cv-ai-cta-icon {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .cv-ai-cta-text h3 {
+            color: #fff; font-weight: 700; font-size: 0.95rem; margin: 0 0 2px;
+        }
+        .cv-ai-cta-text p {
+            color: rgba(218, 215, 255, 0.85); font-size: 0.7rem; margin: 0;
+        }
+        .cv-ai-cta-arrow {
+            margin-left: auto; color: rgba(255,255,255,0.7);
+            font-size: 1.2rem; flex-shrink: 0;
+        }
+
+        /* AI Result Panel (compact) */
+        .cv-ai-result {
+            margin: 0 20px 12px;
+            background: #ffffff;
+            border-radius: 1.5rem;
+            padding: 16px;
+            box-shadow: 0 4px 20px rgba(25, 28, 30, 0.04);
+            display: none;
+        }
+        .cv-ai-result.active { display: block; }
+        .cv-ai-result-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px;
+        }
+        .cv-ai-result-header h4 {
+            font-family: 'Manrope', sans-serif;
+            font-weight: 700; font-size: 0.85rem; color: #191c1e; margin: 0;
+        }
+        .cv-ai-result-close {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: #f2f4f6; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            color: #777587; font-size: 1rem;
+        }
+        .cv-ai-result-body {
+            font-size: 0.78rem; color: #464555; line-height: 1.6;
+            max-height: 220px; overflow-y: auto;
+        }
+        .cv-ai-result-actions {
+            display: flex; gap: 8px; margin-top: 12px;
+        }
+        .cv-ai-result-actions button {
+            flex: 1; padding: 10px; border-radius: 1rem; border: none;
+            font-size: 0.75rem; font-weight: 600; cursor: pointer;
+            transition: background 0.15s;
+        }
+        .cv-ai-result-actions .cv-btn-primary {
+            background: linear-gradient(135deg, #3525cd, #4f46e5);
+            color: #fff;
+        }
+        .cv-ai-result-actions .cv-btn-secondary {
+            background: #f2f4f6; color: #464555;
+        }
+
+        /* Course List Section */
+        .cv-section-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px 10px;
+        }
+        .cv-section-header h2 {
+            font-family: 'Manrope', 'Noto Sans KR', sans-serif;
+            font-weight: 700; font-size: 1.1rem; color: #191c1e; margin: 0;
+        }
+        .cv-section-header .cv-count {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.7rem; font-weight: 500; color: #777587;
+            background: #f2f4f6; padding: 4px 10px; border-radius: 1rem;
+        }
+
+        /* Course Card */
+        .cv-course-list { padding: 0 20px; }
+        .cv-course-card {
+            background: #ffffff;
+            border-radius: 1.5rem;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 2px 12px rgba(25, 28, 30, 0.03);
+            transition: box-shadow 0.15s;
+            cursor: pointer;
+        }
+        .cv-course-card:active { box-shadow: 0 4px 20px rgba(25, 28, 30, 0.08); }
+        .cv-course-card.selected {
+            background: linear-gradient(135deg, rgba(79,70,229,0.06), rgba(138,76,252,0.04));
+            box-shadow: 0 0 0 1.5px rgba(79,70,229,0.25);
+        }
+
+        .cv-course-icon {
+            width: 40px; height: 40px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; flex-shrink: 0;
+        }
+        .cv-course-icon.cat-기초교과 { background: #e2dfff; color: #3525cd; }
+        .cv-course-icon.cat-탐구교과 { background: #d1fae5; color: #005338; }
+        .cv-course-icon.cat-예술교과 { background: #fce7f3; color: #9d174d; }
+        .cv-course-icon.cat-체육교과 { background: #fee2e2; color: #991b1b; }
+        .cv-course-icon.cat-교양교과 { background: #fef3c7; color: #92400e; }
+
+        .cv-course-info { flex: 1; min-width: 0; }
+        .cv-course-badges {
+            display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 3px;
+        }
+        .cv-badge {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.6rem; font-weight: 600;
+            padding: 2px 7px; border-radius: 0.75rem;
+            line-height: 1.4;
+        }
+        .cv-badge-sub { background: #e2dfff; color: #3525cd; }
+        .cv-badge-rec { background: #eaddff; color: #5a00c6; }
+        .cv-badge-req { background: #ffdad6; color: #93000a; }
+
+        .cv-course-name {
+            font-weight: 600; font-size: 0.88rem; color: #191c1e;
+            margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .cv-course-credits {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.7rem; color: #777587; margin: 2px 0 0;
+        }
+
+        .cv-course-check {
+            width: 26px; height: 26px; border-radius: 8px;
+            border: 2px solid #c7c4d8; background: transparent;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; transition: all 0.15s;
+            cursor: pointer;
+        }
+        .cv-course-check.checked {
+            background: linear-gradient(135deg, #3525cd, #4f46e5);
+            border-color: #4f46e5;
+        }
+        .cv-course-check.disabled {
+            background: #e6e8ea; border-color: #c7c4d8; opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .cv-course-check svg { width: 14px; height: 14px; }
+
+        /* Semester Divider */
+        .cv-semester-divider {
+            padding: 14px 20px 6px;
+            font-family: 'Manrope', sans-serif;
+            font-weight: 700; font-size: 0.82rem; color: #464555;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .cv-semester-divider::after {
+            content: ''; flex: 1; height: 1px;
+            background: linear-gradient(to right, #c7c4d8 0%, transparent 100%);
+        }
+
+        /* Bottom Status Bar */
+        .cv-bottom-bar {
+            position: fixed; bottom: 60px; left: 0; right: 0; z-index: 40;
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            padding: 12px 20px;
+            box-shadow: 0 -4px 20px rgba(25, 28, 30, 0.06);
+        }
+        .cv-bottom-bar-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px;
+        }
+        .cv-status-info {
+            display: flex; flex-direction: column; gap: 2px;
+        }
+        .cv-status-label {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.65rem; color: #777587; font-weight: 500;
+        }
+        .cv-status-value {
+            font-family: 'Manrope', sans-serif;
+            font-weight: 700; font-size: 0.9rem; color: #3525cd;
+        }
+        .cv-status-btn {
+            background: linear-gradient(135deg, #3525cd, #4f46e5);
+            color: #fff; border: none; border-radius: 1rem;
+            padding: 10px 20px; font-weight: 600; font-size: 0.8rem;
+            cursor: pointer; white-space: nowrap;
+            box-shadow: 0 4px 16px rgba(53, 37, 205, 0.25);
+            transition: transform 0.15s;
+        }
+        .cv-status-btn:active { transform: scale(0.97); }
+        .cv-status-btn:disabled {
+            background: #c7c4d8; box-shadow: none; cursor: not-allowed;
+        }
+
+        /* Bottom Navigation */
+        .cv-bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+            background: #ffffff;
+            display: flex; justify-content: space-around; align-items: center;
+            height: 60px;
+            padding-bottom: env(safe-area-inset-bottom, 0);
+            box-shadow: 0 -2px 12px rgba(25, 28, 30, 0.04);
+        }
+        .cv-nav-item {
+            display: flex; flex-direction: column; align-items: center; gap: 2px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.6rem; font-weight: 500; color: #777587;
+            cursor: pointer; padding: 4px 12px;
+            transition: color 0.15s;
+            background: none; border: none;
+        }
+        .cv-nav-item.active { color: #3525cd; font-weight: 600; }
+        .cv-nav-item svg { width: 22px; height: 22px; }
+
+        /* Compact view panels */
+        .cv-panel { display: none; }
+        .cv-panel.active { display: block; }
+
+        /* Validation compact panel */
+        .cv-validation-panel { padding: 16px 20px; }
+        .cv-validation-card {
+            background: #ffffff; border-radius: 1.5rem;
+            padding: 14px 16px; margin-bottom: 8px;
+            box-shadow: 0 2px 12px rgba(25, 28, 30, 0.03);
+        }
+        .cv-validation-card.pass { border-left: 3px solid #006e4b; }
+        .cv-validation-card.fail { border-left: 3px solid #ba1a1a; }
+        .cv-validation-card p {
+            font-size: 0.78rem; color: #464555; margin: 0; line-height: 1.5;
+        }
+
+        /* Credit summary panel */
+        .cv-credit-panel { padding: 16px 20px; }
+        .cv-credit-hero {
+            background: #ffffff; border-radius: 1.5rem;
+            padding: 24px; text-align: center; margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(25, 28, 30, 0.04);
+        }
+        .cv-credit-hero .cv-credit-number {
+            font-family: 'Manrope', sans-serif;
+            font-size: 3.5rem; font-weight: 800; color: #3525cd;
+            line-height: 1;
+        }
+        .cv-credit-hero .cv-credit-label {
+            font-size: 0.8rem; color: #777587; margin-top: 4px;
+        }
+        .cv-credit-breakdown {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        }
+        .cv-credit-box {
+            background: #ffffff; border-radius: 1rem;
+            padding: 14px; text-align: center;
+            box-shadow: 0 2px 12px rgba(25, 28, 30, 0.03);
+        }
+        .cv-credit-box .num {
+            font-family: 'Manrope', sans-serif;
+            font-size: 1.5rem; font-weight: 700;
+        }
+        .cv-credit-box .label {
+            font-size: 0.7rem; color: #777587; margin-top: 2px;
+        }
     </style>
 </head>
 
-<body class="min-h-screen p-4 md:p-8 app-shell pb-24 md:pb-8">
-    <!-- 학생 코드·학번·이름 확인 (배포 링크로 접속한 경우) -->
+<body class="min-h-screen app-shell">
+
+    <!-- ===== COMPACT MOBILE VIEW (Stitch Design) ===== -->
+    <div class="compact-view" id="compact-view">
+        <!-- Header -->
+        <div class="cv-header">
+            <div class="cv-header-brand">
+                <div class="cv-header-logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                </div>
+                <span class="cv-header-title">Scholaris Core</span>
+            </div>
+            <div class="cv-header-avatar" id="cv-avatar">?</div>
+        </div>
+
+        <!-- Panel: 강의 (Course Selection) -->
+        <div class="cv-panel active" id="cv-panel-courses">
+            <div class="cv-hero">
+                <h1>수강 신청</h1>
+                <p>다음 학기의 직업 경로를 탐색하고 수강 신청하세요.</p>
+            </div>
+
+            <!-- AI CTA -->
+            <div class="cv-ai-cta" id="cv-ai-cta" role="button" tabindex="0">
+                <div class="cv-ai-cta-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m-7.07-2.93 2.83-2.83m8.48-8.48 2.83-2.83M2 12h4m12 0h4M4.93 4.93l2.83 2.83m8.48 8.48 2.83 2.83"/></svg>
+                </div>
+                <div class="cv-ai-cta-text">
+                    <h3>AI 과목 추천받기</h3>
+                    <p>나의 진로에 맞춤 로드맵 추천</p>
+                </div>
+                <div class="cv-ai-cta-arrow">›</div>
+            </div>
+
+            <!-- AI Result Panel (hidden by default) -->
+            <div class="cv-ai-result" id="cv-ai-result">
+                <div class="cv-ai-result-header">
+                    <h4>AI 추천 결과</h4>
+                    <button class="cv-ai-result-close" id="cv-ai-result-close">×</button>
+                </div>
+                <div class="cv-ai-result-body" id="cv-ai-result-body">
+                    <div id="cv-ai-loader" class="hidden" style="text-align:center;padding:24px;">
+                        <div class="loader ease-linear rounded-full border-4 border-t-4 border-violet-300" style="width:32px;height:32px;margin:0 auto 8px;"></div>
+                        <span style="font-size:0.75rem;color:#777587;">추천 분석 중...</span>
+                    </div>
+                    <div id="cv-ai-result-text"></div>
+                </div>
+                <div class="cv-ai-result-actions" id="cv-ai-result-actions" style="display:none;">
+                    <button class="cv-btn-primary" id="cv-apply-merge">통합 적용</button>
+                    <button class="cv-btn-secondary" id="cv-apply-ai">AI만 적용</button>
+                </div>
+            </div>
+
+            <!-- Course List -->
+            <div class="cv-section-header">
+                <h2>개설 교과목</h2>
+                <span class="cv-count" id="cv-course-count">총 0개</span>
+            </div>
+            <div class="cv-course-list" id="cv-course-list">
+                <div style="text-align:center;padding:32px 0;color:#777587;font-size:0.85rem;">
+                    데이터를 불러오는 중입니다...
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel: 진로 (Career / Psychology Tests) -->
+        <div class="cv-panel" id="cv-panel-career">
+            <!-- Sub-views: test-home / test-run / test-result -->
+            <div id="cv-career-home">
+                <div class="cv-hero">
+                    <h1>진로 탐색</h1>
+                    <p>진로심리검사를 통해 나에게 맞는 직업과 진로를 알아보세요.</p>
+                </div>
+
+                <!-- AI 추천 섹션 -->
+                <div style="padding:0 20px;margin-bottom:20px;">
+                    <input type="text" id="cv-major-input" placeholder="희망 진로 (예: 컴퓨터공학자, 간호사)"
+                        style="width:100%;padding:14px 16px;border-radius:1.5rem;border:none;background:#ffffff;font-size:0.85rem;color:#191c1e;box-shadow:0 2px 12px rgba(25,28,30,0.03);outline:none;margin-bottom:10px;">
+                    <button id="cv-career-recommend-btn" style="width:100%;padding:12px;border-radius:1.5rem;border:none;background:linear-gradient(135deg,#3525cd,#4f46e5);color:#fff;font-weight:600;font-size:0.82rem;cursor:pointer;box-shadow:0 4px 16px rgba(53,37,205,0.2);">AI + 커리어넷 과목 추천 받기</button>
+                </div>
+
+                <!-- 진로심리검사 목록 -->
+                <div class="cv-section-header">
+                    <h2>진로심리검사</h2>
+                    <span class="cv-count">고등학생용</span>
+                </div>
+                <div style="padding:0 20px;" id="cv-test-list">
+                    <div class="cv-course-card" data-test-id="31" data-test-name="직업흥미검사(K)" style="margin-bottom:10px;">
+                        <div class="cv-course-icon" style="background:#e2dfff;color:#3525cd;">🎯</div>
+                        <div class="cv-course-info">
+                            <p class="cv-course-name">직업흥미검사(K)</p>
+                            <p class="cv-course-credits">나의 직업 흥미 유형을 알아봅니다</p>
+                        </div>
+                        <div class="cv-ai-cta-arrow" style="color:#c7c4d8;font-size:1.4rem;">›</div>
+                    </div>
+                    <div class="cv-course-card" data-test-id="21" data-test-name="직업적성검사" style="margin-bottom:10px;">
+                        <div class="cv-course-icon" style="background:#d1fae5;color:#005338;">📊</div>
+                        <div class="cv-course-info">
+                            <p class="cv-course-name">직업적성검사</p>
+                            <p class="cv-course-credits">나의 적성과 능력을 파악합니다</p>
+                        </div>
+                        <div class="cv-ai-cta-arrow" style="color:#c7c4d8;font-size:1.4rem;">›</div>
+                    </div>
+                    <div class="cv-course-card" data-test-id="25" data-test-name="직업가치관검사" style="margin-bottom:10px;">
+                        <div class="cv-course-icon" style="background:#eaddff;color:#5a00c6;">💎</div>
+                        <div class="cv-course-info">
+                            <p class="cv-course-name">직업가치관검사</p>
+                            <p class="cv-course-credits">직업 선택 시 중요하게 여기는 가치를 탐색합니다</p>
+                        </div>
+                        <div class="cv-ai-cta-arrow" style="color:#c7c4d8;font-size:1.4rem;">›</div>
+                    </div>
+                    <div class="cv-course-card" data-test-id="27" data-test-name="진로개발역량검사" style="margin-bottom:10px;">
+                        <div class="cv-course-icon" style="background:#fef3c7;color:#92400e;">🚀</div>
+                        <div class="cv-course-info">
+                            <p class="cv-course-name">진로개발역량검사</p>
+                            <p class="cv-course-credits">진로 준비 역량 수준을 진단합니다</p>
+                        </div>
+                        <div class="cv-ai-cta-arrow" style="color:#c7c4d8;font-size:1.4rem;">›</div>
+                    </div>
+                    <div class="cv-course-card" data-test-id="36" data-test-name="진로성숙도검사" style="margin-bottom:10px;">
+                        <div class="cv-course-icon" style="background:#fce7f3;color:#9d174d;">🌱</div>
+                        <div class="cv-course-info">
+                            <p class="cv-course-name">진로성숙도검사</p>
+                            <p class="cv-course-credits">진로 결정 준비도를 확인합니다</p>
+                        </div>
+                        <div class="cv-ai-cta-arrow" style="color:#c7c4d8;font-size:1.4rem;">›</div>
+                    </div>
+                    <div class="cv-course-card" data-test-id="38" data-test-name="진로실행력검사" style="margin-bottom:10px;">
+                        <div class="cv-course-icon" style="background:#fee2e2;color:#991b1b;">⚡</div>
+                        <div class="cv-course-info">
+                            <p class="cv-course-name">진로실행력검사</p>
+                            <p class="cv-course-credits">진로 계획의 실행력을 측정합니다</p>
+                        </div>
+                        <div class="cv-ai-cta-arrow" style="color:#c7c4d8;font-size:1.4rem;">›</div>
+                    </div>
+                </div>
+
+                <!-- 학과 추천 과목 섹션 -->
+                <div class="cv-section-header" style="margin-top:8px;">
+                    <h2>학과 추천 과목</h2>
+                    <span class="cv-count">대학 학과별</span>
+                </div>
+                <div style="padding:0 20px;">
+                    <!-- 계열 선택 -->
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;" id="cv-major-category-tabs">
+                        <button class="cv-major-tab active" data-subject="100391" style="padding:6px 12px;border-radius:1rem;border:none;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.15s;background:linear-gradient(135deg,#3525cd,#4f46e5);color:#fff;">인문</button>
+                        <button class="cv-major-tab" data-subject="100392" style="padding:6px 12px;border-radius:1rem;border:none;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.15s;background:#f2f4f6;color:#464555;">사회</button>
+                        <button class="cv-major-tab" data-subject="100393" style="padding:6px 12px;border-radius:1rem;border:none;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.15s;background:#f2f4f6;color:#464555;">교육</button>
+                        <button class="cv-major-tab" data-subject="100394" style="padding:6px 12px;border-radius:1rem;border:none;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.15s;background:#f2f4f6;color:#464555;">공학</button>
+                        <button class="cv-major-tab" data-subject="100395" style="padding:6px 12px;border-radius:1rem;border:none;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.15s;background:#f2f4f6;color:#464555;">자연</button>
+                        <button class="cv-major-tab" data-subject="100396" style="padding:6px 12px;border-radius:1rem;border:none;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.15s;background:#f2f4f6;color:#464555;">의약</button>
+                        <button class="cv-major-tab" data-subject="100397" style="padding:6px 12px;border-radius:1rem;border:none;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.15s;background:#f2f4f6;color:#464555;">예체능</button>
+                    </div>
+                    <!-- 검색 -->
+                    <div style="display:flex;gap:8px;margin-bottom:12px;">
+                        <input type="text" id="cv-major-search" placeholder="학과명 검색 (예: 컴퓨터, 간호)"
+                            style="flex:1;padding:10px 14px;border-radius:1rem;border:none;background:#fff;font-size:0.8rem;color:#191c1e;box-shadow:0 2px 12px rgba(25,28,30,0.03);outline:none;">
+                        <button id="cv-major-search-btn" style="padding:10px 16px;border-radius:1rem;border:none;background:linear-gradient(135deg,#3525cd,#4f46e5);color:#fff;font-weight:600;font-size:0.78rem;cursor:pointer;white-space:nowrap;">검색</button>
+                    </div>
+                    <!-- 학과 목록 -->
+                    <div id="cv-major-list" style="max-height:300px;overflow-y:auto;">
+                        <div style="text-align:center;padding:20px;color:#777587;font-size:0.8rem;">계열을 선택하면 학과 목록이 표시됩니다.</div>
+                    </div>
+                    <!-- 페이지네이션 -->
+                    <div id="cv-major-pagination" style="display:flex;justify-content:center;gap:6px;margin-top:10px;margin-bottom:16px;"></div>
+                </div>
+            </div>
+
+            <!-- 학과 상세 화면 -->
+            <div id="cv-career-major-detail" style="display:none;">
+                <div style="padding:16px 20px 8px;display:flex;align-items:center;gap:10px;">
+                    <button id="cv-major-back-btn" style="width:36px;height:36px;border-radius:50%;background:#f2f4f6;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#464555;">←</button>
+                    <h2 id="cv-major-detail-title" style="font-family:'Manrope',sans-serif;font-weight:700;font-size:1rem;color:#191c1e;margin:0;flex:1;"></h2>
+                </div>
+                <div style="padding:8px 20px 24px;overflow-y:auto;" id="cv-major-detail-body"></div>
+            </div>
+
+            <!-- 검사 실행 화면 -->
+            <div id="cv-career-test-run" style="display:none;">
+                <div style="padding:16px 20px 8px;display:flex;align-items:center;gap:10px;">
+                    <button id="cv-test-back-btn" style="width:36px;height:36px;border-radius:50%;background:#f2f4f6;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#464555;">←</button>
+                    <div style="flex:1;">
+                        <h2 id="cv-test-title" style="font-family:'Manrope',sans-serif;font-weight:700;font-size:1rem;color:#191c1e;margin:0;"></h2>
+                        <p id="cv-test-progress-text" style="font-size:0.7rem;color:#777587;margin:2px 0 0;"></p>
+                    </div>
+                </div>
+                <!-- Progress bar -->
+                <div style="padding:8px 20px 16px;">
+                    <div style="height:6px;background:#e6e8ea;border-radius:3px;overflow:hidden;">
+                        <div id="cv-test-progress-bar" style="height:100%;background:linear-gradient(135deg,#3525cd,#4f46e5);border-radius:3px;transition:width 0.3s;width:0%;"></div>
+                    </div>
+                </div>
+                <!-- Gender selection (shown before questions) -->
+                <div id="cv-test-gender-step" style="padding:0 20px;">
+                    <div style="background:#fff;border-radius:1.5rem;padding:24px;box-shadow:0 2px 12px rgba(25,28,30,0.03);">
+                        <p style="font-weight:600;font-size:0.9rem;color:#191c1e;margin:0 0 16px;">검사를 시작하기 전에 성별을 선택해주세요.</p>
+                        <div style="display:flex;gap:10px;">
+                            <button class="cv-gender-btn" data-gender="100323" style="flex:1;padding:14px;border-radius:1rem;border:2px solid #e6e8ea;background:#fff;font-size:0.9rem;font-weight:600;cursor:pointer;transition:all 0.15s;">남학생</button>
+                            <button class="cv-gender-btn" data-gender="100324" style="flex:1;padding:14px;border-radius:1rem;border:2px solid #e6e8ea;background:#fff;font-size:0.9rem;font-weight:600;cursor:pointer;transition:all 0.15s;">여학생</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Question display -->
+                <div id="cv-test-question-area" style="padding:0 20px;display:none;">
+                    <div style="background:#fff;border-radius:1.5rem;padding:20px;box-shadow:0 2px 12px rgba(25,28,30,0.03);min-height:200px;">
+                        <p id="cv-test-q-number" style="font-family:'Inter',sans-serif;font-size:0.65rem;font-weight:600;color:#777587;margin:0 0 6px;"></p>
+                        <p id="cv-test-q-tip" style="font-size:0.72rem;color:#8a4cfc;margin:0 0 4px;display:none;font-style:italic;"></p>
+                        <p id="cv-test-q-text" style="font-weight:600;font-size:0.95rem;color:#191c1e;margin:0 0 16px;line-height:1.5;"></p>
+                        <div id="cv-test-q-choices" style="display:flex;flex-direction:column;gap:8px;"></div>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:14px;">
+                        <button id="cv-test-prev-btn" style="flex:1;padding:12px;border-radius:1rem;border:none;background:#f2f4f6;color:#464555;font-weight:600;font-size:0.82rem;cursor:pointer;" disabled>이전</button>
+                        <button id="cv-test-next-btn" style="flex:1;padding:12px;border-radius:1rem;border:none;background:linear-gradient(135deg,#3525cd,#4f46e5);color:#fff;font-weight:600;font-size:0.82rem;cursor:pointer;" disabled>다음</button>
+                    </div>
+                </div>
+                <!-- Loading -->
+                <div id="cv-test-loading" style="display:none;text-align:center;padding:48px 20px;">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-violet-300" style="width:40px;height:40px;margin:0 auto 12px;"></div>
+                    <p style="font-size:0.85rem;color:#777587;">검사 문항을 불러오는 중...</p>
+                </div>
+                <!-- Submit step -->
+                <div id="cv-test-submit-step" style="display:none;padding:0 20px;">
+                    <div style="background:#fff;border-radius:1.5rem;padding:24px;box-shadow:0 2px 12px rgba(25,28,30,0.03);text-align:center;">
+                        <div style="font-size:2.5rem;margin-bottom:12px;">✅</div>
+                        <p style="font-weight:700;font-size:1rem;color:#191c1e;margin:0 0 6px;">모든 문항에 응답했습니다!</p>
+                        <p style="font-size:0.78rem;color:#777587;margin:0 0 20px;">아래 버튼을 눌러 검사 결과를 확인하세요.</p>
+                        <button id="cv-test-submit-btn" style="width:100%;padding:14px;border-radius:1.5rem;border:none;background:linear-gradient(135deg,#3525cd,#4f46e5);color:#fff;font-weight:600;font-size:0.9rem;cursor:pointer;box-shadow:0 4px 16px rgba(53,37,205,0.2);">결과 확인하기</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 검사 결과 화면 -->
+            <div id="cv-career-test-result" style="display:none;">
+                <div style="padding:16px 20px 8px;display:flex;align-items:center;gap:10px;">
+                    <button id="cv-result-back-btn" style="width:36px;height:36px;border-radius:50%;background:#f2f4f6;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#464555;">←</button>
+                    <h2 style="font-family:'Manrope',sans-serif;font-weight:700;font-size:1rem;color:#191c1e;margin:0;">검사 결과</h2>
+                </div>
+                <div style="padding:12px 20px;">
+                    <div id="cv-test-result-content" style="background:#fff;border-radius:1.5rem;padding:24px;box-shadow:0 2px 12px rgba(25,28,30,0.03);text-align:center;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel: 이수현황 (Credit Status) -->
+        <div class="cv-panel" id="cv-panel-credits">
+            <div class="cv-hero">
+                <h1>이수 현황</h1>
+                <p>현재 선택한 과목의 학점 현황을 확인하세요.</p>
+            </div>
+            <div class="cv-credit-panel" id="cv-credit-panel">
+                <div class="cv-credit-hero">
+                    <div class="cv-credit-number" id="cv-total-credits-display">0</div>
+                    <div class="cv-credit-label">총 이수 학점 / 174 필요</div>
+                </div>
+                <div class="cv-credit-breakdown" id="cv-credit-breakdown"></div>
+            </div>
+            <div class="cv-validation-panel" id="cv-validation-panel"></div>
+        </div>
+
+        <!-- Panel: 내 정보 -->
+        <div class="cv-panel" id="cv-panel-profile">
+            <div class="cv-hero">
+                <h1>내 정보</h1>
+                <p>학생 정보를 확인하세요.</p>
+            </div>
+            <div style="padding:0 20px;">
+                <div style="background:#fff;border-radius:1.5rem;padding:20px;box-shadow:0 2px 12px rgba(25,28,30,0.03);">
+                    <div style="margin-bottom:14px;">
+                        <label style="font-size:0.7rem;font-weight:600;color:#777587;display:block;margin-bottom:4px;">학번</label>
+                        <div id="cv-profile-id" style="font-size:0.95rem;font-weight:600;color:#191c1e;">-</div>
+                    </div>
+                    <div style="margin-bottom:14px;">
+                        <label style="font-size:0.7rem;font-weight:600;color:#777587;display:block;margin-bottom:4px;">이름</label>
+                        <div id="cv-profile-name" style="font-size:0.95rem;font-weight:600;color:#191c1e;">-</div>
+                    </div>
+                    <div>
+                        <label style="font-size:0.7rem;font-weight:600;color:#777587;display:block;margin-bottom:4px;">희망 진로</label>
+                        <div id="cv-profile-major" style="font-size:0.95rem;font-weight:600;color:#191c1e;">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Status Bar -->
+        <div class="cv-bottom-bar" id="cv-bottom-bar">
+            <div class="cv-bottom-bar-inner">
+                <div class="cv-status-info">
+                    <span class="cv-status-label">현재 선택 현황</span>
+                    <span class="cv-status-value" id="cv-status-value">선택: 0과목 / 총 0학점</span>
+                </div>
+                <button class="cv-status-btn" id="cv-submit-btn" disabled>신청현황 보기</button>
+            </div>
+        </div>
+
+        <!-- Bottom Navigation -->
+        <div class="cv-bottom-nav" id="cv-bottom-nav">
+            <button class="cv-nav-item active" data-panel="courses">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                강의
+            </button>
+            <button class="cv-nav-item" data-panel="career">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+                진로
+            </button>
+            <button class="cv-nav-item" data-panel="credits">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                이수현황
+            </button>
+            <button class="cv-nav-item" data-panel="profile">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                내 정보
+            </button>
+        </div>
+    </div>
+
+    <!-- 학생 코드·학번·이름 확인 (배포 링크로 접속한 경우) — shared between views -->
     <div id="student-login-gate" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <div class="theme-card p-8 rounded-xl shadow-xl max-w-md w-full border">
+        <div class="theme-card p-8 rounded-xl shadow-xl max-w-md w-full border" style="background:#fff;">
             <h2 class="text-xl font-bold mb-2 theme-text">학생 본인 확인</h2>
             <p class="text-sm theme-text-muted mb-6">관리자에게 발급받은 <strong>학생 코드</strong>(영문·숫자 10자리)와 학번·이름을 입력하세요.</p>
             <div class="space-y-4">
@@ -147,6 +794,9 @@
             </div>
         </div>
     </div>
+
+    <!-- ===== DESKTOP VIEW (Original Layout) ===== -->
+    <div class="desktop-view p-4 md:p-8 pb-24 md:pb-8">
 
     <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
 
@@ -316,9 +966,9 @@
         </div>
     </div>
 
-    <!-- 모바일: 하단 고정 제출 (학생 앱 UX) -->
+    <!-- 모바일: 하단 고정 제출 (학생 앱 UX) - desktop only now -->
     <div
-        class="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t theme-border bg-[var(--card-bg)]/95 backdrop-blur-md px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,.08)]">
+        class="hidden md:hidden fixed bottom-0 left-0 right-0 z-40 border-t theme-border bg-[var(--card-bg)]/95 backdrop-blur-md px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,.08)]">
         <button
             type="button"
             id="submit-btn-mobile"
@@ -327,6 +977,7 @@
             수강신청 제출
         </button>
     </div>
+    </div><!-- /.desktop-view -->
 
     <!-- Submit Modal -->
     <div id="submit-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
@@ -1897,6 +2548,937 @@
 
             init();
         });
+
+        // ===== COMPACT VIEW LOGIC =====
+        (function initCompactView() {
+            const categoryIcons = {
+                '기초교과': '📐', '탐구교과': '🔬', '예술교과': '🎨',
+                '체육교과': '🏃', '교양교과': '📚'
+            };
+            const categorySubMap = {
+                '국어': '기초교과', '수학': '기초교과', '영어': '기초교과', '한국사': '기초교과',
+                '사회': '탐구교과', '과학': '탐구교과',
+                '체육': '체육교과', '예술': '예술교과',
+                '제2외국어': '교양교과', '정보': '교양교과', '교양': '교양교과'
+            };
+
+            // Bottom nav panel switching
+            document.getElementById('cv-bottom-nav')?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.cv-nav-item');
+                if (!btn) return;
+                const panel = btn.dataset.panel;
+                document.querySelectorAll('.cv-nav-item').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.cv-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById(`cv-panel-${panel}`)?.classList.add('active');
+                // Show/hide bottom bar only on courses panel
+                const bar = document.getElementById('cv-bottom-bar');
+                if (bar) bar.style.display = panel === 'courses' ? '' : 'none';
+                // Update credit panel when switching to it
+                if (panel === 'credits') renderCompactCreditPanel();
+                if (panel === 'profile') updateCompactProfile();
+            });
+
+            // AI CTA click
+            document.getElementById('cv-ai-cta')?.addEventListener('click', () => {
+                const major = document.getElementById('student-major')?.value?.trim()
+                    || document.getElementById('cv-major-input')?.value?.trim();
+                if (!major) {
+                    // Switch to career panel for input
+                    document.querySelectorAll('.cv-nav-item').forEach(b => b.classList.remove('active'));
+                    document.querySelector('.cv-nav-item[data-panel="career"]')?.classList.add('active');
+                    document.querySelectorAll('.cv-panel').forEach(p => p.classList.remove('active'));
+                    document.getElementById('cv-panel-career')?.classList.add('active');
+                    document.getElementById('cv-bottom-bar').style.display = 'none';
+                    document.getElementById('cv-major-input')?.focus();
+                    return;
+                }
+                // Sync major to desktop input
+                if (document.getElementById('student-major')) {
+                    document.getElementById('student-major').value = major;
+                }
+                runCompactAiRecommendation(major);
+            });
+
+            // AI result close
+            document.getElementById('cv-ai-result-close')?.addEventListener('click', () => {
+                document.getElementById('cv-ai-result')?.classList.remove('active');
+            });
+
+            // Career panel recommend button
+            document.getElementById('cv-career-recommend-btn')?.addEventListener('click', () => {
+                const major = document.getElementById('cv-major-input')?.value?.trim();
+                if (!major) return alert('희망 진로를 입력해주세요.');
+                // Sync to desktop
+                if (document.getElementById('student-major')) {
+                    document.getElementById('student-major').value = major;
+                }
+                runCompactAiRecommendation(major);
+                // Switch to courses panel to see result
+                document.querySelectorAll('.cv-nav-item').forEach(b => b.classList.remove('active'));
+                document.querySelector('.cv-nav-item[data-panel="courses"]')?.classList.add('active');
+                document.querySelectorAll('.cv-panel').forEach(p => p.classList.remove('active'));
+                document.getElementById('cv-panel-courses')?.classList.add('active');
+                document.getElementById('cv-bottom-bar').style.display = '';
+            });
+
+            // Apply roadmap buttons in compact view
+            document.getElementById('cv-apply-merge')?.addEventListener('click', () => {
+                const m = window.__roadmapStore?.matchedMerge || [];
+                applyRoadmapCourseIds(m.map(c => c.id));
+                renderCompactCourses();
+                document.getElementById('cv-ai-result')?.classList.remove('active');
+            });
+            document.getElementById('cv-apply-ai')?.addEventListener('click', () => {
+                const m = window.__roadmapStore?.matchedAi || [];
+                applyRoadmapCourseIds(m.map(c => c.id));
+                renderCompactCourses();
+                document.getElementById('cv-ai-result')?.classList.remove('active');
+            });
+
+            // Submit button
+            document.getElementById('cv-submit-btn')?.addEventListener('click', () => {
+                openSubmitModal();
+            });
+
+            async function runCompactAiRecommendation(major) {
+                const resultPanel = document.getElementById('cv-ai-result');
+                const loader = document.getElementById('cv-ai-loader');
+                const textEl = document.getElementById('cv-ai-result-text');
+                const actionsEl = document.getElementById('cv-ai-result-actions');
+
+                resultPanel?.classList.add('active');
+                if (loader) loader.classList.remove('hidden');
+                if (textEl) textEl.innerHTML = '';
+                if (actionsEl) actionsEl.style.display = 'none';
+
+                // Use the existing desktop function's logic
+                try {
+                    if (!PROCESSED_COURSES || PROCESSED_COURSES.length === 0) {
+                        if (textEl) textEl.innerHTML = '<p style="color:#ba1a1a;">과목 목록이 없습니다. 로그인을 확인해주세요.</p>';
+                        return;
+                    }
+                    const availableCourses = PROCESSED_COURSES.filter(c => !c.required).map(c => c.subjectName).join(', ');
+
+                    const [aiRes, cnRes] = await Promise.all([
+                        fetch('/.netlify/functions/ai-recommendation', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ major, availableCourses })
+                        }),
+                        fetch('/.netlify/functions/careernet-recommendation', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ major, keyword: major })
+                        })
+                    ]);
+
+                    let aiText = '';
+                    if (aiRes.ok) {
+                        const result = await aiRes.json();
+                        aiText = result.choices?.[0]?.message?.content || '';
+                    } else {
+                        aiText = '(AI 응답 없음)';
+                    }
+
+                    const cnJson = cnRes.ok ? await cnRes.json() : { source: 'error', subjects: [] };
+                    const cnSubjects = Array.isArray(cnJson.subjects) ? cnJson.subjects : [];
+                    const cnNames = cnSubjects.map(s => typeof s === 'string' ? s : s.name || '').filter(Boolean);
+
+                    const aiNames = parseAiSubjectLines(aiText);
+                    const matchedAi = matchRecommendedToCourses(aiNames, PROCESSED_COURSES);
+                    const matchedCn = matchRecommendedToCourses(cnNames, PROCESSED_COURSES);
+                    const matchedMerge = matchRecommendedToCourses([...new Set([...aiNames, ...cnNames])], PROCESSED_COURSES);
+
+                    window.__roadmapStore = { matchedAi, matchedCn, matchedMerge };
+
+                    // Show result
+                    if (textEl) {
+                        textEl.innerHTML = `<div style="font-weight:600;color:#3525cd;margin-bottom:8px;">[${major}] AI 추천</div>` +
+                            (aiText || '내용 없음').replace(/\n/g, '<br>');
+                        if (cnNames.length > 0) {
+                            textEl.innerHTML += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e6e8ea;">` +
+                                `<div style="font-weight:600;color:#005338;margin-bottom:6px;">커리어넷 추천</div>` +
+                                cnSubjects.map(s => `<div>• <strong>${s.name || s}</strong> ${s.reason ? '— ' + s.reason : ''}</div>`).join('') +
+                                `</div>`;
+                        }
+                    }
+                    if (actionsEl && matchedMerge.length > 0) actionsEl.style.display = 'flex';
+
+                    // Also update compact course list to show recommendation badges
+                    window.__compactRecommended = new Set(matchedMerge.map(c => c.id));
+                    renderCompactCourses();
+
+                    // Also sync to desktop AI panel
+                    showHelperMsg(`<strong class="text-violet-800 dark:text-violet-200">[${major}] AI 추천</strong><br><br>${(aiText || '내용 없음').replace(/\n/g, '<br>')}`, 'info');
+
+                } catch (err) {
+                    if (textEl) textEl.innerHTML = `<p style="color:#ba1a1a;">추천 오류: ${err.message}</p>`;
+                } finally {
+                    if (loader) loader.classList.add('hidden');
+                }
+            }
+
+            // Render compact course list — called after loadData
+            window.renderCompactCourses = function() {
+                const listEl = document.getElementById('cv-course-list');
+                const countEl = document.getElementById('cv-course-count');
+                if (!listEl || !PROCESSED_COURSES || PROCESSED_COURSES.length === 0) return;
+
+                const recommended = window.__compactRecommended || new Set();
+
+                // Group by semester
+                const grouped = {};
+                PROCESSED_COURSES.forEach(c => {
+                    const key = `${c.grade}-${c.semester}`;
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(c);
+                });
+
+                const totalCount = PROCESSED_COURSES.length;
+                if (countEl) countEl.textContent = `총 ${totalCount}개`;
+
+                // Get currently checked course ids from desktop checkboxes
+                const checkedIds = new Set(
+                    Array.from(document.querySelectorAll('#course-list-container input[type="checkbox"]:checked')).map(cb => cb.value)
+                );
+                // Also include required courses
+                PROCESSED_COURSES.filter(c => c.required).forEach(c => checkedIds.add(c.id));
+
+                let html = '';
+                const keys = Object.keys(grouped).sort();
+
+                keys.forEach(key => {
+                    const [g, s] = key.split('-');
+                    html += `<div class="cv-semester-divider">${g}학년 ${s}학기</div>`;
+
+                    grouped[key].forEach(c => {
+                        const isChecked = checkedIds.has(c.id);
+                        const isRequired = c.required;
+                        const isRec = recommended.has(c.id);
+                        const isDisabled = isRequired; // required courses can't be unchecked
+                        const cat = c.category || '교양교과';
+                        const icon = categoryIcons[cat] || '📖';
+                        const subCat = c.subCategory || c.category || '';
+
+                        // Check if disabled by selection rules (check desktop checkbox state)
+                        const desktopCb = document.querySelector(`#course-list-container input[type="checkbox"][value="${c.id}"]`);
+                        const isLimitDisabled = desktopCb && desktopCb.disabled && !isRequired;
+
+                        html += `
+                            <div class="cv-course-card ${isChecked ? 'selected' : ''} ${isLimitDisabled ? 'opacity-50' : ''}"
+                                data-course-id="${c.id}" data-required="${isRequired}" data-disabled="${isLimitDisabled}">
+                                <div class="cv-course-icon cat-${cat}">${icon}</div>
+                                <div class="cv-course-info">
+                                    <div class="cv-course-badges">
+                                        <span class="cv-badge cv-badge-sub">${subCat || cat}</span>
+                                        ${isRec ? '<span class="cv-badge cv-badge-rec">추천</span>' : ''}
+                                        ${isRequired ? '<span class="cv-badge cv-badge-req">필수</span>' : ''}
+                                    </div>
+                                    <p class="cv-course-name">${c.subjectName}</p>
+                                    <p class="cv-course-credits">${c.credits}학점</p>
+                                </div>
+                                <div class="cv-course-check ${isChecked ? 'checked' : ''} ${(isRequired || isLimitDisabled) ? 'disabled' : ''}">
+                                    ${isChecked ? '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                });
+
+                listEl.innerHTML = html;
+                updateCompactStatus();
+
+                // Bind click events
+                listEl.querySelectorAll('.cv-course-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const courseId = card.dataset.courseId;
+                        const isRequired = card.dataset.required === 'true';
+                        const isDisabled = card.dataset.disabled === 'true';
+                        if (isRequired || isDisabled) return;
+
+                        // Toggle the corresponding desktop checkbox
+                        const cb = document.querySelector(`#course-list-container input[type="checkbox"][value="${courseId}"]`);
+                        if (cb && !cb.disabled) {
+                            cb.checked = !cb.checked;
+                            validateSelections(); // triggers desktop validation
+                            renderCompactCourses(); // re-render compact view
+                        }
+                    });
+                });
+            };
+
+            // Update compact status bar
+            window.updateCompactStatus = function() {
+                const statusEl = document.getElementById('cv-status-value');
+                const submitBtn = document.getElementById('cv-submit-btn');
+                if (!statusEl) return;
+
+                const selected = getSelected();
+                const allSelected = [...selected, ...jointCourses];
+                const totalCredits = parseInt(document.getElementById('total-credits')?.textContent || '0');
+                const courseCount = allSelected.length;
+
+                statusEl.textContent = `선택: ${courseCount}과목 / 총 ${totalCredits}학점`;
+
+                // Sync submit button state with desktop
+                const desktopBtn = document.getElementById('submit-btn');
+                if (submitBtn && desktopBtn) {
+                    submitBtn.disabled = desktopBtn.disabled;
+                }
+            };
+
+            // Render credit breakdown panel
+            window.renderCompactCreditPanel = function() {
+                const totalCredits = parseInt(document.getElementById('total-credits')?.textContent || '0');
+                const totalDisplay = document.getElementById('cv-total-credits-display');
+                if (totalDisplay) totalDisplay.textContent = totalCredits;
+
+                // Calculate category credits
+                const selected = [...getSelected(), ...jointCourses];
+                let basicCredits = 0, explorationCredits = 0, artCredits = 0, peCredits = 0, electiveCredits = 0;
+
+                selected.forEach(c => {
+                    const credits = parseInt(c.credits || 0);
+                    const cat = c.category || '';
+                    const subName = (c.subjectName || '').toLowerCase();
+                    const isKH = subName.includes('한국사');
+
+                    if (cat === '기초교과' || isKH) basicCredits += credits;
+                    else if (cat === '탐구교과') explorationCredits += credits;
+                    else if (cat === '예술교과') artCredits += credits;
+                    else if (cat === '체육교과') peCredits += credits;
+                    else if (['교양교과', '제2외국어', '정보'].includes(cat)) electiveCredits += credits;
+                });
+
+                const breakdownEl = document.getElementById('cv-credit-breakdown');
+                if (breakdownEl) {
+                    breakdownEl.innerHTML = `
+                        <div class="cv-credit-box"><div class="num" style="color:#3525cd">${basicCredits}</div><div class="label">기초교과</div></div>
+                        <div class="cv-credit-box"><div class="num" style="color:#005338">${explorationCredits}</div><div class="label">탐구교과</div></div>
+                        <div class="cv-credit-box"><div class="num" style="color:#9d174d">${artCredits}</div><div class="label">예술교과</div></div>
+                        <div class="cv-credit-box"><div class="num" style="color:#92400e">${electiveCredits}</div><div class="label">교양·정보</div></div>
+                    `;
+                }
+
+                // Render validation messages
+                const valPanel = document.getElementById('cv-validation-panel');
+                if (valPanel) {
+                    const desktopMsgs = document.querySelectorAll('#validation-messages div');
+                    let valHtml = '';
+                    desktopMsgs.forEach(msg => {
+                        const isPass = msg.classList.contains('bg-green-100');
+                        valHtml += `<div class="cv-validation-card ${isPass ? 'pass' : 'fail'}"><p>${msg.innerHTML}</p></div>`;
+                    });
+                    valPanel.innerHTML = valHtml || '<div style="text-align:center;color:#777587;font-size:0.85rem;padding:24px;">과목을 선택하면 검증 결과가 표시됩니다.</div>';
+                }
+            };
+
+            // Update profile panel
+            window.updateCompactProfile = function() {
+                const idEl = document.getElementById('cv-profile-id');
+                const nameEl = document.getElementById('cv-profile-name');
+                const majorEl = document.getElementById('cv-profile-major');
+                if (idEl) idEl.textContent = document.getElementById('student-id')?.value || '-';
+                if (nameEl) nameEl.textContent = document.getElementById('student-name')?.value || '-';
+                if (majorEl) majorEl.textContent = document.getElementById('student-major')?.value || document.getElementById('cv-major-input')?.value || '-';
+
+                // Update avatar
+                const avatar = document.getElementById('cv-avatar');
+                const name = document.getElementById('student-name')?.value;
+                if (avatar && name) avatar.textContent = name.charAt(0);
+            };
+
+            // Override renderCourses to also update compact view
+            const _origRenderCourses = window.renderCourses || renderCourses;
+            // Patch: after desktop renderCourses, also render compact
+            const origRC = renderCourses;
+            window._patchedRenderCourses = false;
+
+            // Use MutationObserver to detect when desktop course list changes
+            const observer = new MutationObserver(() => {
+                if (typeof renderCompactCourses === 'function') {
+                    setTimeout(renderCompactCourses, 50);
+                }
+            });
+            const courseContainer = document.getElementById('course-list-container');
+            if (courseContainer) {
+                observer.observe(courseContainer, { childList: true, subtree: true });
+            }
+
+            // Also hook into validateSelections to update compact status
+            const _origValidate = validateSelections;
+            window.validateSelections = function() {
+                _origValidate();
+                if (typeof updateCompactStatus === 'function') updateCompactStatus();
+            };
+
+            // ===== 진로심리검사 로직 =====
+            (function initCareerTests() {
+                const TEST_PROXY = '/.netlify/functions/careernet-test';
+                const TARGET_SE = '100207'; // 고등학생
+
+                let testState = {
+                    testId: null,
+                    testName: '',
+                    gender: null,
+                    questions: [],
+                    answers: {},
+                    currentIndex: 0,
+                    startDtm: null
+                };
+
+                // 검사 카드 클릭 → 검사 시작
+                document.getElementById('cv-test-list')?.addEventListener('click', (e) => {
+                    const card = e.target.closest('.cv-course-card[data-test-id]');
+                    if (!card) return;
+                    const testId = card.dataset.testId;
+                    const testName = card.dataset.testName;
+                    startTest(testId, testName);
+                });
+
+                // 뒤로가기
+                document.getElementById('cv-test-back-btn')?.addEventListener('click', () => {
+                    if (testState.currentIndex > 0 && document.getElementById('cv-test-question-area').style.display !== 'none') {
+                        // 검사 중이면 확인
+                        if (!confirm('검사를 중단하시겠습니까? 진행 내용이 사라집니다.')) return;
+                    }
+                    showCareerHome();
+                });
+                document.getElementById('cv-result-back-btn')?.addEventListener('click', showCareerHome);
+
+                // 성별 선택
+                document.querySelectorAll('.cv-gender-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        testState.gender = btn.dataset.gender;
+                        // Highlight selected
+                        document.querySelectorAll('.cv-gender-btn').forEach(b => {
+                            b.style.borderColor = '#e6e8ea';
+                            b.style.background = '#fff';
+                            b.style.color = '#191c1e';
+                        });
+                        btn.style.borderColor = '#4f46e5';
+                        btn.style.background = 'rgba(79,70,229,0.06)';
+                        btn.style.color = '#3525cd';
+                        // Load questions
+                        loadQuestions();
+                    });
+                });
+
+                // 이전/다음 버튼
+                document.getElementById('cv-test-prev-btn')?.addEventListener('click', () => {
+                    if (testState.currentIndex > 0) {
+                        testState.currentIndex--;
+                        renderQuestion();
+                    }
+                });
+                document.getElementById('cv-test-next-btn')?.addEventListener('click', () => {
+                    if (testState.currentIndex < testState.questions.length - 1) {
+                        testState.currentIndex++;
+                        renderQuestion();
+                    } else {
+                        // 마지막 문항 → 제출 단계
+                        showSubmitStep();
+                    }
+                });
+
+                // 결과 제출
+                document.getElementById('cv-test-submit-btn')?.addEventListener('click', submitTest);
+
+                function showCareerHome() {
+                    document.getElementById('cv-career-home').style.display = '';
+                    document.getElementById('cv-career-test-run').style.display = 'none';
+                    document.getElementById('cv-career-test-result').style.display = 'none';
+                    document.getElementById('cv-career-major-detail').style.display = 'none';
+                }
+
+                function startTest(testId, testName) {
+                    testState = {
+                        testId, testName, gender: null, questions: [], answers: {},
+                        currentIndex: 0, startDtm: Date.now()
+                    };
+                    document.getElementById('cv-career-home').style.display = 'none';
+                    document.getElementById('cv-career-test-run').style.display = '';
+                    document.getElementById('cv-career-test-result').style.display = 'none';
+                    document.getElementById('cv-test-title').textContent = testName;
+                    document.getElementById('cv-test-progress-text').textContent = '성별을 선택해주세요';
+                    document.getElementById('cv-test-progress-bar').style.width = '0%';
+                    document.getElementById('cv-test-gender-step').style.display = '';
+                    document.getElementById('cv-test-question-area').style.display = 'none';
+                    document.getElementById('cv-test-submit-step').style.display = 'none';
+                    document.getElementById('cv-test-loading').style.display = 'none';
+                    // Reset gender buttons
+                    document.querySelectorAll('.cv-gender-btn').forEach(b => {
+                        b.style.borderColor = '#e6e8ea'; b.style.background = '#fff'; b.style.color = '#191c1e';
+                    });
+                }
+
+                async function loadQuestions() {
+                    document.getElementById('cv-test-gender-step').style.display = 'none';
+                    document.getElementById('cv-test-loading').style.display = '';
+
+                    try {
+                        const res = await fetch(`${TEST_PROXY}?action=questions&q=${testState.testId}`);
+                        const data = await res.json();
+
+                        if (data.SUCC_YN !== 'Y' || !data.RESULT || data.RESULT.length === 0) {
+                            throw new Error(data.ERROR_REASON || '문항을 불러올 수 없습니다.');
+                        }
+
+                        // Parse questions from v1 format
+                        testState.questions = data.RESULT.map((q, idx) => {
+                            const choices = [];
+                            for (let i = 1; i <= 10; i++) {
+                                const label = q[`answer${String(i).padStart(2, '0')}`];
+                                const score = q[`answerScore${String(i).padStart(2, '0')}`];
+                                if (label && score) {
+                                    choices.push({ label, score });
+                                }
+                            }
+                            // Collect tips
+                            const tips = [];
+                            for (let i = 1; i <= 3; i++) {
+                                if (q[`tip${i}Desc`]) {
+                                    tips.push({ score: q[`tip${i}Score`], desc: q[`tip${i}Desc`] });
+                                }
+                            }
+                            return {
+                                index: idx,
+                                qitemNo: q.qitemNo,
+                                text: q.question,
+                                choices,
+                                tips
+                            };
+                        });
+
+                        document.getElementById('cv-test-loading').style.display = 'none';
+                        document.getElementById('cv-test-question-area').style.display = '';
+                        testState.currentIndex = 0;
+                        renderQuestion();
+
+                    } catch (err) {
+                        document.getElementById('cv-test-loading').style.display = 'none';
+                        document.getElementById('cv-test-question-area').style.display = '';
+                        document.getElementById('cv-test-q-text').textContent = '오류: ' + err.message;
+                        document.getElementById('cv-test-q-choices').innerHTML = `
+                            <button onclick="document.getElementById('cv-test-back-btn').click()"
+                                style="padding:12px;border-radius:1rem;border:none;background:#f2f4f6;color:#464555;font-weight:600;cursor:pointer;">
+                                돌아가기
+                            </button>`;
+                    }
+                }
+
+                function renderQuestion() {
+                    const q = testState.questions[testState.currentIndex];
+                    if (!q) return;
+
+                    const total = testState.questions.length;
+                    const current = testState.currentIndex + 1;
+                    const pct = Math.round((current / total) * 100);
+
+                    document.getElementById('cv-test-progress-text').textContent = `${current} / ${total} 문항`;
+                    document.getElementById('cv-test-progress-bar').style.width = pct + '%';
+                    document.getElementById('cv-test-q-number').textContent = `문항 ${current}`;
+                    document.getElementById('cv-test-q-text').textContent = q.text;
+
+                    // Show tip if exists
+                    const tipEl = document.getElementById('cv-test-q-tip');
+                    if (q.tips && q.tips.length > 0) {
+                        tipEl.style.display = '';
+                        tipEl.textContent = q.tips.map(t => t.desc).join(' / ');
+                    } else {
+                        tipEl.style.display = 'none';
+                    }
+
+                    // Render choices
+                    const choicesEl = document.getElementById('cv-test-q-choices');
+                    const currentAnswer = testState.answers[current];
+
+                    choicesEl.innerHTML = q.choices.map(c => {
+                        const isSelected = currentAnswer === c.score;
+                        return `<button class="cv-test-choice" data-score="${c.score}"
+                            style="padding:12px 16px;border-radius:1rem;border:2px solid ${isSelected ? '#4f46e5' : '#e6e8ea'};
+                            background:${isSelected ? 'rgba(79,70,229,0.06)' : '#fff'};
+                            color:${isSelected ? '#3525cd' : '#464555'};
+                            font-size:0.82rem;font-weight:${isSelected ? '600' : '500'};
+                            cursor:pointer;text-align:left;transition:all 0.15s;">
+                            ${c.label}
+                        </button>`;
+                    }).join('');
+
+                    // Bind choice clicks
+                    choicesEl.querySelectorAll('.cv-test-choice').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            testState.answers[current] = btn.dataset.score;
+                            renderQuestion(); // re-render to show selection
+                            // Auto-advance after short delay
+                            setTimeout(() => {
+                                if (testState.currentIndex < testState.questions.length - 1) {
+                                    testState.currentIndex++;
+                                    renderQuestion();
+                                } else {
+                                    showSubmitStep();
+                                }
+                            }, 250);
+                        });
+                    });
+
+                    // Update prev/next buttons
+                    document.getElementById('cv-test-prev-btn').disabled = testState.currentIndex === 0;
+                    const nextBtn = document.getElementById('cv-test-next-btn');
+                    nextBtn.disabled = !currentAnswer;
+                    nextBtn.textContent = testState.currentIndex === testState.questions.length - 1 ? '완료' : '다음';
+                }
+
+                function showSubmitStep() {
+                    // Check all answered
+                    const total = testState.questions.length;
+                    let unanswered = 0;
+                    for (let i = 1; i <= total; i++) {
+                        if (!testState.answers[i]) unanswered++;
+                    }
+                    if (unanswered > 0) {
+                        alert(`아직 ${unanswered}개 문항에 응답하지 않았습니다. 모든 문항에 응답해주세요.`);
+                        // Go to first unanswered
+                        for (let i = 1; i <= total; i++) {
+                            if (!testState.answers[i]) {
+                                testState.currentIndex = i - 1;
+                                renderQuestion();
+                                return;
+                            }
+                        }
+                        return;
+                    }
+                    document.getElementById('cv-test-question-area').style.display = 'none';
+                    document.getElementById('cv-test-submit-step').style.display = '';
+                    document.getElementById('cv-test-progress-bar').style.width = '100%';
+                    document.getElementById('cv-test-progress-text').textContent = '응답 완료';
+                }
+
+                async function submitTest() {
+                    const submitBtn = document.getElementById('cv-test-submit-btn');
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = '결과 분석 중...';
+
+                    try {
+                        // Build answers string: "1=score 2=score ..."
+                        const total = testState.questions.length;
+                        const answerParts = [];
+                        for (let i = 1; i <= total; i++) {
+                            answerParts.push(`${i}=${testState.answers[i]}`);
+                        }
+                        const answersStr = answerParts.join(' ');
+
+                        // Get student info
+                        const studentName = document.getElementById('student-name')?.value || '';
+                        const studentId = document.getElementById('student-id')?.value || '';
+                        const grade = studentId ? studentId[0] : '1';
+
+                        const payload = {
+                            action: 'report',
+                            qestrnSeq: testState.testId,
+                            trgetSe: TARGET_SE,
+                            name: studentName,
+                            gender: testState.gender,
+                            school: '',
+                            grade: grade,
+                            email: '',
+                            startDtm: testState.startDtm,
+                            answers: answersStr
+                        };
+
+                        const res = await fetch(TEST_PROXY, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await res.json();
+
+                        if (data.SUCC_YN === 'Y' && data.RESULT) {
+                            showTestResult(data.RESULT);
+                        } else {
+                            throw new Error(data.ERROR_REASON || '결과를 받을 수 없습니다.');
+                        }
+                    } catch (err) {
+                        alert('결과 조회 실패: ' + err.message);
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = '결과 확인하기';
+                    }
+                }
+
+                function showTestResult(result) {
+                    document.getElementById('cv-career-test-run').style.display = 'none';
+                    document.getElementById('cv-career-test-result').style.display = '';
+
+                    const contentEl = document.getElementById('cv-test-result-content');
+                    const reportUrl = result.url || '';
+                    const inspctSeq = result.inspctSeq || '';
+
+                    contentEl.innerHTML = `
+                        <div style="font-size:3rem;margin-bottom:16px;">🎉</div>
+                        <h3 style="font-family:'Manrope',sans-serif;font-weight:800;font-size:1.2rem;color:#191c1e;margin:0 0 8px;">${testState.testName} 완료!</h3>
+                        <p style="font-size:0.8rem;color:#777587;margin:0 0 20px;line-height:1.5;">
+                            검사가 성공적으로 완료되었습니다.<br>
+                            아래 버튼을 눌러 상세 결과를 확인하세요.
+                        </p>
+                        ${inspctSeq ? `<p style="font-family:'Inter',sans-serif;font-size:0.65rem;color:#c7c4d8;margin:0 0 16px;">검사번호: ${inspctSeq}</p>` : ''}
+                        ${reportUrl ? `
+                            <a href="${reportUrl}" target="_blank" rel="noopener noreferrer"
+                                style="display:block;width:100%;padding:14px;border-radius:1.5rem;border:none;
+                                background:linear-gradient(135deg,#3525cd,#4f46e5);color:#fff;font-weight:600;
+                                font-size:0.9rem;cursor:pointer;box-shadow:0 4px 16px rgba(53,37,205,0.2);
+                                text-decoration:none;text-align:center;margin-bottom:10px;">
+                                📊 결과 보고서 보기
+                            </a>
+                        ` : '<p style="font-size:0.8rem;color:#ba1a1a;">결과 URL을 받지 못했습니다.</p>'}
+                        <button onclick="document.getElementById('cv-result-back-btn').click()"
+                            style="width:100%;padding:12px;border-radius:1.5rem;border:none;
+                            background:#f2f4f6;color:#464555;font-weight:600;font-size:0.82rem;cursor:pointer;">
+                            다른 검사 하기
+                        </button>
+                    `;
+                }
+            })();
+
+            // ===== 학과 추천 과목 로직 =====
+            (function initMajorExplorer() {
+                const PROXY = '/.netlify/functions/careernet-test';
+                let currentSubject = '100391';
+                let currentPage = 1;
+
+                // 계열 탭 클릭
+                document.getElementById('cv-major-category-tabs')?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('.cv-major-tab');
+                    if (!btn) return;
+                    currentSubject = btn.dataset.subject;
+                    currentPage = 1;
+                    // Update active tab style
+                    document.querySelectorAll('.cv-major-tab').forEach(b => {
+                        b.style.background = '#f2f4f6'; b.style.color = '#464555';
+                    });
+                    btn.style.background = 'linear-gradient(135deg,#3525cd,#4f46e5)';
+                    btn.style.color = '#fff';
+                    document.getElementById('cv-major-search').value = '';
+                    loadMajorList();
+                });
+
+                // 검색 버튼
+                document.getElementById('cv-major-search-btn')?.addEventListener('click', () => {
+                    currentPage = 1;
+                    loadMajorList();
+                });
+                document.getElementById('cv-major-search')?.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { currentPage = 1; loadMajorList(); }
+                });
+
+                // 뒤로가기
+                document.getElementById('cv-major-back-btn')?.addEventListener('click', () => {
+                    document.getElementById('cv-career-major-detail').style.display = 'none';
+                    document.getElementById('cv-career-home').style.display = '';
+                });
+
+                // 초기 로드
+                loadMajorList();
+
+                async function loadMajorList() {
+                    const listEl = document.getElementById('cv-major-list');
+                    const pagEl = document.getElementById('cv-major-pagination');
+                    const search = document.getElementById('cv-major-search')?.value?.trim() || '';
+                    listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#777587;font-size:0.8rem;">불러오는 중...</div>';
+                    pagEl.innerHTML = '';
+
+                    try {
+                        let url = `${PROXY}?action=major_list&subject=${currentSubject}&thisPage=${currentPage}&perPage=10`;
+                        if (search) url += `&searchTitle=${encodeURIComponent(search)}`;
+                        const res = await fetch(url);
+                        const data = await res.json();
+                        const items = data?.dataSearch?.content;
+                        if (!items || items.length === 0) {
+                            listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#777587;font-size:0.8rem;">검색 결과가 없습니다.</div>';
+                            return;
+                        }
+
+                        const totalCount = parseInt(items[0]?.totalCount || '0');
+                        const totalPages = Math.ceil(totalCount / 10);
+
+                        listEl.innerHTML = items.map(item => `
+                            <div class="cv-course-card" data-major-seq="${item.majorSeq}" style="margin-bottom:8px;cursor:pointer;">
+                                <div class="cv-course-icon" style="background:#e2dfff;color:#3525cd;font-size:0.75rem;font-weight:700;">${(item.lClass || '').replace('계열','').charAt(0)}</div>
+                                <div class="cv-course-info" style="min-width:0;">
+                                    <div class="cv-course-badges">
+                                        <span class="cv-badge cv-badge-sub">${item.lClass || ''}</span>
+                                    </div>
+                                    <p class="cv-course-name">${item.mClass || ''}</p>
+                                    <p class="cv-course-credits" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(item.facilName || '').substring(0, 60)}${(item.facilName || '').length > 60 ? '...' : ''}</p>
+                                </div>
+                                <div class="cv-ai-cta-arrow" style="color:#c7c4d8;font-size:1.4rem;">›</div>
+                            </div>
+                        `).join('');
+
+                        // Bind clicks
+                        listEl.querySelectorAll('.cv-course-card[data-major-seq]').forEach(card => {
+                            card.addEventListener('click', () => loadMajorDetail(card.dataset.majorSeq));
+                        });
+
+                        // Pagination
+                        if (totalPages > 1) {
+                            let pagHtml = '';
+                            const start = Math.max(1, currentPage - 2);
+                            const end = Math.min(totalPages, start + 4);
+                            if (currentPage > 1) pagHtml += `<button class="cv-pag-btn" data-page="${currentPage-1}" style="padding:6px 10px;border-radius:0.5rem;border:none;background:#f2f4f6;color:#464555;font-size:0.7rem;cursor:pointer;">‹</button>`;
+                            for (let i = start; i <= end; i++) {
+                                const isActive = i === currentPage;
+                                pagHtml += `<button class="cv-pag-btn" data-page="${i}" style="padding:6px 10px;border-radius:0.5rem;border:none;background:${isActive ? 'linear-gradient(135deg,#3525cd,#4f46e5)' : '#f2f4f6'};color:${isActive ? '#fff' : '#464555'};font-size:0.7rem;font-weight:${isActive ? '600' : '400'};cursor:pointer;">${i}</button>`;
+                            }
+                            if (currentPage < totalPages) pagHtml += `<button class="cv-pag-btn" data-page="${currentPage+1}" style="padding:6px 10px;border-radius:0.5rem;border:none;background:#f2f4f6;color:#464555;font-size:0.7rem;cursor:pointer;">›</button>`;
+                            pagEl.innerHTML = pagHtml;
+                            pagEl.querySelectorAll('.cv-pag-btn').forEach(btn => {
+                                btn.addEventListener('click', () => {
+                                    currentPage = parseInt(btn.dataset.page);
+                                    loadMajorList();
+                                });
+                            });
+                        }
+                    } catch (err) {
+                        listEl.innerHTML = `<div style="text-align:center;padding:20px;color:#ba1a1a;font-size:0.8rem;">오류: ${err.message}</div>`;
+                    }
+                }
+
+                async function loadMajorDetail(majorSeq) {
+                    document.getElementById('cv-career-home').style.display = 'none';
+                    document.getElementById('cv-career-major-detail').style.display = '';
+                    const titleEl = document.getElementById('cv-major-detail-title');
+                    const bodyEl = document.getElementById('cv-major-detail-body');
+                    titleEl.textContent = '불러오는 중...';
+                    bodyEl.innerHTML = '<div style="text-align:center;padding:40px;"><div class="loader ease-linear rounded-full border-4 border-t-4 border-violet-300" style="width:32px;height:32px;margin:0 auto;"></div></div>';
+
+                    try {
+                        const res = await fetch(`${PROXY}?action=major_view&majorSeq=${majorSeq}`);
+                        const data = await res.json();
+                        const c = data?.dataSearch?.content?.[0];
+                        if (!c) throw new Error('학과 정보를 찾을 수 없습니다.');
+
+                        titleEl.textContent = c.major || '';
+                        bodyEl.innerHTML = renderMajorDetail(c);
+                    } catch (err) {
+                        titleEl.textContent = '오류';
+                        bodyEl.innerHTML = `<div style="text-align:center;padding:20px;color:#ba1a1a;font-size:0.85rem;">${err.message}</div>`;
+                    }
+                }
+
+                function renderMajorDetail(c) {
+                    const card = (title, icon, content) => `
+                        <div style="background:#fff;border-radius:1.5rem;padding:16px;margin-bottom:10px;box-shadow:0 2px 12px rgba(25,28,30,0.03);">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                                <span style="font-size:1.1rem;">${icon}</span>
+                                <h3 style="font-family:'Manrope',sans-serif;font-weight:700;font-size:0.88rem;color:#191c1e;margin:0;">${title}</h3>
+                            </div>
+                            <div style="font-size:0.78rem;color:#464555;line-height:1.6;">${content}</div>
+                        </div>`;
+
+                    const tag = (text, bg, color) => `<span style="display:inline-block;padding:3px 10px;border-radius:0.75rem;background:${bg};color:${color};font-size:0.68rem;font-weight:600;margin:0 4px 4px 0;">${text}</span>`;
+
+                    let html = '';
+
+                    // 학과명 & 세부관련학과
+                    html += card('학과 개요', '📖',
+                        `<div style="font-weight:600;font-size:0.9rem;color:#3525cd;margin-bottom:6px;">${c.major || ''}</div>` +
+                        (c.department ? `<div style="margin-bottom:8px;"><span style="font-weight:600;color:#777587;font-size:0.7rem;">세부관련학과</span><div style="margin-top:4px;">${c.department.split(',').slice(0,15).map(d => tag(d.trim(), '#f2f4f6', '#464555')).join('')}${c.department.split(',').length > 15 ? tag(`외 ${c.department.split(',').length - 15}개`, '#e6e8ea', '#777587') : ''}</div></div>` : '') +
+                        `<p>${(c.summary || '').replace(/<br\s*\/?>/gi, '<br>')}</p>`
+                    );
+
+                    // 관련 고교 교과목
+                    if (c.relate_subject && c.relate_subject.length > 0) {
+                        const subjectHtml = c.relate_subject
+                            .filter(s => s.subject_name && s.subject_description)
+                            .map(s => `
+                                <div style="margin-bottom:8px;">
+                                    <div style="font-weight:600;font-size:0.72rem;color:#3525cd;margin-bottom:4px;">${s.subject_name}</div>
+                                    <div>${(s.subject_description || '').replace(/<br\s*\/?>/gi, ', ').split(/[,，]/).map(sub => sub.trim()).filter(Boolean).map(sub => tag(sub, '#e2dfff', '#3525cd')).join('')}</div>
+                                </div>
+                            `).join('');
+                        html += card('관련 고교 교과목', '📚', subjectHtml);
+                    }
+
+                    // 진로탐색활동
+                    if (c.career_act && c.career_act.length > 0) {
+                        const actHtml = c.career_act.map(a => `
+                            <div style="margin-bottom:8px;padding:10px;background:#f7f9fb;border-radius:1rem;">
+                                <div style="font-weight:600;font-size:0.8rem;color:#191c1e;margin-bottom:3px;">${(a.act_name || '').replace(/<br\s*\/?>/gi, '')}</div>
+                                <div style="font-size:0.75rem;color:#777587;">${(a.act_description || '').replace(/<br\s*\/?>/gi, ' ')}</div>
+                            </div>
+                        `).join('');
+                        html += card('진로 탐색 활동', '🔍', actHtml);
+                    }
+
+                    // 흥미와 적성
+                    if (c.interest) {
+                        html += card('흥미와 적성', '💡', `<p>${(c.interest || '').replace(/<br\s*\/?>/gi, '<br>')}</p>`);
+                    }
+
+                    // 학과 특성
+                    if (c.property) {
+                        html += card('학과 특성', '🎓', `<p>${(c.property || '').replace(/<br\s*\/?>/gi, '<br>')}</p>`);
+                    }
+
+                    // 관련 직업 & 관련 자격
+                    if (c.job || c.qualifications) {
+                        let jqHtml = '';
+                        if (c.job) {
+                            jqHtml += `<div style="margin-bottom:8px;"><span style="font-weight:600;font-size:0.72rem;color:#777587;">관련 직업</span><div style="margin-top:4px;">${c.job.split(',').map(j => tag(j.trim(), '#d1fae5', '#005338')).join('')}</div></div>`;
+                        }
+                        if (c.qualifications) {
+                            jqHtml += `<div><span style="font-weight:600;font-size:0.72rem;color:#777587;">관련 자격</span><div style="margin-top:4px;">${c.qualifications.split(',').map(q => tag(q.trim(), '#fef3c7', '#92400e')).join('')}</div></div>`;
+                        }
+                        html += card('관련 직업 & 자격', '💼', jqHtml);
+                    }
+
+                    // 졸업 후 진출 분야
+                    if (c.enter_field && c.enter_field.length > 0) {
+                        const fieldHtml = c.enter_field.map(f => `
+                            <div style="margin-bottom:8px;padding:10px;background:#f7f9fb;border-radius:1rem;">
+                                <div style="font-weight:600;font-size:0.8rem;color:#005338;margin-bottom:3px;">${f.gradeuate || ''}</div>
+                                <div style="font-size:0.75rem;color:#777587;">${(f.description || '').replace(/<br\s*\/?>/gi, ' ')}</div>
+                            </div>
+                        `).join('');
+                        html += card('졸업 후 진출 분야', '🚀', fieldHtml);
+                    }
+
+                    // 대학 주요 교과목
+                    if (c.main_subject && c.main_subject.length > 0) {
+                        const msHtml = c.main_subject.slice(0, 8).map(s => `
+                            <div style="margin-bottom:6px;">
+                                <div style="font-weight:600;font-size:0.78rem;color:#191c1e;">${s.SBJECT_NM || ''}</div>
+                                <div style="font-size:0.72rem;color:#777587;margin-top:2px;">${(s.SBJECT_SUMRY || '').substring(0, 100)}${(s.SBJECT_SUMRY || '').length > 100 ? '...' : ''}</div>
+                            </div>
+                        `).join('');
+                        html += card('대학 주요 교과목', '🏫', msHtml);
+                    }
+
+                    // 개설대학
+                    if (c.university && c.university.length > 0) {
+                        const grouped = {};
+                        c.university.forEach(u => {
+                            const area = u.area || '기타';
+                            if (!grouped[area]) grouped[area] = [];
+                            grouped[area].push(u);
+                        });
+                        const uniHtml = Object.keys(grouped).sort().map(area => `
+                            <div style="margin-bottom:8px;">
+                                <div style="font-weight:600;font-size:0.72rem;color:#777587;margin-bottom:4px;">${area}</div>
+                                <div>${grouped[area].slice(0, 10).map(u => {
+                                    const name = u.schoolName || '';
+                                    const url = u.schoolURL || '';
+                                    return url ? `<a href="${url}" target="_blank" rel="noopener" style="text-decoration:none;">${tag(name, '#eaddff', '#5a00c6')}</a>` : tag(name, '#eaddff', '#5a00c6');
+                                }).join('')}${grouped[area].length > 10 ? tag(`외 ${grouped[area].length - 10}개`, '#e6e8ea', '#777587') : ''}</div>
+                            </div>
+                        `).join('');
+                        html += card('개설 대학', '🏛️', uniHtml);
+                    }
+
+                    return html;
+                }
+            })();
+
+        })();
     </script>
 
     <!-- Floating Theme Selector UI -->
