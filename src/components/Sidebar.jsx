@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 
 const navItems = [
   {
-    label: 'Dashboard',
+    label: '대시보드',
     path: '/admin',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -14,7 +14,7 @@ const navItems = [
     ),
   },
   {
-    label: 'Credit Status',
+    label: '학점 이수 현황',
     path: '/credits',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -25,7 +25,7 @@ const navItems = [
     ),
   },
   {
-    label: 'Course Registration',
+    label: '수강신청',
     path: '/courses',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -35,7 +35,7 @@ const navItems = [
     ),
   },
   {
-    label: 'Graduation Diagnosis',
+    label: '졸업 요건 진단',
     path: '/admin/graduation',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -49,11 +49,11 @@ const navItems = [
 export default function Sidebar({ activePath = '' }) {
   return (
     <aside
-      className="fixed left-0 top-0 bottom-0 flex flex-col justify-between"
+      className="fixed left-0 top-0 bottom-0 hidden lg:flex flex-col justify-between"
       style={{
         width: '240px',
         backgroundColor: '#0f172a',
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        fontFamily: "'Plus Jakarta Sans', 'Noto Sans KR', sans-serif",
       }}
     >
       {/* Logo */}
@@ -65,12 +65,14 @@ export default function Sidebar({ activePath = '' }) {
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
             </svg>
           </div>
-          <span
-            className="text-white font-bold text-base tracking-tight"
-            style={{ fontFamily: "'Manrope', sans-serif" }}
-          >
-            Academic Curator
-          </span>
+          <div className="flex flex-col">
+            <span className="text-white font-bold text-sm tracking-tight" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              고교학점제
+            </span>
+            <span className="text-indigo-300 text-xs font-medium" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              진로학업설계
+            </span>
+          </div>
         </div>
 
         {/* Nav Items */}
@@ -103,7 +105,7 @@ export default function Sidebar({ activePath = '' }) {
           AD
         </div>
         <div className="flex flex-col">
-          <span className="text-white text-sm font-medium leading-tight">AD</span>
+          <span className="text-white text-sm font-medium leading-tight">관리자</span>
           <span className="text-slate-400 text-xs leading-tight">관리자 계정</span>
         </div>
       </div>

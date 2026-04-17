@@ -3,7 +3,82 @@ import Sidebar from '../components/Sidebar';
 import StatCard from '../components/StatCard';
 import GaugeChart from '../components/GaugeChart';
 import * as DB from '../api/db';
-import { readExcel, downloadTemplate, downloadRegistryTemplate, downloadJointCurriculumTemplate, downloadBulkEnrollmentTemplate } from '../api/excel';
+import { readExcel, downloadExcel, downloadTemplate, downloadRegistryTemplate, downloadJointCurriculumTemplate, downloadBulkEnrollmentTemplate } from '../api/excel';
+
+/* ── 6자리 학생코드 생성 ── */
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동 문자 제외
+function generateCode6() {
+  const arr = new Uint8Array(6);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, b => CODE_CHARS[b % CODE_CHARS.length]).join('');
+}
+function ensureCode6(list) {
+  const used = new Set(list.map(r => r.학생코드 || r.studentCode).filter(Boolean));
+  return list.map(r => {
+    const existing = r.학생코드 || r.studentCode;
+    if (existing && existing.length >= 6) return r;
+    let code;
+    do { code = generateCode6(); } while (used.has(code));
+    used.add(code);
+    return { ...r, 학생코드: code, studentCode: code };
+  });
+}
+
+/* ── CSV 생성 ── */
+function toCSV(rows, columns) {
+  const header = columns.join(',');
+  const body = rows.map(r => columns.map(c => `"${String(r[c] || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  return '\uFEFF' + header + '\n' + body;
+}
+function downloadCSV(csvStr, filename) {
+  const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+}
+
+/* ── Canvas 기반 PNG/PDF 생성 ── */
+function buildCodeCanvas(students, title) {
+  const rowH = 32, headerH = 50, padX = 24, padY = 16;
+  const w = 480, h = headerH + padY * 2 + students.length * rowH + 10;
+  const canvas = document.createElement('canvas'); canvas.width = w * 2; canvas.height = h * 2;
+  const ctx = canvas.getContext('2d'); ctx.scale(2, 2);
+  // bg
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+  // title
+  ctx.fillStyle = '#4f46e5'; ctx.font = 'bold 16px Manrope, sans-serif';
+  ctx.fillText(title, padX, padY + 20);
+  ctx.fillStyle = '#94a3b8'; ctx.font = '11px Inter, sans-serif';
+  ctx.fillText(`생성일: ${new Date().toLocaleDateString('ko-KR')}`, padX, padY + 38);
+  // header
+  const tableY = headerH + padY;
+  ctx.fillStyle = '#f1f5f9'; ctx.fillRect(padX, tableY, w - padX * 2, rowH);
+  ctx.fillStyle = '#64748b'; ctx.font = 'bold 11px Inter, sans-serif';
+  ctx.fillText('학번', padX + 12, tableY + 20);
+  ctx.fillText('이름', padX + 120, tableY + 20);
+  ctx.fillText('학생코드', padX + 260, tableY + 20);
+  // rows
+  students.forEach((s, i) => {
+    const y = tableY + rowH * (i + 1);
+    if (i % 2 === 1) { ctx.fillStyle = '#f8fafc'; ctx.fillRect(padX, y, w - padX * 2, rowH); }
+    ctx.fillStyle = '#334155'; ctx.font = '12px "Noto Sans KR", sans-serif';
+    ctx.fillText(s.학번 || s.studentId || '', padX + 12, y + 20);
+    ctx.fillText(s.이름 || s.name || '', padX + 120, y + 20);
+    ctx.fillStyle = '#4f46e5'; ctx.font = 'bold 13px monospace';
+    ctx.fillText(s.학생코드 || s.studentCode || '', padX + 260, y + 20);
+  });
+  return canvas;
+}
+function downloadPNG(canvas, filename) {
+  const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = filename; a.click();
+}
+async function downloadPDF(canvas, filename) {
+  const { jsPDF } = await import('jspdf');
+  const imgData = canvas.toDataURL('image/png');
+  const w = canvas.width / 2, h = canvas.height / 2;
+  const orientation = w > h ? 'landscape' : 'portrait';
+  const pdf = new jsPDF({ orientation, unit: 'px', format: [w + 40, h + 40] });
+  pdf.addImage(imgData, 'PNG', 20, 20, w, h);
+  pdf.save(filename);
+}
 
 const TABS = [
   { key: 'dashboard', label: '대시보드', icon: '📊' },
@@ -15,6 +90,190 @@ const TABS = [
 ];
 
 const PER_PAGE = 8;
+
+/* ═══════════════════════ ShareTab Component ═══════════════════════ */
+function ShareTab({ apiUrl, shareUrl, registry, setRegistry, loadData }) {
+  const [dlMode, setDlMode] = useState('individual'); // individual | class | all
+  const [dlFormat, setDlFormat] = useState('csv');     // csv | png | pdf
+  const [dlInput, setDlInput] = useState('');          // 학번 (individual) or 학년반 (class, e.g. "101")
+  const [codeGenMsg, setCodeGenMsg] = useState('');
+
+  // 코드가 없는 학생에게 6자리 코드 자동 생성
+  async function generateCodes() {
+    if (registry.length === 0) return alert('학적 데이터를 먼저 업로드하세요.');
+    const updated = ensureCode6(registry);
+    setRegistry(updated);
+    setCodeGenMsg(`✅ ${updated.length}명의 학생 코드가 확인/생성되었습니다.`);
+    // 서버에 저장
+    if (DB.isConfigured()) {
+      try { await DB.saveRegistry(updated); setCodeGenMsg(m => m + ' (서버 저장 완료)'); }
+      catch (e) { setCodeGenMsg(m => m + ' ⚠️ 서버 저장 실패: ' + e.message); }
+    }
+  }
+
+  // 다운로드 대상 필터링
+  function getTargetStudents() {
+    if (dlMode === 'individual') {
+      if (dlInput.trim()) {
+        return registry.filter(r => (r.학번 || r.studentId || '') === dlInput.trim());
+      }
+      return registry; // 학번 미입력 시 전체 각각
+    }
+    if (dlMode === 'class') {
+      if (!dlInput.trim() || dlInput.trim().length < 2) { alert('학년반 정보를 입력해주세요. (예: 101 = 1학년 1반)'); return []; }
+      const code = dlInput.trim();
+      const grade = code[0];
+      const classNum = code.substring(1).padStart(2, '0');
+      return registry.filter(r => {
+        const sid = r.학번 || r.studentId || '';
+        return sid.length >= 3 && sid[0] === grade && sid.substring(1, 3) === classNum;
+      });
+    }
+    return registry; // all
+  }
+
+  function handleDownload() {
+    const students = getTargetStudents();
+    if (students.length === 0) { alert('해당하는 학생이 없습니다.'); return; }
+
+    const cols = ['학번', '이름', '학생코드'];
+    const mapped = students.map(r => ({
+      학번: r.학번 || r.studentId || '',
+      이름: r.이름 || r.name || '',
+      학생코드: r.학생코드 || r.studentCode || '',
+    }));
+
+    const modeLabel = dlMode === 'individual' ? (dlInput.trim() || '전체개별') : dlMode === 'class' ? `학급_${dlInput}` : '전체';
+    const filename = `학생코드_${modeLabel}_${new Date().toISOString().slice(0,10)}`;
+
+    if (dlFormat === 'csv') {
+      downloadCSV(toCSV(mapped, cols), filename + '.csv');
+    } else {
+      const title = dlMode === 'class' ? `${dlInput}반 학생 코드 목록` : dlMode === 'individual' && dlInput.trim() ? `학생 코드 (${dlInput})` : '전체 학생 코드 목록';
+      const canvas = buildCodeCanvas(mapped, title);
+      if (dlFormat === 'png') downloadPNG(canvas, filename + '.png');
+      else downloadPDF(canvas, filename + '.pdf');
+    }
+  }
+
+  const Card = ({ children, className = '' }) => <div className={`bg-white rounded-2xl shadow-sm p-6 ${className}`}>{children}</div>;
+  const SectionTitle = ({ children }) => <h2 className="text-base font-bold text-slate-800 mb-4" style={{ fontFamily: "'Manrope', sans-serif" }}>{children}</h2>;
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      {/* 접속 링크 */}
+      <Card>
+        <SectionTitle>학생용 접속 링크</SectionTitle>
+        <p className="text-sm text-slate-500 mb-4">아래 링크를 학생들에게 공유하세요. 학생은 6자리 학생코드와 학번·이름으로 본인 확인 후 수강신청합니다.</p>
+        {!apiUrl ? (
+          <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm">시스템 설정에서 API URL을 먼저 설정해주세요.</div>
+        ) : (
+          <div className="space-y-3">
+            <div className="bg-slate-50 p-4 rounded-xl text-center">
+              <p className="text-xs text-slate-500 mb-2">학생 접속 링크</p>
+              <p className="font-mono text-sm text-indigo-600 break-all">{shareUrl}</p>
+            </div>
+            <button onClick={() => { navigator.clipboard.writeText(shareUrl); alert('링크가 복사되었습니다!'); }}
+              className="w-full bg-indigo-600 text-white py-2.5 rounded-xl hover:bg-indigo-700 text-sm font-semibold">링크 복사하기</button>
+          </div>
+        )}
+      </Card>
+
+      {/* 코드 생성 */}
+      <Card>
+        <SectionTitle>학생 코드 자동 생성</SectionTitle>
+        <p className="text-sm text-slate-500 mb-4">등록된 학생에게 영문+숫자 6자리 인증코드를 자동 생성합니다. 이미 코드가 있는 학생은 기존 코드가 유지됩니다.</p>
+        <div className="flex items-center gap-3">
+          <button onClick={generateCodes} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl hover:bg-emerald-700 text-sm font-semibold">
+            🔑 코드 자동 생성 ({registry.length}명)
+          </button>
+          <span className="text-sm text-slate-500">{registry.filter(r => (r.학생코드 || r.studentCode || '').length >= 6).length}명 코드 발급 완료</span>
+        </div>
+        {codeGenMsg && <p className="mt-3 text-sm">{codeGenMsg}</p>}
+      </Card>
+
+      {/* 학적부 테이블 */}
+      <Card>
+        <SectionTitle>학적부 (학생코드 목록)</SectionTitle>
+        {registry.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-4">학적 데이터를 먼저 업로드하세요.</p>
+        ) : (
+          <div className="overflow-x-auto max-h-[350px] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-white"><tr className="border-b border-slate-100">
+                <th className="text-left py-2 px-3 text-slate-500 text-xs">학번</th>
+                <th className="text-left py-2 px-3 text-slate-500 text-xs">이름</th>
+                <th className="text-left py-2 px-3 text-slate-500 text-xs">학생코드</th>
+              </tr></thead>
+              <tbody>{registry.map((r, i) => (
+                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/60">
+                  <td className="py-2 px-3 font-mono text-xs">{r.학번 || r.studentId || '-'}</td>
+                  <td className="py-2 px-3 font-medium">{r.이름 || r.name || '-'}</td>
+                  <td className="py-2 px-3 font-mono text-sm tracking-widest text-indigo-600 font-bold">{r.학생코드 || r.studentCode || <span className="text-slate-300 font-normal">미발급</span>}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {/* 다운로드 */}
+      <Card>
+        <SectionTitle>학생 코드 다운로드</SectionTitle>
+        <div className="space-y-4">
+          {/* 저장 방식 */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">저장 방식</label>
+            <select value={dlMode} onChange={e => { setDlMode(e.target.value); setDlInput(''); }}
+              className="w-full p-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="individual">개별 저장 (학번 입력 또는 전체 각각)</option>
+              <option value="class">학급 저장 (학년+반 입력, 예: 101)</option>
+              <option value="all">전체 저장 (모든 학생)</option>
+            </select>
+          </div>
+
+          {/* 입력 필드 */}
+          {dlMode !== 'all' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+                {dlMode === 'individual' ? '학번 (비우면 전체 학생 각각 저장)' : '학년반 코드 (예: 101 = 1학년 1반, 203 = 2학년 3반)'}
+              </label>
+              <input type="text" value={dlInput} onChange={e => setDlInput(e.target.value)}
+                placeholder={dlMode === 'individual' ? '예: 20513' : '예: 101'}
+                className="w-full p-2.5 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          )}
+
+          {/* 파일 형식 */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1.5">파일 형식</label>
+            <div className="flex gap-2">
+              {[
+                { key: 'csv', label: 'CSV', icon: '📄' },
+                { key: 'png', label: 'PNG', icon: '🖼️' },
+                { key: 'pdf', label: 'PDF', icon: '📑' },
+              ].map(f => (
+                <button key={f.key} onClick={() => setDlFormat(f.key)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    dlFormat === f.key ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}>
+                  {f.icon} {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 다운로드 버튼 */}
+          <button onClick={handleDownload} disabled={registry.length === 0}
+            className="w-full py-3 rounded-xl text-white font-bold text-sm disabled:bg-slate-300 disabled:cursor-not-allowed"
+            style={{ background: registry.length > 0 ? 'linear-gradient(135deg, #3525cd, #4f46e5)' : undefined }}>
+            ⬇️ {dlFormat.toUpperCase()} 다운로드 ({dlMode === 'individual' ? (dlInput.trim() ? '1명' : `전체 ${registry.length}명`) : dlMode === 'class' ? '학급' : `전체 ${registry.length}명`})
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const [tab, setTab] = useState('dashboard');
@@ -497,49 +756,7 @@ export default function AdminPage() {
           )}
 
           {/* ======================== SHARE TAB ======================== */}
-          {tab === 'share' && (
-            <div className="max-w-2xl space-y-6">
-              <Card>
-                <SectionTitle>학생용 접속 링크</SectionTitle>
-                <p className="text-sm text-slate-500 mb-4">아래 링크를 학생들에게 공유하세요. 학생은 관리자가 등록한 학생 코드(10자리)와 학번·이름으로 본인 확인 후 수강신청합니다.</p>
-                {!apiUrl ? (
-                  <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm">시스템 설정에서 API URL을 먼저 설정해주세요.</div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="bg-slate-50 p-4 rounded-xl text-center">
-                      <p className="text-xs text-slate-500 mb-2">학생 접속 링크</p>
-                      <p className="font-mono text-sm text-indigo-600 break-all">{shareUrl}</p>
-                    </div>
-                    <button onClick={() => { navigator.clipboard.writeText(shareUrl); alert('링크가 복사되었습니다!'); }}
-                      className="w-full bg-indigo-600 text-white py-2.5 rounded-xl hover:bg-indigo-700 text-sm font-semibold">링크 복사하기</button>
-                  </div>
-                )}
-              </Card>
-              <Card>
-                <SectionTitle>학적부 (학생코드 목록)</SectionTitle>
-                {registry.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-4">학적 데이터를 먼저 업로드하세요.</p>
-                ) : (
-                  <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-white"><tr className="border-b border-slate-100">
-                        <th className="text-left py-2 px-2 text-slate-500 text-xs">학번</th>
-                        <th className="text-left py-2 px-2 text-slate-500 text-xs">이름</th>
-                        <th className="text-left py-2 px-2 text-slate-500 text-xs">학생코드</th>
-                      </tr></thead>
-                      <tbody>{registry.map((r, i) => (
-                        <tr key={i} className="border-b border-slate-50">
-                          <td className="py-2 px-2 font-mono text-xs">{r.학번 || r.studentId || '-'}</td>
-                          <td className="py-2 px-2 font-medium">{r.이름 || r.name || '-'}</td>
-                          <td className="py-2 px-2 font-mono text-xs tracking-wider text-indigo-600">{r.학생코드 || r.studentCode || '-'}</td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
-                  </div>
-                )}
-              </Card>
-            </div>
-          )}
+          {tab === 'share' && <ShareTab apiUrl={apiUrl} shareUrl={shareUrl} registry={registry} setRegistry={setRegistry} loadData={loadData} />}
 
           {/* ======================== STUDENTS TAB ======================== */}
           {tab === 'students' && (

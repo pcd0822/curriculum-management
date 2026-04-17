@@ -28,6 +28,7 @@ const TESTS = [
 ];
 
 const SUBJECT_TABS = [
+  { code: '', label: '전체' },
   { code: '100391', label: '인문' },
   { code: '100392', label: '사회' },
   { code: '100393', label: '교육' },
@@ -106,35 +107,48 @@ function TabBar({ view, onChange }) {
 function HomeView({ major, setMajor, recommendations, setRecommendations, loading, setLoading }) {
   const [inputValue, setInputValue] = useState(major || '데이터사이언티스트');
 
+  const [aiTip, setAiTip] = useState('');
+  const [aiError, setAiError] = useState('');
+
   const handleSearch = async () => {
     if (!inputValue.trim()) return;
     setMajor(inputValue.trim());
     setLoading(true);
+    setAiError('');
+    setAiTip('');
     try {
-      const data = await getAiRecommendation(inputValue.trim(), []);
-      // Normalize: the API may return { recommendations: [...] } or direct array
-      const recs = Array.isArray(data) ? data : data.recommendations || data.subjects || [];
-      setRecommendations(recs);
+      const data = await getAiRecommendation(inputValue.trim(), '');
+      // OpenAI returns { choices: [{ message: { content: "..." } }] }
+      const content = data?.choices?.[0]?.message?.content || '';
+      if (!content) throw new Error('AI 응답이 비어 있습니다.');
+
+      // Parse "과목명: 이유" format lines
+      const lines = content.split('\n').filter(l => l.trim());
+      const recs = [];
+      for (const line of lines) {
+        const match = line.match(/^[\d.)\-*]*\s*(.+?)\s*[:：]\s*(.+)$/);
+        if (match) {
+          recs.push({ name: match[1].trim(), description: match[2].trim(), category: '교과' });
+        }
+      }
+      if (recs.length > 0) {
+        setRecommendations(recs);
+        setAiTip(`"${inputValue.trim()}" 진로에 맞춰 AI가 ${recs.length}개 과목을 추천했습니다. 추천 과목을 참고하여 수강신청에 반영하세요.`);
+      } else {
+        // If not parseable as structured lines, show raw text
+        setRecommendations([{ name: 'AI 추천 결과', description: content, category: '전체' }]);
+        setAiTip(content.substring(0, 150));
+      }
     } catch (err) {
       console.error(err);
-      // fallback demo data
-      setRecommendations([
-        { name: '확률과 통계', category: '수학 · 기초교과', description: '데이터 분석의 기초가 되는 확률, 통계적 추론을 학습합니다.', credits: 3 },
-        { name: '정보과학', category: '정보 · 기초교과', description: '컴퓨터 과학의 핵심 원리와 알고리즘을 학습합니다.', credits: 3 },
-        { name: '미적분', category: '수학 · 기초교과', description: '함수의 극한, 미분, 적분의 개념을 학습합니다.', credits: 3 },
-        { name: '심화 영어 I', category: '영어 · 기초교과', description: '학술 영어 독해 및 작문 역량을 강화합니다.', credits: 3 },
-      ]);
+      setAiError(err.message || 'AI 추천을 받을 수 없습니다.');
+      setRecommendations([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (recommendations.length === 0 && !loading) {
-      handleSearch();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // AI 추천은 사용자가 검색 버튼을 누를 때만 호출
 
   return (
     <div className="px-5 pb-6">
@@ -183,6 +197,14 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
         <Spinner />
       ) : (
         <>
+          {/* Error */}
+          {aiError && (
+            <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3 mb-4">
+              {aiError}
+              <p className="text-xs mt-1 text-red-400">Netlify 환경변수 OPENAI_API_KEY가 설정되어 있는지 확인하세요.</p>
+            </div>
+          )}
+
           {/* Cards */}
           <div className="space-y-3 mb-4">
             {recommendations.map((rec, i) => (
@@ -207,7 +229,7 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
           </div>
 
           {/* AI tip */}
-          {recommendations.length > 0 && (
+          {(aiTip || recommendations.length > 0) && (
             <div className="bg-violet-50 rounded-2xl p-4 mb-5">
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-5 h-5 rounded-full bg-violet-200 flex items-center justify-center">
@@ -218,8 +240,7 @@ function HomeView({ major, setMajor, recommendations, setRecommendations, loadin
                 <span className="text-violet-700 font-bold text-xs">AI 어드바이저의 팁</span>
               </div>
               <p className="text-violet-600 text-xs leading-relaxed">
-                데이터 사이언티스트를 목표로 한다면 기초 수학과 통계 역량이 매우 중요합니다.
-                확률과 통계, 미적분을 우선 이수하고, 정보과학으로 프로그래밍 기초를 다지세요.
+                {aiTip || `"${major}" 진로에 맞는 과목을 AI가 추천했습니다. 추천 과목을 참고하여 수강신청에 반영하세요.`}
               </p>
             </div>
           )}
@@ -574,48 +595,130 @@ function MajorsView() {
   /* ── Detail View ── */
   if (majorDetail) {
     const d = majorDetail;
-    const sections = [
-      { title: '학과 개요', content: d.summary || d.major || '' },
-      { title: '관련 고교 교과목', content: d.relate_subject || d.relateSubject || '' },
-      { title: '진로 탐색 활동', content: d.career_act || d.careerAct || '' },
-      { title: '흥미와 적성', content: d.interest || '' },
-      { title: '학과 특성', content: d.property || '' },
-      { title: '관련 직업', content: d.job || '' },
-      { title: '관련 자격', content: d.qualifications || d.qualification || '' },
-      { title: '졸업 후 진출 분야', content: d.enter_field || d.enterField || '' },
-      { title: '대학 주요 교과목', content: d.main_subject || d.mainSubject || '' },
-      { title: '개설 대학', content: d.university || '' },
-    ];
+    const Tag = ({ children, bg = 'bg-indigo-50', color = 'text-indigo-700' }) => (
+      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium mr-1 mb-1 ${bg} ${color}`}>{children}</span>
+    );
+    const DetailCard = ({ title, children }) => (
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <h4 className="text-indigo-600 font-bold text-xs mb-2.5">{title}</h4>
+        {children}
+      </div>
+    );
 
     return (
       <div className="px-5 pb-6">
-        <button
-          onClick={() => setMajorDetail(null)}
-          className="flex items-center gap-1 text-slate-500 text-sm mt-4 mb-4"
-        >
+        <button onClick={() => setMajorDetail(null)} className="flex items-center gap-1 text-slate-500 text-sm mt-4 mb-4">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
           목록으로
         </button>
+        <h2 className="text-slate-800 font-bold text-lg mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>{d.major || d.mClass || '학과 상세'}</h2>
+        {d.department && <p className="text-slate-400 text-xs mb-4 leading-relaxed">{typeof d.department === 'string' ? d.department.substring(0, 120) + (d.department.length > 120 ? '...' : '') : ''}</p>}
 
-        <h2 className="text-slate-800 font-bold text-lg mb-4" style={{ fontFamily: "'Manrope', sans-serif" }}>
-          {d.mClass || d.major || '학과 상세'}
-        </h2>
-
-        {detailLoading ? (
-          <Spinner />
-        ) : (
+        {detailLoading ? <Spinner /> : (
           <div className="space-y-3">
-            {sections.map(
-              (sec) =>
-                sec.content && (
-                  <div key={sec.title} className="bg-white rounded-2xl p-4 shadow-sm">
-                    <h4 className="text-indigo-600 font-bold text-xs mb-2">{sec.title}</h4>
-                    <p
-                      className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap"
-                      dangerouslySetInnerHTML={{ __html: sec.content }}
-                    />
+            {/* 학과 개요 */}
+            {d.summary && (
+              <DetailCard title="학과 개요">
+                <p className="text-slate-600 text-sm leading-relaxed">{d.summary.replace(/<br\s*\/?>/gi, '\n')}</p>
+              </DetailCard>
+            )}
+
+            {/* 관련 고교 교과목 */}
+            {Array.isArray(d.relate_subject) && d.relate_subject.length > 0 && (
+              <DetailCard title="관련 고교 교과목">
+                {d.relate_subject.filter(s => s.subject_name && s.subject_description).map((s, i) => (
+                  <div key={i} className="mb-3 last:mb-0">
+                    <p className="text-indigo-600 font-semibold text-xs mb-1">{s.subject_name}</p>
+                    <div className="flex flex-wrap">
+                      {(s.subject_description || '').replace(/<br\s*\/?>/gi, ', ').split(/[,，]/).map(v => v.trim()).filter(Boolean).map((v, j) => (
+                        <Tag key={j}>{v}</Tag>
+                      ))}
+                    </div>
                   </div>
-                )
+                ))}
+              </DetailCard>
+            )}
+
+            {/* 진로 탐색 활동 */}
+            {Array.isArray(d.career_act) && d.career_act.length > 0 && (
+              <DetailCard title="진로 탐색 활동">
+                {d.career_act.map((a, i) => (
+                  <div key={i} className="mb-2 last:mb-0 bg-slate-50 rounded-xl p-3">
+                    <p className="text-slate-800 font-semibold text-xs mb-1">{(a.act_name || '').replace(/<br\s*\/?>/gi, '')}</p>
+                    <p className="text-slate-500 text-xs leading-relaxed">{(a.act_description || '').replace(/<br\s*\/?>/gi, ' ')}</p>
+                  </div>
+                ))}
+              </DetailCard>
+            )}
+
+            {/* 흥미와 적성 */}
+            {d.interest && (
+              <DetailCard title="흥미와 적성">
+                <p className="text-slate-600 text-sm leading-relaxed">{d.interest.replace(/<br\s*\/?>/gi, '\n')}</p>
+              </DetailCard>
+            )}
+
+            {/* 학과 특성 */}
+            {d.property && (
+              <DetailCard title="학과 특성">
+                <p className="text-slate-600 text-sm leading-relaxed">{d.property.replace(/<br\s*\/?>/gi, '\n')}</p>
+              </DetailCard>
+            )}
+
+            {/* 관련 직업 & 자격 */}
+            {(d.job || d.qualifications) && (
+              <DetailCard title="관련 직업 & 자격">
+                {d.job && (
+                  <div className="mb-2">
+                    <p className="text-slate-500 font-semibold text-xs mb-1">관련 직업</p>
+                    <div className="flex flex-wrap">{d.job.split(',').map((j, i) => <Tag key={i} bg="bg-emerald-50" color="text-emerald-700">{j.trim()}</Tag>)}</div>
+                  </div>
+                )}
+                {d.qualifications && (
+                  <div>
+                    <p className="text-slate-500 font-semibold text-xs mb-1">관련 자격</p>
+                    <div className="flex flex-wrap">{d.qualifications.split(',').map((q, i) => <Tag key={i} bg="bg-amber-50" color="text-amber-700">{q.trim()}</Tag>)}</div>
+                  </div>
+                )}
+              </DetailCard>
+            )}
+
+            {/* 졸업 후 진출 분야 */}
+            {Array.isArray(d.enter_field) && d.enter_field.length > 0 && (
+              <DetailCard title="졸업 후 진출 분야">
+                {d.enter_field.map((f, i) => (
+                  <div key={i} className="mb-2 last:mb-0 bg-slate-50 rounded-xl p-3">
+                    <p className="text-emerald-700 font-semibold text-xs mb-1">{f.gradeuate || ''}</p>
+                    <p className="text-slate-500 text-xs">{(f.description || '').replace(/<br\s*\/?>/gi, ' ')}</p>
+                  </div>
+                ))}
+              </DetailCard>
+            )}
+
+            {/* 대학 주요 교과목 */}
+            {Array.isArray(d.main_subject) && d.main_subject.length > 0 && (
+              <DetailCard title="대학 주요 교과목">
+                {d.main_subject.slice(0, 6).map((s, i) => (
+                  <div key={i} className="mb-2 last:mb-0">
+                    <p className="text-slate-800 font-semibold text-xs">{s.SBJECT_NM || ''}</p>
+                    <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">{(s.SBJECT_SUMRY || '').substring(0, 80)}{(s.SBJECT_SUMRY || '').length > 80 ? '...' : ''}</p>
+                  </div>
+                ))}
+              </DetailCard>
+            )}
+
+            {/* 개설 대학 */}
+            {Array.isArray(d.university) && d.university.length > 0 && (
+              <DetailCard title="개설 대학">
+                <div className="flex flex-wrap">
+                  {d.university.slice(0, 20).map((u, i) => (
+                    u.schoolURL
+                      ? <a key={i} href={u.schoolURL} target="_blank" rel="noopener noreferrer"><Tag bg="bg-violet-50" color="text-violet-700">{u.schoolName || ''}</Tag></a>
+                      : <Tag key={i} bg="bg-violet-50" color="text-violet-700">{u.schoolName || ''}</Tag>
+                  ))}
+                  {d.university.length > 20 && <Tag bg="bg-slate-100" color="text-slate-500">외 {d.university.length - 20}개</Tag>}
+                </div>
+              </DetailCard>
             )}
           </div>
         )}
