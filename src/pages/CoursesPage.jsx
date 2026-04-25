@@ -401,67 +401,49 @@ export default function CoursesPage() {
     });
   }
 
-  /* 복수편제 차단: 과목명 또는 영문ID/과목코드가 일치하는 과목이 다른 학기에 편성된 경우,
-     어느 한 쪽이 선택되면 나머지 학기의 동일 과목은 신청 차단. */
+  /* 복수편제 차단 (이름 단일 기준).
+     같은 과목명을 가진 과목이 다른 학기에 편성되어 있을 때, 어느 한 쪽이 선택되면
+     나머지 학기의 동일 이름 과목은 차단. 학기 비교는 grade 또는 semester 중 하나라도 다르면 다른 학기로 인정.
+     예외: settings.allowMultiSemesterDuplicate, settings.duplicateCourseSlugs */
   function normName(s) {
-    return String(s || '').replace(/\s+/g, '').normalize('NFC').toLowerCase();
+    return String(s || '').replace(/[\s\u200B-\u200D\uFEFF]+/g, '').normalize('NFC').toLowerCase();
   }
-  /* 한 과목의 모든 식별자를 정규화된 형태로 수집.
-     매핑된 영문 키(subjectName/slug/code)와 원본 한국어 키(과목명/영문ID/과목코드) 모두 폴백.
-     공백/유니코드/대소문자 차이를 모두 흡수. */
-  function collectCourseIds(c) {
-    if (!c) return [];
-    const candidates = [
-      c.subjectName, c['과목명'], c['과목 명'], c['과 목 명'],
-      c.slug,        c['영문ID'], c['영문Id'], c['영문아이디'], c.englishId,
-      c.code,        c['과목코드'], c.courseCode,
-    ];
-    const out = [];
-    for (const v of candidates) {
-      const n = normName(v);
-      if (n) out.push(n);
-    }
-    return out;
+  function getCourseNameKey(c) {
+    if (!c) return '';
+    return normName(c.subjectName || c['과목명'] || c.slug || c['영문ID'] || c.code || c['과목코드']);
+  }
+  function isDifferentSemester(a, b) {
+    return Number(a.grade) !== Number(b.grade) || Number(a.semester) !== Number(b.semester);
   }
   /* 진단 로그 토글 — 콘솔에서 localStorage.setItem('dupDebug','1') 입력 시 활성 */
   const DUP_DEBUG = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem('dupDebug') === '1');
-  function isDuplicateAcrossSemester(course) {
-    if (allowMultiSemesterDuplicate) {
-      if (DUP_DEBUG) console.warn('[중복편제] allowMultiSemesterDuplicate=true → 통과', course?.subjectName);
-      return false;
-    }
-    const myIds = collectCourseIds(course);
-    if (DUP_DEBUG) console.warn('[중복편제] 검사 시작', { name: course?.subjectName, id: course?.id, sem: semKeyOf(course), myIds, selectedSize: selectedIds?.size });
-    if (myIds.length === 0) {
-      if (DUP_DEBUG) console.warn('[중복편제] 식별자 없음 → 통과', course);
-      return null;
-    }
-    const exemptIds = duplicateCourseSlugs.map((x) => normName(x)).filter(Boolean);
-    if (myIds.some((id) => exemptIds.includes(id))) {
-      if (DUP_DEBUG) console.warn('[중복편제] 예외 목록에 포함 → 통과', course?.subjectName);
-      return false;
-    }
-    const mySet = new Set(myIds);
-    const myKey = semKeyOf(course);
+  function findDuplicateByName(course, prevSelected) {
+    if (allowMultiSemesterDuplicate) return null;
+    const sel = prevSelected || selectedIds;
+    const myName = getCourseNameKey(course);
+    if (!myName) return null;
+    const exempt = duplicateCourseSlugs.some((x) => normName(x) === myName);
+    if (exempt) return null;
+    if (DUP_DEBUG) console.warn('[중복편제] 이름 기반 검사', { course: course?.subjectName, myName, sem: `${course.grade}-${course.semester}`, selectedCount: sel?.size });
     for (const c of courses) {
       if (c.id === course.id) continue;
-      if (!selectedIds.has(c.id)) {
-        if (DUP_DEBUG && normName(c.subjectName) === myIds[0]) {
-          console.warn('[중복편제] 동일명 발견 but 미선택 → 통과', { other: c.subjectName, otherId: c.id, otherSem: semKeyOf(c) });
-        }
-        continue;
-      }
-      if (semKeyOf(c) === myKey) continue;
-      const otherIds = collectCourseIds(c);
-      const intersect = otherIds.filter((id) => mySet.has(id));
-      if (DUP_DEBUG) console.warn('[중복편제] 선택된 과목과 비교', { other: c.subjectName, otherId: c.id, otherSem: semKeyOf(c), otherIds, intersect });
-      if (intersect.length > 0) {
-        if (DUP_DEBUG) console.warn('[중복편제] ✅ 매칭 → 차단', { match: c.subjectName });
+      if (!sel.has(c.id)) continue;
+      if (!isDifferentSemester(c, course)) continue;
+      const otherName = getCourseNameKey(c);
+      if (DUP_DEBUG) console.warn('[중복편제] 비교', { other: c.subjectName, otherName, otherSem: `${c.grade}-${c.semester}`, match: otherName === myName });
+      if (otherName === myName) {
+        if (DUP_DEBUG) console.warn('[중복편제] ✅ 차단', { 차단대상: course.subjectName, 이미선택: c.subjectName });
         return c;
       }
     }
     if (DUP_DEBUG) console.warn('[중복편제] 매칭 없음 → 통과', course?.subjectName);
     return null;
+  }
+  // 기존 호출 지점 호환을 위한 별칭
+  const isDuplicateAcrossSemester = (course) => findDuplicateByName(course);
+  // 외부에서 사용할 수 있도록 정규화 식별자 도우미는 그대로 유지(다른 함수에서 참조)
+  function collectCourseIds(c) {
+    return c ? [getCourseNameKey(c)].filter(Boolean) : [];
   }
 
   /* 비활성 사유 종합 — 기초교과 50% 룰은 최종 제출 단계(submitIssues)에서만 검증 */
@@ -564,6 +546,7 @@ export default function CoursesPage() {
     (id) => {
       const course = courses.find((c) => c.id === id);
       if (!course) return;
+      console.warn('[중복편제] 클릭', { name: course.subjectName, id, sem: `${course.grade}-${course.semester}` });
 
       setSelectedIds((prev) => {
         const next = new Set(prev);
@@ -573,36 +556,25 @@ export default function CoursesPage() {
           return next;
         }
 
-        /* getDisableInfo는 부모 클로저의 selectedIds를 사용 — 일반적으로 안전하지만,
-           복수편제 차단은 항상 최신 prev 상태로 직접 한 번 더 검증해 클로저 staleness를 차단. */
-        if (!course.joint && !allowMultiSemesterDuplicate) {
-          const myIds = collectCourseIds(course);
-          const exemptIds = duplicateCourseSlugs.map((x) => normName(x)).filter(Boolean);
-          const exempt = myIds.some((mid) => exemptIds.includes(mid));
-          if (myIds.length > 0 && !exempt) {
-            const mySet = new Set(myIds);
-            const myKey = semKeyOf(course);
-            for (const c of courses) {
-              if (c.id === course.id) continue;
-              if (!prev.has(c.id)) continue;
-              if (semKeyOf(c) === myKey) continue;
-              const otherIds = collectCourseIds(c);
-              if (otherIds.some((id2) => mySet.has(id2))) {
-                setBlockedReason({
-                  courseName: course.subjectName,
-                  reason: `"${course.subjectName}"이(가) ${c.grade}학년 ${c.semester}학기에 이미 신청되었습니다. 같은 과목명(또는 영문ID)이 다른 학기에 복수편제된 과목은 한 학기에서만 신청할 수 있습니다. 다른 학기에서 신청하려면 먼저 ${c.grade}-${c.semester}학기의 선택을 해제하세요.`,
-                });
-                return prev; // 차단
-              }
-            }
+        /* 1) 이름 기반 복수편제 차단 — prev(최신 상태)를 직접 사용 */
+        if (!course.joint) {
+          const dup = findDuplicateByName(course, prev);
+          if (dup) {
+            setBlockedReason({
+              courseName: course.subjectName,
+              reason: `"${course.subjectName}"이(가) ${dup.grade}학년 ${dup.semester}학기에 이미 신청되었습니다. 같은 과목명이 다른 학기에 복수편제된 경우 한 학기에서만 신청할 수 있습니다. 다른 학기에서 신청하려면 먼저 ${dup.grade}-${dup.semester}학기의 선택을 해제하세요.`,
+            });
+            return prev;
           }
         }
 
+        /* 2) 그 외 차단 사유 (선이수, 선택규칙 등) */
         const info = getDisableInfo(course);
         if (info) {
           setBlockedReason({ courseName: course.subjectName, reason: info.message });
           return prev;
         }
+
         next.add(id);
         setBlockedReason(null);
         return next;
