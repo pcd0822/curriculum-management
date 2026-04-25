@@ -453,6 +453,8 @@ export default function AdminPage() {
   /* 선이수 매핑 입력 — 키보드 내비게이션 상태 */
   const [targetActiveIdx, setTargetActiveIdx] = useState(0);
   const [prereqActiveIdx, setPrereqActiveIdx] = useState(0);
+  const [targetClosed, setTargetClosed] = useState(false);
+  const [prereqClosed, setPrereqClosed] = useState(false);
 
   /* 선이수 매핑 편집 헬퍼 */
   function addPrereqMapping() {
@@ -634,16 +636,12 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [prereqInputPrereq, prereqInputTarget, uniqueCourseNames]
   );
-  const targetSuggestionsVisible = targetMatches.length > 0 && !isExactSingleMatch(prereqInputTarget, targetMatches);
-  const prereqSuggestionsVisible = prereqMatches.length > 0 && !isExactSingleMatch(prereqInputPrereq, prereqMatches);
-
-  /* 입력값이 변경되면 active idx를 0으로 리셋 */
-  useEffect(() => { setTargetActiveIdx(0); }, [prereqInputTarget]);
-  useEffect(() => { setPrereqActiveIdx(0); }, [prereqInputPrereq, prereqInputTarget]);
+  const targetSuggestionsVisible = !targetClosed && targetMatches.length > 0 && !isExactSingleMatch(prereqInputTarget, targetMatches);
+  const prereqSuggestionsVisible = !prereqClosed && prereqMatches.length > 0 && !isExactSingleMatch(prereqInputPrereq, prereqMatches);
 
   /* 추천 리스트 키보드 처리 헬퍼 */
   function handleSuggestionKey(e, opts) {
-    const { matches, visible, activeIdx, setActiveIdx, setValue, onSubmit } = opts;
+    const { matches, visible, activeIdx, setActiveIdx, setValue, setClosed, onSubmit, currentValue } = opts;
     if (visible && matches.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -655,9 +653,25 @@ export default function AdminPage() {
         setActiveIdx((i) => Math.max(i - 1, 0));
         return;
       }
-      if (e.key === 'Enter' && activeIdx >= 0 && activeIdx < matches.length) {
+      if (e.key === 'Escape') {
         e.preventDefault();
-        setValue(matches[activeIdx].name);
+        setClosed(true);
+        return;
+      }
+      if (e.key === 'Enter' && activeIdx >= 0 && activeIdx < matches.length) {
+        const picked = matches[activeIdx].name;
+        const norm = (s) => String(s || '').replace(/\s+/g, '').toLowerCase();
+        if (norm(currentValue) === norm(picked)) {
+          // 입력값과 활성 항목이 이미 동일 → 목록을 닫고 제출
+          e.preventDefault();
+          setClosed(true);
+          if (onSubmit) onSubmit();
+          return;
+        }
+        // 활성 항목을 입력값으로 채움 + 목록 닫기
+        e.preventDefault();
+        setValue(picked);
+        setClosed(true);
         return;
       }
     }
@@ -1100,13 +1114,19 @@ export default function AdminPage() {
                       <input
                         type="text"
                         value={prereqInputTarget}
-                        onChange={(e) => setPrereqInputTarget(e.target.value)}
+                        onChange={(e) => {
+                          setPrereqInputTarget(e.target.value);
+                          setTargetClosed(false);
+                          setTargetActiveIdx(0);
+                        }}
                         onKeyDown={(e) => handleSuggestionKey(e, {
                           matches: targetMatches,
                           visible: targetSuggestionsVisible,
                           activeIdx: targetActiveIdx,
                           setActiveIdx: setTargetActiveIdx,
                           setValue: setPrereqInputTarget,
+                          setClosed: setTargetClosed,
+                          currentValue: prereqInputTarget,
                           onSubmit: () => {
                             if (prereqInputTarget.trim() && prereqInputPrereq.trim()) addPrereqMapping();
                           },
@@ -1120,7 +1140,7 @@ export default function AdminPage() {
                         matches={targetMatches}
                         visible={targetSuggestionsVisible}
                         activeIdx={targetActiveIdx}
-                        onPick={(name) => setPrereqInputTarget(name)}
+                        onPick={(name) => { setPrereqInputTarget(name); setTargetClosed(true); }}
                       />
                     </div>
                     <div className="text-center text-slate-400 text-sm pt-7 hidden md:block">←</div>
@@ -1129,13 +1149,19 @@ export default function AdminPage() {
                       <input
                         type="text"
                         value={prereqInputPrereq}
-                        onChange={(e) => setPrereqInputPrereq(e.target.value)}
+                        onChange={(e) => {
+                          setPrereqInputPrereq(e.target.value);
+                          setPrereqClosed(false);
+                          setPrereqActiveIdx(0);
+                        }}
                         onKeyDown={(e) => handleSuggestionKey(e, {
                           matches: prereqMatches,
                           visible: prereqSuggestionsVisible,
                           activeIdx: prereqActiveIdx,
                           setActiveIdx: setPrereqActiveIdx,
                           setValue: setPrereqInputPrereq,
+                          setClosed: setPrereqClosed,
+                          currentValue: prereqInputPrereq,
                           onSubmit: () => {
                             if (prereqInputTarget.trim() && prereqInputPrereq.trim()) addPrereqMapping();
                           },
@@ -1149,7 +1175,7 @@ export default function AdminPage() {
                         matches={prereqMatches}
                         visible={prereqSuggestionsVisible}
                         activeIdx={prereqActiveIdx}
-                        onPick={(name) => setPrereqInputPrereq(name)}
+                        onPick={(name) => { setPrereqInputPrereq(name); setPrereqClosed(true); }}
                       />
                     </div>
                     <button

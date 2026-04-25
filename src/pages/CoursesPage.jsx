@@ -117,23 +117,28 @@ export default function CoursesPage() {
           ? configRes
           : configRes?.courses ?? configRes?.data ?? [];
 
-        const processed = rawCourses.map((c, i) => ({
-          id: c.id ?? c.code ?? `course-${i}`,
-          joint: false,
-          ...normaliseCourse(c),
-        }));
+        /* 과목 ID는 항상 행 인덱스를 포함해 고유하게 생성.
+           DB의 과목코드/영문ID가 학기별로 같더라도 React 객체 충돌이 일어나지 않도록 강제. */
+        const processed = rawCourses.map((c, i) => {
+          const norm = normaliseCourse(c);
+          return {
+            joint: false,
+            ...norm,
+            id: `course-${i}`, // ← spread 뒤에 두어 절대 덮어쓰이지 않음
+          };
+        });
 
         /* 공동교육과정 — 정규 교과 외 추가 이수 가능 과목 */
         const rawJoint = Array.isArray(jointRes) ? jointRes : jointRes?.data || [];
         const processedJoint = rawJoint.map((c, i) => {
           const norm = normaliseCourse(c);
           return {
-            id: `joint-${c.slug || norm.slug || i}-${i}`,
             joint: true,
             host: c.거점학교 || c.host || '',
             schedule: c.운영일시 || c.schedule || '',
             ...norm,
-            required: false, // 공동교육과정은 항상 선택
+            required: false,
+            id: `joint-${i}`, // ← spread 뒤에서 무조건 고유 ID
           };
         });
 

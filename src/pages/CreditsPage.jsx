@@ -107,20 +107,23 @@ export default function CreditsPage() {
         if (cancelled) return;
 
         const rawCourses = Array.isArray(cfg) ? cfg : cfg?.data || [];
-        const proc = rawCourses.map((c, i) => ({
-          id: c.id ?? c.code ?? `course-${i}`,
-          joint: false,
-          ...normaliseCourse(c),
-        }));
+        const proc = rawCourses.map((c, i) => {
+          const norm = normaliseCourse(c);
+          return {
+            joint: false,
+            ...norm,
+            id: `course-${i}`,
+          };
+        });
         const rawJoint = Array.isArray(jc) ? jc : jc?.data || [];
         const procJoint = rawJoint.map((c, i) => {
           const norm = normaliseCourse(c);
           return {
-            id: `joint-${c.slug || norm.slug || i}-${i}`,
             joint: true,
             host: c.거점학교 || c.host || '',
             ...norm,
             required: false,
+            id: `joint-${i}`,
           };
         });
         setCourses([...proc, ...procJoint]);
