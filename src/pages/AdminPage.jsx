@@ -540,6 +540,28 @@ export default function AdminPage() {
     return [...set].sort();
   }, [courses]);
 
+  /* 과목명 단위로 중복 제거된 목록 (선이수 매핑 드롭다운용).
+     같은 이름이 여러 학기에 편제된 경우 하나의 항목으로 표시되며,
+     개설 학기는 보조 정보로만 노출됨. */
+  const uniqueCourseNames = useMemo(() => {
+    const map = new Map();
+    courses.forEach((c) => {
+      const name = String(c.과목명 || c.subjectName || '').trim();
+      if (!name) return;
+      const g = c.학년 || c.grade;
+      const s = c.학기 || c.semester;
+      const semKey = (g && s) ? `${g}-${s}` : '';
+      if (!map.has(name)) map.set(name, new Set());
+      if (semKey) map.get(name).add(semKey);
+    });
+    return Array.from(map.entries())
+      .map(([name, semSet]) => ({
+        name,
+        semesters: [...semSet].sort(),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [courses]);
+
   /* ── Share tab ── */
   const shareUrl = apiUrl ? `${window.location.origin}/login?key=${btoa(apiUrl)}` : '';
 
@@ -972,38 +994,36 @@ export default function AdminPage() {
                 <div className="bg-slate-50 rounded-xl p-3 mb-4">
                   <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto] items-end gap-2">
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 mb-1 block">후수 과목</label>
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block">후수 과목 (과목명)</label>
                       <select
                         value={prereqInputTarget}
                         onChange={(e) => setPrereqInputTarget(e.target.value)}
                         className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
                       >
                         <option value="">후수 과목을 선택하세요…</option>
-                        {courses.map((c, i) => {
-                          const name = String(c.과목명 || c.subjectName || '').trim();
-                          const g = c.학년 || c.grade;
-                          const s = c.학기 || c.semester;
-                          if (!name) return null;
-                          return <option key={`${name}-${i}`} value={name}>{name} ({g}-{s})</option>;
-                        })}
+                        {uniqueCourseNames.map((item) => (
+                          <option key={`t-${item.name}`} value={item.name}>
+                            {item.name}{item.semesters.length > 0 ? ` (${item.semesters.join(', ')})` : ''}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div className="text-center text-slate-400 text-sm pt-5 hidden md:block">←</div>
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 mb-1 block">선이수 과목</label>
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block">선이수 과목 (과목명)</label>
                       <select
                         value={prereqInputPrereq}
                         onChange={(e) => setPrereqInputPrereq(e.target.value)}
                         className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
                       >
                         <option value="">선이수 과목을 선택하세요…</option>
-                        {courses.map((c, i) => {
-                          const name = String(c.과목명 || c.subjectName || '').trim();
-                          const g = c.학년 || c.grade;
-                          const s = c.학기 || c.semester;
-                          if (!name || name === prereqInputTarget) return null;
-                          return <option key={`p-${name}-${i}`} value={name}>{name} ({g}-{s})</option>;
-                        })}
+                        {uniqueCourseNames
+                          .filter((item) => item.name !== prereqInputTarget)
+                          .map((item) => (
+                            <option key={`p-${item.name}`} value={item.name}>
+                              {item.name}{item.semesters.length > 0 ? ` (${item.semesters.join(', ')})` : ''}
+                            </option>
+                          ))}
                       </select>
                     </div>
                     <button
@@ -1019,6 +1039,10 @@ export default function AdminPage() {
                       ⚠️ 과목 데이터를 먼저 업로드하세요.
                     </p>
                   )}
+                  <p className="text-[0.7rem] text-slate-500 mt-2 leading-relaxed">
+                    📌 매핑은 <strong>과목명 단위</strong>로만 저장됩니다. 같은 이름이 여러 학기에 복수편제된 경우(예: 화학 2-1·2-2),
+                    어느 학기에서 선택해도 선이수 조건이 충족됩니다 — 학기별로 따로 등록할 필요 없습니다.
+                  </p>
                 </div>
 
                 {/* 등록된 매핑 리스트 */}
@@ -1062,8 +1086,8 @@ export default function AdminPage() {
                 )}
 
                 <div className="mt-3 px-3 py-2 bg-amber-50 rounded-lg text-xs text-amber-700 leading-relaxed">
-                  <span className="font-semibold">예시:</span> "수학II ← 수학I" 로 등록하면 학생이 수학I을 선택하지 않은 상태에서는
-                  수학II 선택 카드가 자동 비활성화되고, 다음 단계 클릭 시 위배 사유에 표시됩니다.
+                  <span className="font-semibold">예시:</span> "물질과 에너지 ← 화학" 로 등록하면 학생이 어떤 학기의 화학(2-1 또는 2-2)이라도
+                  하나만 선택하면 물질과 에너지를 신청할 수 있습니다. 화학을 전혀 선택하지 않으면 물질과 에너지 카드가 자동 비활성화됩니다.
                 </div>
               </Card>
 
