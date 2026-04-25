@@ -441,22 +441,40 @@ export default function AdminPage() {
     setMinCreditRules(prev => prev.filter((_, i) => i !== idx));
   }
 
+  const [savingRules, setSavingRules] = useState(false);
+  const [saveRulesMsg, setSaveRulesMsg] = useState('');
+
   async function saveRules() {
     if (!DB.isConfigured()) return alert('API URL을 먼저 설정하세요.');
+    setSavingRules(true);
+    setSaveRulesMsg('');
     try {
       const cleanedMinRules = minCreditRules
         .filter(r => r.name && Number(r.min) >= 0)
         .map(r => ({ type: r.type, name: String(r.name).trim(), min: Number(r.min) || 0 }));
+      const totalNum = Number(requiredTotalInput) || 180;
+      /* settings는 가장 최신 서버값을 한 번 더 받아 병합 — 다른 탭에서 수정 시 충돌 방지 */
+      let baseSettings = settings || {};
+      try {
+        const fresh = await DB.fetchSettings();
+        if (fresh && typeof fresh === 'object' && !Array.isArray(fresh)) baseSettings = fresh;
+      } catch {}
       const newSettings = {
-        ...(settings || {}),
+        ...baseSettings,
         selectionRules: ruleInputs,
         minCreditRules: cleanedMinRules,
-        requiredTotalCredits: Number(requiredTotalInput) || 180,
+        requiredTotalCredits: totalNum,
       };
       await DB.saveSettings(newSettings);
       setSettings(newSettings);
-      alert('규칙이 저장되었습니다!');
-    } catch (e) { alert('저장 실패: ' + e.message); }
+      /* 저장된 값으로 입력 상태도 즉시 동기화 (캐스팅된 숫자) */
+      setRequiredTotalInput(totalNum);
+      setSaveRulesMsg(`✅ 저장 완료 — 총 ${totalNum}학점 · 최소학점 규칙 ${cleanedMinRules.length}개 · 학기별 규칙 ${Object.keys(ruleInputs).length}개`);
+    } catch (e) {
+      setSaveRulesMsg('❌ 저장 실패: ' + e.message);
+    } finally {
+      setSavingRules(false);
+    }
   }
 
   /* ── 과목 데이터에서 교과군/세부교과 자동 추출 ── */
@@ -930,7 +948,28 @@ export default function AdminPage() {
                     );
                   })}
                 </div>
-                <button onClick={saveRules} className="mt-6 w-full bg-indigo-600 text-white py-2.5 rounded-xl hover:bg-indigo-700 text-sm font-semibold">규칙 저장</button>
+                <button
+                  onClick={saveRules}
+                  disabled={savingRules}
+                  className="mt-6 w-full bg-indigo-600 text-white py-2.5 rounded-xl hover:bg-indigo-700 text-sm font-semibold disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {savingRules ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      저장중...
+                    </>
+                  ) : '규칙 저장'}
+                </button>
+                {saveRulesMsg && (
+                  <p className={`mt-2 text-xs leading-relaxed ${
+                    saveRulesMsg.startsWith('✅') ? 'text-emerald-600' : 'text-rose-600'
+                  }`}>
+                    {saveRulesMsg}
+                  </p>
+                )}
               </Card>
 
               <Card>
