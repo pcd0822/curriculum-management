@@ -27,8 +27,11 @@ const FIELD_MAP = {
 function normaliseCourse(raw) {
   const out = {};
   for (const [k, v] of Object.entries(raw)) {
-    const mapped = FIELD_MAP[k] || k;
+    const trimmed = String(k).trim();
+    const mapped = FIELD_MAP[trimmed] || trimmed;
+    // 매핑된 영문 키 + 원본 한국어 키 둘 다 보존 (폴백 매칭용)
     out[mapped] = v;
+    if (mapped !== trimmed) out[trimmed] = v;
   }
   out.credits = Number(out.credits) || 0;
   out.grade = Number(out.grade) || 0;
@@ -346,32 +349,42 @@ export default function CoursesPage() {
     });
   }
 
-  /* 복수편제 차단: 과목명(공백·유니코드 정규화) 또는 영문ID(slug)가 일치하는 과목이
-     다른 학기(다른 학년 동일 학기 포함)에 동일 편성된 경우,
+  /* 복수편제 차단: 과목명 또는 영문ID/과목코드가 일치하는 과목이 다른 학기에 편성된 경우,
      어느 한 쪽이 선택되면 나머지 학기의 동일 과목은 신청 차단.
      예외: settings.duplicateCourseSlugs 또는 allowMultiSemesterDuplicate=true */
   function normName(s) {
     return String(s || '').replace(/\s+/g, '').normalize('NFC').toLowerCase();
   }
+  /* 한 과목의 모든 식별자를 정규화된 형태로 수집 — 영문/한국어 컬럼명 둘 다 폴백 */
+  function collectCourseIds(c) {
+    if (!c) return [];
+    const candidates = [
+      c.subjectName, c['과목명'],
+      c.slug,        c['영문ID'],
+      c.code,        c['과목코드'],
+    ];
+    const out = [];
+    for (const v of candidates) {
+      const n = normName(v);
+      if (n) out.push(n);
+    }
+    return out;
+  }
   function isDuplicateAcrossSemester(course) {
     if (allowMultiSemesterDuplicate) return false;
-    const allowedDup = duplicateCourseSlugs.some(
-      (x) => x === course.slug || x === course.subjectName || x === course.id,
-    );
-    if (allowedDup) return false;
-    const myName = normName(course.subjectName);
-    const mySlug = normName(course.slug);
-    if (!myName && !mySlug) return null;
+    const myIds = collectCourseIds(course);
+    if (myIds.length === 0) return null;
+    // 예외 목록(duplicateCourseSlugs)도 정규화 후 비교
+    const exemptIds = duplicateCourseSlugs.map((x) => normName(x)).filter(Boolean);
+    if (myIds.some((id) => exemptIds.includes(id))) return false;
+    const mySet = new Set(myIds);
     const myKey = semKeyOf(course);
     for (const c of courses) {
       if (c.id === course.id) continue;
       if (!selectedIds.has(c.id)) continue;
-      if (semKeyOf(c) === myKey) continue;            // 같은 학기는 제외 — 다른 학기 또는 다른 학년 같은 학기만 검사
-      const otherName = normName(c.subjectName);
-      const otherSlug = normName(c.slug);
-      const sameName = myName && otherName && myName === otherName;
-      const sameSlug = mySlug && otherSlug && mySlug === otherSlug;
-      if (sameName || sameSlug) return c;             // 과목명 또는 영문ID 어느 한 쪽이라도 일치하면 차단
+      if (semKeyOf(c) === myKey) continue;            // 같은 학기는 제외
+      const otherIds = collectCourseIds(c);
+      if (otherIds.some((id) => mySet.has(id))) return c;
     }
     return null;
   }
@@ -483,6 +496,31 @@ export default function CoursesPage() {
           next.delete(id);
           setBlockedReason(null);
           return next;
+        }
+
+        /* getDisableInfo는 부모 클로저의 selectedIds를 사용 — 일반적으로 안전하지만,
+           복수편제 차단은 항상 최신 prev 상태로 직접 한 번 더 검증해 클로저 staleness를 차단. */
+        if (!course.joint && !allowMultiSemesterDuplicate) {
+          const myIds = collectCourseIds(course);
+          const exemptIds = duplicateCourseSlugs.map((x) => normName(x)).filter(Boolean);
+          const exempt = myIds.some((mid) => exemptIds.includes(mid));
+          if (myIds.length > 0 && !exempt) {
+            const mySet = new Set(myIds);
+            const myKey = semKeyOf(course);
+            for (const c of courses) {
+              if (c.id === course.id) continue;
+              if (!prev.has(c.id)) continue;
+              if (semKeyOf(c) === myKey) continue;
+              const otherIds = collectCourseIds(c);
+              if (otherIds.some((id2) => mySet.has(id2))) {
+                setBlockedReason({
+                  courseName: course.subjectName,
+                  reason: `"${course.subjectName}"이(가) ${c.grade}학년 ${c.semester}학기에 이미 신청되었습니다. 같은 과목명(또는 영문ID)이 다른 학기에 복수편제된 과목은 한 학기에서만 신청할 수 있습니다. 다른 학기에서 신청하려면 먼저 ${c.grade}-${c.semester}학기의 선택을 해제하세요.`,
+                });
+                return prev; // 차단
+              }
+            }
+          }
         }
 
         const info = getDisableInfo(course);
