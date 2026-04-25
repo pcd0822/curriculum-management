@@ -308,7 +308,9 @@ export default function CoursesPage() {
 
   /* ── Settings ── */
   const selectionRules = settings?.selectionRules || {};
-  const allowMultiSemesterDuplicate = !!settings?.allowMultiSemesterDuplicate;
+  /* 학기간 동명 과목 중복 신청은 항상 차단 (정책 고정).
+     예외는 settings.duplicateCourseSlugs 에 등록된 과목명/슬러그에 한해서만 허용. */
+  const allowMultiSemesterDuplicate = false;
   const duplicateCourseSlugs = Array.isArray(settings?.duplicateCourseSlugs)
     ? settings.duplicateCourseSlugs
     : [];
