@@ -179,18 +179,24 @@ export default function ProfilePage() {
                 </div>
                 <div className="text-[0.7rem] text-slate-500 mb-1.5">
                   학생선택 {h.optionalCredits ?? '-'}학점 · 기초교과 {h.foundationCredits ?? '-'}학점
+                  {(h.jointCredits ?? 0) > 0 && (
+                    <span className="text-violet-600 font-semibold"> · 공동교육 {h.jointCredits}학점 추가</span>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {(h.courses || []).slice(0, 12).map((c, j) => (
                     <span
                       key={j}
                       className={`text-[0.65rem] font-medium px-2 py-0.5 rounded-full ${
-                        c.required
-                          ? 'bg-red-50 text-red-600'
-                          : 'bg-emerald-50 text-emerald-700'
+                        c.joint
+                          ? 'bg-violet-50 text-violet-700'
+                          : c.required
+                            ? 'bg-red-50 text-red-600'
+                            : 'bg-emerald-50 text-emerald-700'
                       }`}
+                      title={c.joint ? `공동교육과정${c.host ? ' · ' + c.host : ''}` : ''}
                     >
-                      {c.subjectName}
+                      {c.joint ? '🏫 ' : ''}{c.subjectName}
                     </span>
                   ))}
                   {(h.courses || []).length > 12 && (

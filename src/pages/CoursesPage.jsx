@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { isConfigured, fetchConfig, fetchSettings } from '../api/db.js';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { isConfigured, fetchConfig, fetchSettings, fetchJointCurriculum } from '../api/db.js';
 import { getVerifiedStudent, getStudentAvatarLabel } from '../api/student.js';
 import Header from '../components/Header';
 import MobileNav from '../components/MobileNav';
@@ -73,6 +73,8 @@ function isFoundationCourse(course) {
 
 export default function CoursesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isAdminPreview = searchParams.get('preview') === 'admin';
 
   const [courses, setCourses] = useState([]);
   const [settings, setSettings] = useState(null);
@@ -82,9 +84,15 @@ export default function CoursesPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [blockedReason, setBlockedReason] = useState(null); // {courseName, reason}
 
-  /* Read verified student info — 앱 종료 전까지 유지 */
-  const student = useMemo(() => getVerifiedStudent(), []);
-  const avatarLabel = getStudentAvatarLabel();
+  /* Read verified student info — 앱 종료 전까지 유지.
+     관리자 미리보기 모드에서는 가짜 학생을 사용해 실제 학생 데이터에 영향을 주지 않음. */
+  const student = useMemo(() => {
+    if (isAdminPreview) {
+      return { name: '관리자(테스트)', studentId: 'PREVIEW', studentCode: 'TEST-MODE' };
+    }
+    return getVerifiedStudent();
+  }, [isAdminPreview]);
+  const avatarLabel = isAdminPreview ? '관' : getStudentAvatarLabel();
   const schoolName = settings?.schoolName || localStorage.getItem('school_name') || 'OO고등학교';
 
   useEffect(() => {
@@ -97,9 +105,10 @@ export default function CoursesPage() {
 
     async function load() {
       try {
-        const [configRes, settingsRes] = await Promise.all([
+        const [configRes, settingsRes, jointRes] = await Promise.all([
           fetchConfig(),
           fetchSettings(),
+          fetchJointCurriculum().catch(() => []),
         ]);
 
         if (cancelled) return;
@@ -110,10 +119,26 @@ export default function CoursesPage() {
 
         const processed = rawCourses.map((c, i) => ({
           id: c.id ?? c.code ?? `course-${i}`,
+          joint: false,
           ...normaliseCourse(c),
         }));
 
-        setCourses(processed);
+        /* 공동교육과정 — 정규 교과 외 추가 이수 가능 과목 */
+        const rawJoint = Array.isArray(jointRes) ? jointRes : jointRes?.data || [];
+        const processedJoint = rawJoint.map((c, i) => {
+          const norm = normaliseCourse(c);
+          return {
+            id: `joint-${c.slug || norm.slug || i}-${i}`,
+            joint: true,
+            host: c.거점학교 || c.host || '',
+            schedule: c.운영일시 || c.schedule || '',
+            ...norm,
+            required: false, // 공동교육과정은 항상 선택
+          };
+        });
+
+        const merged = [...processed, ...processedJoint];
+        setCourses(merged);
 
         const s = settingsRes?.settings ?? settingsRes?.data ?? settingsRes ?? {};
         setSettings(s);
@@ -130,16 +155,17 @@ export default function CoursesPage() {
           }
         } catch {}
         if (Array.isArray(aiNames) && aiNames.length > 0) {
-          processed.forEach((c) => {
+          merged.forEach((c) => {
             const name = String(c.subjectName || '').trim();
             if (aiNames.some((n) => n === name || name.includes(n) || n.includes(name))) {
               reqIds.add(c.id);
             }
           });
         } else {
-          /* 이전 세션에서 진행 중이던 선택을 복원 */
+          /* 이전 세션에서 진행 중이던 선택을 복원. 미리보기 모드는 별도 키 사용 */
           try {
-            const saved = JSON.parse(sessionStorage.getItem('currentSelection') || '[]');
+            const restoreKey = isAdminPreview ? 'previewSelection' : 'currentSelection';
+            const saved = JSON.parse(sessionStorage.getItem(restoreKey) || '[]');
             if (Array.isArray(saved)) saved.forEach((id) => reqIds.add(id));
           } catch {}
         }
@@ -188,16 +214,28 @@ export default function CoursesPage() {
     [selectedCourses],
   );
 
+  const jointSelected = useMemo(
+    () => selectedCourses.filter((c) => c.joint),
+    [selectedCourses],
+  );
+  const jointCredits = useMemo(
+    () => jointSelected.reduce((s, c) => s + c.credits, 0),
+    [jointSelected],
+  );
+  const regularCredits = totalCredits - jointCredits;
+
   const maxCourses = courses.length || 1;
   const progress = Math.round((selectedIds.size / maxCourses) * 100);
 
-  /* 선택 상태가 바뀔 때마다 sessionStorage에 저장 (탭 이동 시 유지) */
+  /* 선택 상태가 바뀔 때마다 sessionStorage에 저장 (탭 이동 시 유지).
+     관리자 미리보기는 별도 키로 보관하여 실제 학생 선택을 침해하지 않음. */
   useEffect(() => {
     if (loading) return;
+    const key = isAdminPreview ? 'previewSelection' : 'currentSelection';
     try {
-      sessionStorage.setItem('currentSelection', JSON.stringify([...selectedIds]));
+      sessionStorage.setItem(key, JSON.stringify([...selectedIds]));
     } catch {}
-  }, [selectedIds, loading]);
+  }, [selectedIds, loading, isAdminPreview]);
 
   /* ── Settings ── */
   const selectionRules = settings?.selectionRules || {};
@@ -209,10 +247,11 @@ export default function CoursesPage() {
   const foundationCap = Math.floor(requiredTotalCredits * 0.5);
   const minCreditRules = Array.isArray(settings?.minCreditRules) ? settings.minCreditRules : [];
 
-  /* 학기별 학점·과목수 규칙 검사 */
+  /* 학기별 학점·과목수 규칙 검사 (정규 교과 한정 — 공동교육과정은 추가 이수이므로 미포함) */
   function countSelected(semKey, creditFilter, excludeId) {
     return courses.filter((c) => {
       if (c.required) return false;
+      if (c.joint) return false;
       if (!selectedIds.has(c.id)) return false;
       if (c.id === excludeId) return false;
       if (semKeyOf(c) !== semKey) return false;
@@ -251,50 +290,47 @@ export default function CoursesPage() {
     return course.prerequisites.filter((p) => !satisfied.has(p));
   }
 
-  /* 같은 이름 과목 다학기 중복 신청 차단 (예외: duplicateCourseSlugs) */
+  /* 복수편제 차단: 같은 과목명 + 같은 학점 과목이 다른 학기에 동일 편성된 경우,
+     어느 한 쪽이 선택되면 나머지 학기의 동일 과목은 신청 차단.
+     예외: settings.duplicateCourseSlugs 또는 allowMultiSemesterDuplicate=true */
   function isDuplicateAcrossSemester(course) {
     if (allowMultiSemesterDuplicate) return false;
     const allowedDup = duplicateCourseSlugs.some(
       (x) => x === course.slug || x === course.subjectName || x === course.id,
     );
     if (allowedDup) return false;
+    const myName = String(course.subjectName || '').trim();
+    const myCredits = Number(course.credits) || 0;
+    if (!myName) return null;
     for (const c of courses) {
       if (c.id === course.id) continue;
       if (!selectedIds.has(c.id)) continue;
-      if (c.subjectName && c.subjectName === course.subjectName) {
+      const otherName = String(c.subjectName || '').trim();
+      const otherCredits = Number(c.credits) || 0;
+      const sameName = otherName === myName;
+      const sameCredits = otherCredits === myCredits;
+      const differentSemester = semKeyOf(c) !== semKeyOf(course);
+      if (sameName && sameCredits && differentSemester) {
         return c;
       }
     }
     return null;
   }
 
-  /* 기초교과 50% 상한 검사 (선택 후 합이 전체 이수학점 50%를 초과하면 차단) */
-  function violatesFoundationCap(course) {
-    if (!isFoundationCourse(course)) return null;
-    const newFoundation = foundationCredits + course.credits;
-    const newTotal = totalCredits + course.credits;
-    if (newTotal <= 0) return null;
-    if (newFoundation > newTotal * 0.5) {
-      return `기초교과(국·영·수·한국사1·2)는 전체 이수학점의 50%를 초과할 수 없습니다. ` +
-        `현재 기초교과 ${foundationCredits}학점 / 총 ${totalCredits}학점. ` +
-        `이 과목(${course.credits}학점)을 추가하면 ${newFoundation}/${newTotal}학점이 되어 50%를 넘습니다.`;
-    }
-    return null;
-  }
-
-  /* 비활성 사유 종합 */
+  /* 비활성 사유 종합 — 기초교과 50% 룰은 최종 제출 단계(submitIssues)에서만 검증 */
   function getDisableInfo(course) {
     if (course.required) return null;
     if (selectedIds.has(course.id)) return null;
-    const ruleMsg = violatedSelectionRule(course);
-    if (ruleMsg) return { type: 'rule', message: ruleMsg };
-    const dup = isDuplicateAcrossSemester(course);
-    if (dup) return {
-      type: 'duplicate',
-      message: `같은 과목 "${course.subjectName}"이(가) ${dup.grade}-${dup.semester}학기에 이미 신청되어 있습니다. 학기별 중복 신청은 허용되지 않습니다.`,
-    };
-    const foundationMsg = violatesFoundationCap(course);
-    if (foundationMsg) return { type: 'foundation50', message: foundationMsg };
+    /* 정규 교과에만 학기별 선택 규칙·동명 중복 적용. 공동교육과정은 추가 이수라 제외 */
+    if (!course.joint) {
+      const ruleMsg = violatedSelectionRule(course);
+      if (ruleMsg) return { type: 'rule', message: ruleMsg };
+      const dup = isDuplicateAcrossSemester(course);
+      if (dup) return {
+        type: 'duplicate',
+        message: `"${course.subjectName}"(${course.credits}학점)이 ${dup.grade}-${dup.semester}학기에 복수편제되어 이미 신청되었습니다. 같은 과목명·같은 학점이라 다른 학기에서는 추가 신청할 수 없습니다.`,
+      };
+    }
     const missing = missingPrerequisites(course);
     if (missing.length > 0) {
       const names = missing.map((p) => {
@@ -411,7 +447,23 @@ export default function CoursesPage() {
       grade: c.grade,
       semester: c.semester,
       required: c.required,
+      joint: !!c.joint,
+      host: c.host || '',
     }));
+
+    /* 관리자 미리보기 모드 — 실제 신청 이력에는 저장하지 않음 */
+    if (isAdminPreview) {
+      alert(
+        '🛠 관리자 테스트 모드\n\n검증을 통과했습니다. 실제 신청 이력에는 저장되지 않습니다.\n\n' +
+        `· 총 ${totalCredits}학점 / 목표 ${requiredTotalCredits}학점\n` +
+        `· 학생선택 ${optionalCredits}학점, 기초교과 ${foundationCredits}학점\n` +
+        (jointCredits > 0 ? `· 공동교육과정 ${jointCredits}학점\n` : '') +
+        `· 신청 ${snapshot.length}과목`
+      );
+      navigate('/admin');
+      return;
+    }
+
     sessionStorage.setItem('pendingSelectedCourses', JSON.stringify(snapshot));
 
     /* 수강신청 이력 저장 (날짜·시간대별로 누적) */
@@ -427,6 +479,8 @@ export default function CoursesPage() {
         totalCredits,
         optionalCredits,
         foundationCredits,
+        regularCredits,
+        jointCredits,
         courses: snapshot,
         submitOk: true,
       });
@@ -454,6 +508,28 @@ export default function CoursesPage() {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f7f9fb' }}>
       <Header title={schoolName} avatarLabel={avatarLabel} />
+
+      {/* ── 관리자 테스트 모드 배너 ── */}
+      {isAdminPreview && (
+        <div className="bg-amber-50 border-b border-amber-200 px-5 py-2 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-base flex-shrink-0">🛠</span>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-amber-800 leading-tight">관리자 테스트 모드</div>
+              <div className="text-[0.65rem] text-amber-700 leading-tight">실제 학생 신청 이력에는 저장되지 않습니다.</div>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              try { sessionStorage.removeItem('previewSelection'); } catch {}
+              navigate('/admin');
+            }}
+            className="flex-shrink-0 text-[0.7rem] font-semibold text-amber-800 bg-white border border-amber-300 px-2.5 py-1 rounded-lg hover:bg-amber-100"
+          >
+            관리자로 돌아가기
+          </button>
+        </div>
+      )}
 
       {/* ── Stepper ── */}
       <div className="px-5 pt-4 pb-2">
@@ -579,39 +655,22 @@ export default function CoursesPage() {
           </div>
           <p className="text-[0.65rem] text-slate-400 mt-1">
             목표 총 {requiredTotalCredits}학점 기준 기초교과 최대 {foundationCap}학점 (한국사 6학점 포함)
+            {jointCredits > 0 && ` · 공동교육과정 ${jointCredits}학점 포함`}
           </p>
         </div>
-        {/* 교과별 최소 이수학점 진행도 */}
+        {/* 교과별 최소 이수학점 — 수치 표시 */}
         {minCreditStatus.length > 0 && (
           <div className="bg-white rounded-xl px-3 py-2 border border-slate-100 shadow-sm">
-            <div className="text-xs font-semibold text-slate-700 mb-2">교과별 최소 이수학점</div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {minCreditStatus.map((s, i) => {
-                const ratio = Math.min((s.current / Math.max(s.min, 1)) * 100, 100);
-                return (
-                  <div key={i} className="text-[0.7rem]">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-slate-600 truncate">
-                        {s.type === 'category' ? '🏷' : '📂'} {s.name}
-                      </span>
-                      <span className={`font-mono ${s.ok ? 'text-emerald-600' : 'text-rose-600 font-bold'}`}>
-                        {s.current}/{s.min}
-                      </span>
-                    </div>
-                    <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${ratio}%`,
-                          background: s.ok
-                            ? 'linear-gradient(135deg, #10b981, #059669)'
-                            : 'linear-gradient(135deg, #f43f5e, #e11d48)',
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="text-xs font-semibold text-slate-700 mb-1.5">교과별 최소 이수학점</div>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[0.7rem]">
+              {minCreditStatus.map((s, i) => (
+                <span key={i} className="inline-flex items-center gap-1">
+                  <span className="text-slate-600">{s.name}</span>
+                  <span className={`font-mono ${s.ok ? 'text-emerald-600' : 'text-rose-600 font-bold'}`}>
+                    {s.current}/{s.min}
+                  </span>
+                </span>
+              ))}
             </div>
           </div>
         )}
@@ -629,29 +688,79 @@ export default function CoursesPage() {
 
       {/* ── Course list ── */}
       <div className="flex-1 overflow-y-auto px-5 pb-48" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="flex flex-col gap-2.5">
-          {filteredCourses.length === 0 ? (
-            <div className="py-16 text-center">
-              <p className="text-sm text-slate-400">이 학기에 개설된 교과가 없습니다.</p>
-            </div>
-          ) : (
-            filteredCourses.map((course) => {
-              const info = getDisableInfo(course);
-              return (
-                <CourseCard
-                  key={course.id}
-                  course={course}
-                  selected={selectedIds.has(course.id)}
-                  recommended={course.recommended}
-                  required={course.required}
-                  disabled={course.required || !!info}
-                  hint={info?.message}
-                  onToggle={() => toggleCourse(course.id)}
-                />
-              );
-            })
-          )}
-        </div>
+        {filteredCourses.length === 0 ? (
+          <div className="py-16 text-center">
+            <p className="text-sm text-slate-400">이 학기에 개설된 교과가 없습니다.</p>
+          </div>
+        ) : (
+          (() => {
+            const regularList = filteredCourses.filter((c) => !c.joint);
+            const jointList = filteredCourses.filter((c) => c.joint);
+            return (
+              <>
+                {/* 정규 교과 */}
+                {regularList.length > 0 && (
+                  <>
+                    <div className="text-[0.7rem] font-bold text-slate-500 uppercase tracking-wider mb-1.5 mt-1">
+                      정규 교과 ({regularList.length})
+                    </div>
+                    <div className="flex flex-col gap-2.5 mb-4">
+                      {regularList.map((course) => {
+                        const info = getDisableInfo(course);
+                        return (
+                          <CourseCard
+                            key={course.id}
+                            course={course}
+                            selected={selectedIds.has(course.id)}
+                            recommended={course.recommended}
+                            required={course.required}
+                            disabled={course.required || !!info}
+                            hint={info?.message}
+                            onToggle={() => toggleCourse(course.id)}
+                          />
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* 공동교육과정 */}
+                {jointList.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 mb-1.5 mt-2">
+                      <span className="text-[0.7rem] font-bold text-violet-700 uppercase tracking-wider">
+                        공동교육과정 (추가 이수)
+                      </span>
+                      <span className="text-[0.6rem] font-medium text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded-full">
+                        {jointList.length}과목 · 졸업 학점 위에 추가됨
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                      {jointList.map((course) => {
+                        const info = getDisableInfo(course);
+                        return (
+                          <CourseCard
+                            key={course.id}
+                            course={course}
+                            selected={selectedIds.has(course.id)}
+                            recommended={course.recommended}
+                            required={false}
+                            disabled={!!info}
+                            hint={info?.message}
+                            joint
+                            host={course.host}
+                            schedule={course.schedule}
+                            onToggle={() => toggleCourse(course.id)}
+                          />
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()
+        )}
       </div>
 
       {/* ── Bottom sheet: 신청 과목 미리보기 (드래그 / 토글) ── */}
@@ -662,6 +771,8 @@ export default function CoursesPage() {
         totalCredits={totalCredits}
         optionalCredits={optionalCredits}
         foundationCredits={foundationCredits}
+        regularCredits={regularCredits}
+        jointCredits={jointCredits}
         progress={progress}
         selectedCourses={selectedCourses}
         onUnselect={(id) => toggleCourse(id)}
@@ -687,7 +798,9 @@ export default function CoursesPage() {
                   선택: {selectedIds.size}과목 / 총 {totalCredits}학점
                 </span>
                 <span className="text-[0.65rem] text-slate-400">
-                  학생선택 {optionalCredits}학점 · {progress}% 달성
+                  학생선택 {optionalCredits}학점
+                  {jointCredits > 0 && ` · 공동교육 ${jointCredits}학점`}
+                  {' · '}{progress}% 달성
                 </span>
               </div>
             </div>
@@ -713,7 +826,7 @@ export default function CoursesPage() {
 }
 
 /* ─── Bottom sheet component ─── */
-function BottomSheet({ open, onClose, selectedCount, totalCredits, optionalCredits, foundationCredits, progress, selectedCourses, onUnselect, onNext, submitIssues, canSubmit }) {
+function BottomSheet({ open, onClose, selectedCount, totalCredits, optionalCredits, foundationCredits, regularCredits, jointCredits, progress, selectedCourses, onUnselect, onNext, submitIssues, canSubmit }) {
   const grouped = useMemo(() => {
     const map = {};
     selectedCourses.forEach((c) => {
@@ -779,6 +892,11 @@ function BottomSheet({ open, onClose, selectedCount, totalCredits, optionalCredi
             <div className="text-[0.7rem] text-slate-400">
               학생선택 {optionalCredits}학점 · {progress}% 달성
             </div>
+            {jointCredits > 0 && (
+              <div className="text-[0.7rem] mt-0.5 text-violet-600">
+                정규 {regularCredits}학점 + 공동교육과정 {jointCredits}학점
+              </div>
+            )}
             <div className={`text-[0.7rem] mt-0.5 ${
               foundationCredits > totalCredits * 0.5 && totalCredits > 0
                 ? 'text-rose-600 font-semibold'
@@ -812,11 +930,16 @@ function BottomSheet({ open, onClose, selectedCount, totalCredits, optionalCredi
                   {g.items.map((c) => (
                     <div
                       key={c.id}
-                      className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2"
+                      className={`flex items-center justify-between rounded-xl px-3 py-2 ${
+                        c.joint ? 'bg-violet-50' : 'bg-slate-50'
+                      }`}
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {c.required && (
                           <span className="px-1.5 py-0.5 rounded text-[0.6rem] font-bold bg-red-100 text-red-700 flex-shrink-0">필수</span>
+                        )}
+                        {c.joint && (
+                          <span className="px-1.5 py-0.5 rounded text-[0.6rem] font-bold bg-violet-200 text-violet-800 flex-shrink-0">공동</span>
                         )}
                         <span className="text-sm text-slate-700 truncate">{c.subjectName}</span>
                       </div>

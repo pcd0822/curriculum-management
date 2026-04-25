@@ -1,352 +1,448 @@
-import { useState, useEffect } from 'react';
-import Sidebar from '../components/Sidebar';
-import StatCard from '../components/StatCard';
-import GaugeChart from '../components/GaugeChart';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Header from '../components/Header';
 import MobileNav from '../components/MobileNav';
+import GaugeChart from '../components/GaugeChart';
 import {
   isConfigured,
-  fetchResponses,
   fetchConfig,
   fetchSettings,
+  fetchJointCurriculum,
 } from '../api/db';
+import { getVerifiedStudent, getStudentAvatarLabel } from '../api/student';
 
-const ITEMS_PER_PAGE = 8;
-
-const semesterData = [
-  { label: '1-1', value: 72 },
-  { label: '1-2', value: 58 },
-  { label: '2-1', value: 85 },
-  { label: '2-2', value: 64 },
-  { label: '3-1', value: 90 },
-  { label: '3-2', value: 46 },
-];
-
-const typeBadgeColor = {
-  필수: 'bg-indigo-100 text-indigo-700',
-  선택: 'bg-violet-100 text-violet-700',
-  교양: 'bg-emerald-100 text-emerald-700',
-  예술: 'bg-amber-100 text-amber-700',
+/* ─── Field mapping (CoursesPage 와 동일 규칙) ─── */
+const FIELD_MAP = {
+  '과목명': 'subjectName',
+  '학점': 'credits',
+  '교과군': 'category',
+  '교과영역': 'category',
+  '교과(군)': 'subCategory',
+  '세부교과': 'subCategory',
+  '학년': 'grade',
+  '학기': 'semester',
+  '필수여부': 'required',
+  '영문ID': 'slug',
+  '과목코드': 'code',
+  '추천': 'recommended',
+  '선이수과목': 'prerequisites',
+  '선수과목': 'prerequisites',
 };
+function normaliseCourse(raw) {
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) out[FIELD_MAP[k] || k] = v;
+  out.credits = Number(out.credits) || 0;
+  out.grade = Number(out.grade) || 0;
+  out.semester = Number(out.semester) || 0;
+  const req = String(out.required || '').toUpperCase().trim();
+  out.required = req === 'TRUE' || req === 'Y' || req === '1' || req === '필수' || out.required === true;
+  return out;
+}
+
+/* ─── 기초교과 정의 (CoursesPage 와 동일) ─── */
+const FOUNDATION_SUBCATS = ['국어', '영어', '수학'];
+const FOUNDATION_NAMES = ['한국사1', '한국사2'];
+function isFoundationCourse(c) {
+  const sub = String(c.subCategory || '').trim();
+  if (FOUNDATION_SUBCATS.includes(sub)) return true;
+  const name = String(c.subjectName || '').trim();
+  return FOUNDATION_NAMES.includes(name);
+}
+
+const CATEGORY_COLORS = {
+  '기초교과': '#4f46e5',
+  '탐구교과': '#10b981',
+  '예술교과': '#ec4899',
+  '체육교과': '#f43f5e',
+  '교양교과': '#f59e0b',
+  '공동교육과정': '#7c3aed',
+};
+function pickColor(name, idx = 0) {
+  return CATEGORY_COLORS[name] || ['#4f46e5', '#10b981', '#ec4899', '#f43f5e', '#f59e0b', '#7c3aed', '#06b6d4'][idx % 7];
+}
 
 export default function CreditsPage() {
-  const [responses, setResponses] = useState([]);
+  const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => {
-    loadData();
+  const student = useMemo(() => getVerifiedStudent(), []);
+  const avatarLabel = getStudentAvatarLabel();
+  const schoolName = settings?.schoolName || localStorage.getItem('school_name') || '이수현황';
+  const studentName = student.name || student.이름 || '';
+  const studentId = student.studentId || student.학번 || '';
+
+  /* 학생이 현재 선택한 과목 ID 목록 (sessionStorage) */
+  const selectedIdSet = useMemo(() => {
+    try {
+      const cur = JSON.parse(sessionStorage.getItem('currentSelection') || '[]');
+      if (Array.isArray(cur) && cur.length > 0) return new Set(cur);
+    } catch {}
+    try {
+      const pending = JSON.parse(sessionStorage.getItem('pendingSelectedCourses') || '[]');
+      if (Array.isArray(pending)) return new Set(pending.map((p) => p.id));
+    } catch {}
+    return new Set();
   }, []);
 
-  async function loadData() {
-    if (!isConfigured()) {
-      setLoading(false);
-      return;
-    }
+  /* 신청 이력 (localStorage) */
+  const submissionHistory = useMemo(() => {
     try {
-      setLoading(true);
-      const [resData, cfgData, setData] = await Promise.all([
-        fetchResponses(),
-        fetchConfig(),
-        fetchSettings(),
-      ]);
-      setResponses(Array.isArray(resData) ? resData : resData?.data || []);
-      setCourses(Array.isArray(cfgData) ? cfgData : cfgData?.data || []);
-    } catch (err) {
-      console.error('CreditsPage loadData error:', err);
-    } finally {
-      setLoading(false);
-    }
+      const arr = JSON.parse(localStorage.getItem('submissionHistory') || '[]');
+      return Array.isArray(arr) ? arr.slice().reverse() : [];
+    } catch { return []; }
+  }, []);
+
+  useEffect(() => {
+    if (!isConfigured()) { setLoading(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [cfg, stg, jc] = await Promise.all([
+          fetchConfig().catch(() => []),
+          fetchSettings().catch(() => null),
+          fetchJointCurriculum().catch(() => []),
+        ]);
+        if (cancelled) return;
+
+        const rawCourses = Array.isArray(cfg) ? cfg : cfg?.data || [];
+        const proc = rawCourses.map((c, i) => ({
+          id: c.id ?? c.code ?? `course-${i}`,
+          joint: false,
+          ...normaliseCourse(c),
+        }));
+        const rawJoint = Array.isArray(jc) ? jc : jc?.data || [];
+        const procJoint = rawJoint.map((c, i) => {
+          const norm = normaliseCourse(c);
+          return {
+            id: `joint-${c.slug || norm.slug || i}-${i}`,
+            joint: true,
+            host: c.거점학교 || c.host || '',
+            ...norm,
+            required: false,
+          };
+        });
+        setCourses([...proc, ...procJoint]);
+        setSettings(stg);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  /* 선택된 과목 모음 (필수 자동 포함) */
+  const selectedCourses = useMemo(() => {
+    if (courses.length === 0) return [];
+    return courses.filter((c) => c.required || selectedIdSet.has(c.id));
+  }, [courses, selectedIdSet]);
+
+  /* 학점 합계 */
+  const totalCredits = selectedCourses.reduce((s, c) => s + c.credits, 0);
+  const requiredCredits = selectedCourses.filter((c) => c.required).reduce((s, c) => s + c.credits, 0);
+  const optionalCredits = selectedCourses.filter((c) => !c.required && !c.joint).reduce((s, c) => s + c.credits, 0);
+  const jointCredits = selectedCourses.filter((c) => c.joint).reduce((s, c) => s + c.credits, 0);
+  const foundationCredits = selectedCourses.filter(isFoundationCourse).reduce((s, c) => s + c.credits, 0);
+  const requiredTotalCredits = Number(settings?.requiredTotalCredits) || 180;
+  const totalProgress = Math.min(Math.round((totalCredits / requiredTotalCredits) * 100), 100);
+
+  /* 교과군별 학점 분포 */
+  const categoryBreakdown = useMemo(() => {
+    const map = {};
+    selectedCourses.forEach((c) => {
+      const key = c.joint ? '공동교육과정' : (c.category || '기타');
+      map[key] = (map[key] || 0) + c.credits;
+    });
+    const sum = Object.values(map).reduce((a, b) => a + b, 0) || 1;
+    return Object.entries(map)
+      .map(([name, credits], i) => ({ name, credits, ratio: Math.round((credits / sum) * 100), color: pickColor(name, i) }))
+      .sort((a, b) => b.credits - a.credits);
+  }, [selectedCourses]);
+
+  /* 학기별 학점 */
+  const semesterBreakdown = useMemo(() => {
+    const map = {};
+    selectedCourses.forEach((c) => {
+      if (!c.grade || !c.semester) return;
+      const k = `${c.grade}-${c.semester}`;
+      if (!map[k]) map[k] = { key: k, label: `${c.grade}-${c.semester}학기`, credits: 0, count: 0, jointCount: 0 };
+      map[k].credits += c.credits;
+      map[k].count += 1;
+      if (c.joint) map[k].jointCount += 1;
+    });
+    return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
+  }, [selectedCourses]);
+
+  /* 교과별 최소 이수학점 (관리자 설정) */
+  const minCreditRules = Array.isArray(settings?.minCreditRules) ? settings.minCreditRules : [];
+  const minCreditStatus = useMemo(() => minCreditRules.map((rule) => {
+    const sum = selectedCourses.reduce((acc, c) => {
+      if (rule.type === 'category' && String(c.category || '').trim() === rule.name) return acc + c.credits;
+      if (rule.type === 'subCategory' && String(c.subCategory || '').trim() === rule.name) return acc + c.credits;
+      return acc;
+    }, 0);
+    return { ...rule, current: sum, ok: sum >= Number(rule.min || 0) };
+  }), [minCreditRules, selectedCourses]);
+
+  /* 검증 결과 요약 */
+  const issues = [];
+  if (totalCredits < requiredTotalCredits) issues.push(`총 이수학점 부족 (${totalCredits}/${requiredTotalCredits})`);
+  if (totalCredits > 0 && foundationCredits > totalCredits * 0.5) {
+    issues.push(`기초교과 50% 초과 (${foundationCredits}/${totalCredits})`);
   }
+  minCreditStatus.forEach((s) => {
+    if (!s.ok) issues.push(`${s.name} ${s.current}/${s.min}학점`);
+  });
+  const allOk = issues.length === 0 && selectedCourses.length > 0;
 
-  /* ── Computed stats ── */
-  const totalStudents = responses.length || 1248;
-  const completedCount = responses.filter((r) => r.status === '이수').length || 1102;
-  const avgCredits =
-    responses.length > 0
-      ? (
-          responses.reduce((sum, r) => sum + (Number(r.credits) || 0), 0) /
-          responses.length
-        ).toFixed(1)
-      : '168.4';
-  const passRate =
-    responses.length > 0
-      ? (
-          (responses.filter((r) => r.status === '통과' || r.status === '이수').length /
-            responses.length) *
-          100
-        ).toFixed(1)
-      : '84.2';
-
-  /* ── Pagination ── */
-  const tableData = responses.length > 0 ? responses : placeholderRows();
-  const totalPages = Math.max(1, Math.ceil(tableData.length / ITEMS_PER_PAGE));
-  const paged = tableData.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
-  );
-
-  if (!isConfigured() && !loading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="bg-white rounded-2xl shadow p-10 text-center max-w-md">
-          <p className="text-2xl font-bold text-slate-700 mb-2">API 연결 필요</p>
-          <p className="text-slate-500 text-sm">
-            학점 이수 현황 데이터를 불러오려면 먼저 API URL을 설정해주세요.
-          </p>
+      <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f7f9fb' }}>
+        <Header title={schoolName} avatarLabel={avatarLabel} />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
         </div>
+        <MobileNav />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      {/* Sidebar – desktop only */}
-      <div className="hidden lg:block">
-        <Sidebar activePath="/credits" />
-      </div>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f7f9fb' }}>
+      <Header title={schoolName} avatarLabel={avatarLabel} />
 
-      {/* Main content */}
-      <main className="flex-1 lg:ml-[240px] pb-20 lg:pb-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* ── Top Bar ── */}
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-6">
-            <div>
-              <h1
-                className="text-2xl font-bold text-slate-900"
-                style={{ fontFamily: "'Manrope', sans-serif" }}
-              >
-                {localStorage.getItem('school_name') || 'OO고등학교'} 학점 이수 현황
-              </h1>
-              <p className="text-sm text-slate-500 mt-0.5">
-                실시간 학점 상태 및 졸업 요건 진단 시스템
-              </p>
+      <div className="flex-1 overflow-y-auto px-5 pt-4 pb-24 max-w-2xl mx-auto w-full">
+
+        {/* 학생 헤더 */}
+        <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm flex items-center gap-3">
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
+          >
+            {avatarLabel}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold text-slate-800" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              {studentName || '학생'} <span className="text-xs text-slate-400 font-normal">{studentId}</span>
             </div>
-            <button className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors self-start sm:self-auto">
-              분석리포트생성
-            </button>
+            <div className="text-xs text-slate-500">나의 수강신청 현황 · {selectedCourses.length}과목 선택</div>
           </div>
+        </div>
 
-          {/* ── Stat Cards ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard icon="👥" label="전체 학생 수" value={totalStudents.toLocaleString()} unit="명" color="#4f46e5" />
-            <StatCard icon="📋" label="이수 현황 건" value={completedCount.toLocaleString()} unit="건" color="#7c3aed" />
-            <StatCard icon="📊" label="평균 이수 학점" value={avgCredits} unit="pt" color="#059669" />
-            <StatCard icon="✅" label="검증 통과율" value={passRate} unit="%" color="#d97706" />
+        {/* 메인 게이지 */}
+        <div className="bg-white rounded-2xl p-5 mb-3 shadow-sm">
+          <div className="flex items-center gap-5">
+            <GaugeChart
+              value={totalProgress}
+              size={110}
+              color={totalCredits >= requiredTotalCredits ? '#10b981' : '#4f46e5'}
+              label=""
+            />
+            <div className="flex-1 min-w-0">
+              <div className="text-3xl font-extrabold text-slate-800" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                {totalCredits}
+                <span className="text-sm text-slate-400 font-medium ml-1">/ {requiredTotalCredits}학점</span>
+              </div>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className={`inline-block w-2 h-2 rounded-full ${totalCredits >= requiredTotalCredits ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                <span className={`text-xs font-semibold ${totalCredits >= requiredTotalCredits ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {totalCredits >= requiredTotalCredits ? '졸업 학점 충족' : `${requiredTotalCredits - totalCredits}학점 더 필요`}
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1.5 leading-snug">
+                필수 {requiredCredits} · 학생선택 {optionalCredits}
+                {jointCredits > 0 && <span className="text-violet-600"> · 공동 {jointCredits}</span>}
+              </div>
+            </div>
           </div>
+        </div>
 
-          {/* ── Bar Chart ── */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
-            <h2
-              className="text-base font-bold text-slate-800 mb-5"
-              style={{ fontFamily: "'Manrope', sans-serif" }}
+        {/* 검증 상태 */}
+        <div className={`rounded-2xl p-4 mb-3 shadow-sm border ${
+          allOk ? 'bg-emerald-50 border-emerald-200' : issues.length > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'
+        }`}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-base">{allOk ? '✅' : issues.length > 0 ? '⚠️' : 'ℹ️'}</span>
+            <span className={`text-sm font-bold ${allOk ? 'text-emerald-700' : issues.length > 0 ? 'text-rose-700' : 'text-slate-700'}`}>
+              {allOk
+                ? '모든 학점 이수 규칙을 충족했습니다'
+                : selectedCourses.length === 0
+                  ? '아직 과목을 선택하지 않았습니다'
+                  : `검증 실패 ${issues.length}건`}
+            </span>
+          </div>
+          {selectedCourses.length === 0 ? (
+            <button
+              onClick={() => navigate('/courses')}
+              className="mt-2 w-full py-2 rounded-xl text-white text-xs font-bold"
+              style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
             >
-              학년·학기별 개설과목 수
-            </h2>
-            <div className="flex items-end gap-4 h-48">
-              {semesterData.map((s) => (
-                <div key={s.label} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs font-semibold text-slate-600">{s.value}</span>
-                  <div
-                    className="w-full rounded-t-lg"
-                    style={{
-                      height: `${(s.value / 100) * 160}px`,
-                      background: 'linear-gradient(180deg, #4f46e5 0%, #3525cd 100%)',
-                    }}
-                  />
-                  <span className="text-[0.65rem] text-slate-500 font-medium mt-1">
-                    {s.label}
+              수강신청 하러 가기 →
+            </button>
+          ) : issues.length > 0 ? (
+            <ul className="text-[0.72rem] text-rose-700 leading-snug list-disc list-inside space-y-0.5 mt-1">
+              {issues.map((s, i) => <li key={i}>{s}</li>)}
+            </ul>
+          ) : null}
+        </div>
+
+        {/* 기초교과 50% */}
+        <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-bold text-slate-700">기초교과 한도 (50%)</span>
+            <span className={`text-xs font-mono ${
+              foundationCredits > totalCredits * 0.5 && totalCredits > 0 ? 'text-rose-600 font-bold' : 'text-slate-500'
+            }`}>
+              {foundationCredits} / {totalCredits > 0 ? Math.floor(totalCredits * 0.5) : 0}학점
+              {totalCredits > 0 && (
+                <span className="text-slate-400"> · {Math.round((foundationCredits / totalCredits) * 100)}%</span>
+              )}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${totalCredits > 0 ? Math.min((foundationCredits / (totalCredits * 0.5)) * 100, 100) : 0}%`,
+                background: foundationCredits > totalCredits * 0.5 && totalCredits > 0
+                  ? 'linear-gradient(135deg, #f43f5e, #e11d48)'
+                  : 'linear-gradient(135deg, #3525cd, #4f46e5)',
+              }}
+            />
+          </div>
+          <p className="text-[0.65rem] text-slate-400 mt-1">국·영·수 + 한국사1·2 합계</p>
+        </div>
+
+        {/* 교과별 최소 이수학점 — 수치 */}
+        {minCreditStatus.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
+            <div className="text-xs font-bold text-slate-700 mb-2">교과별 최소 이수학점</div>
+            <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[0.72rem]">
+              {minCreditStatus.map((s, i) => (
+                <span key={i} className="inline-flex items-center gap-1">
+                  <span className="text-slate-600">{s.name}</span>
+                  <span className={`font-mono ${s.ok ? 'text-emerald-600' : 'text-rose-600 font-bold'}`}>
+                    {s.current}/{s.min}
                   </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 교과군별 분포 */}
+        {categoryBreakdown.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
+            <div className="text-sm font-bold text-slate-800 mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              교과군별 학점 분포
+            </div>
+            <div className="space-y-2">
+              {categoryBreakdown.map((cat) => (
+                <div key={cat.name}>
+                  <div className="flex items-center justify-between mb-1 text-xs">
+                    <span className="text-slate-700 font-medium">{cat.name}</span>
+                    <span className="text-slate-500 font-mono">
+                      {cat.credits}학점 <span className="text-slate-400">({cat.ratio}%)</span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${cat.ratio}%`, backgroundColor: cat.color }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
           </div>
+        )}
 
-          {/* ── Path to Graduation ── */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
-            <h2
-              className="text-base font-bold text-slate-800 mb-5"
-              style={{ fontFamily: "'Manrope', sans-serif" }}
-            >
-              Path to Graduation
-            </h2>
-            <div className="flex items-center gap-0">
-              {/* Step 1 */}
-              <div className="flex-1 flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-bold mb-2">
-                  ✓
+        {/* 학기별 학점 */}
+        {semesterBreakdown.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
+            <div className="text-sm font-bold text-slate-800 mb-3" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              학기별 신청 현황
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {semesterBreakdown.map((s) => (
+                <div key={s.key} className="bg-slate-50 rounded-xl p-3">
+                  <div className="text-xs text-slate-500 font-semibold">{s.label}</div>
+                  <div className="text-lg font-extrabold text-indigo-600 mt-0.5" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                    {s.credits}<span className="text-xs text-slate-400 font-normal ml-1">학점</span>
+                  </div>
+                  <div className="text-[0.65rem] text-slate-500">
+                    {s.count}과목
+                    {s.jointCount > 0 && <span className="text-violet-600"> · 공동 {s.jointCount}</span>}
+                  </div>
                 </div>
-                <p className="text-sm font-semibold text-slate-800">1학년</p>
-                <p className="text-xs text-emerald-600 font-medium">수료 완료</p>
-              </div>
-              <div className="h-0.5 flex-1 bg-emerald-400 -mt-6" />
-              {/* Step 2 */}
-              <div className="flex-1 flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center text-sm font-bold mb-2 ring-4 ring-indigo-100">
-                  2
-                </div>
-                <p className="text-sm font-semibold text-slate-800">2학년</p>
-                <p className="text-xs text-indigo-600 font-medium">지금 검증 중</p>
-              </div>
-              <div className="h-0.5 flex-1 bg-slate-200 -mt-6" />
-              {/* Step 3 */}
-              <div className="flex-1 flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center text-sm font-bold mb-2">
-                  3
-                </div>
-                <p className="text-sm font-semibold text-slate-400">3학년</p>
-                <p className="text-xs text-slate-400 font-medium">남은 과정 도래</p>
-              </div>
+              ))}
             </div>
           </div>
+        )}
 
-          {/* ── Gauge Charts ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* Donut – 교과군별 학점분포 */}
-            <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center">
-              <h2
-                className="text-base font-bold text-slate-800 mb-4 self-start"
-                style={{ fontFamily: "'Manrope', sans-serif" }}
-              >
-                교과군별 학점분포
-              </h2>
-              <GaugeChart value={100} label="전체 이수" size={160} color="#4f46e5" />
+        {/* 선택 과목 목록 */}
+        {selectedCourses.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
+            <div className="text-sm font-bold text-slate-800 mb-2.5" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              내 선택 과목 ({selectedCourses.length})
             </div>
-
-            {/* 졸업 요건 이수 현황 */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-              <h2
-                className="text-base font-bold text-slate-800 mb-4"
-                style={{ fontFamily: "'Manrope', sans-serif" }}
-              >
-                졸업 요건 이수 현황
-              </h2>
-              <div className="flex items-center justify-around mt-4">
-                <GaugeChart value={56} label="필수교과" size={100} color="#4f46e5" />
-                <GaugeChart value={65} label="예술교과" size={100} color="#d97706" />
-                <GaugeChart value={45} label="교양교과" size={100} color="#059669" />
-              </div>
+            <div className="flex flex-wrap gap-1.5">
+              {selectedCourses.map((c) => (
+                <span
+                  key={c.id}
+                  className={`text-[0.7rem] font-medium px-2 py-1 rounded-full ${
+                    c.joint
+                      ? 'bg-violet-50 text-violet-700'
+                      : c.required
+                        ? 'bg-red-50 text-red-600'
+                        : 'bg-indigo-50 text-indigo-700'
+                  }`}
+                  title={`${c.grade}-${c.semester}학기 · ${c.credits}학점`}
+                >
+                  {c.joint ? '🏫 ' : ''}{c.subjectName}
+                  <span className="ml-1 text-slate-400">{c.credits}</span>
+                </span>
+              ))}
             </div>
           </div>
+        )}
 
-          {/* ── Student Table ── */}
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h2
-              className="text-base font-bold text-slate-800 mb-4"
-              style={{ fontFamily: "'Manrope', sans-serif" }}
-            >
-              학생별 이수 현황
-            </h2>
-
-            {loading ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-              </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-100">
-                        <th className="text-left py-3 px-3 text-slate-500 font-medium text-xs">날짜</th>
-                        <th className="text-left py-3 px-3 text-slate-500 font-medium text-xs">이름</th>
-                        <th className="text-left py-3 px-3 text-slate-500 font-medium text-xs">과목/교과</th>
-                        <th className="text-left py-3 px-3 text-slate-500 font-medium text-xs">유형</th>
-                        <th className="text-right py-3 px-3 text-slate-500 font-medium text-xs">학점</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paged.map((row, idx) => (
-                        <tr
-                          key={idx}
-                          className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors"
-                        >
-                          <td className="py-3 px-3 text-slate-600">{row.date || '-'}</td>
-                          <td className="py-3 px-3 font-medium text-slate-800">{row.name || '-'}</td>
-                          <td className="py-3 px-3 text-slate-600">{row.course || row.subject || '-'}</td>
-                          <td className="py-3 px-3">
-                            <span
-                              className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                typeBadgeColor[row.type] || 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {row.type || '일반'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-right font-semibold text-slate-800">
-                            {row.credits ?? '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+        {/* 신청 이력 */}
+        {submissionHistory.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
+            <div className="text-sm font-bold text-slate-800 mb-2.5" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              최근 신청 이력
+            </div>
+            <div className="space-y-2">
+              {submissionHistory.slice(0, 5).map((h, i) => (
+                <div key={i} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs text-slate-700 font-medium truncate">{h.dateLabel}</div>
+                    <div className="text-[0.65rem] text-slate-400">
+                      {h.totalCredits}학점 · {(h.courses || []).length}과목
+                      {(h.jointCredits ?? 0) > 0 && <span className="text-violet-600"> · 공동 {h.jointCredits}</span>}
+                    </div>
+                  </div>
+                  <span className="text-[0.65rem] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                    저장됨
+                  </span>
                 </div>
-
-                {/* Pagination */}
-                <div className="flex items-center justify-center gap-2 mt-5">
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 disabled:opacity-40"
-                  >
-                    이전
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter(
-                      (p) =>
-                        p === 1 ||
-                        p === totalPages ||
-                        Math.abs(p - currentPage) <= 1,
-                    )
-                    .map((p, i, arr) => (
-                      <span key={p} className="flex items-center gap-2">
-                        {i > 0 && arr[i - 1] !== p - 1 && (
-                          <span className="text-slate-300">...</span>
-                        )}
-                        <button
-                          onClick={() => setCurrentPage(p)}
-                          className={`w-8 h-8 rounded-lg text-sm font-medium ${
-                            p === currentPage
-                              ? 'bg-indigo-600 text-white'
-                              : 'text-slate-600 hover:bg-slate-100'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      </span>
-                    ))}
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 disabled:opacity-40"
-                  >
-                    다음
-                  </button>
-                </div>
-              </>
+              ))}
+            </div>
+            {submissionHistory.length > 5 && (
+              <button
+                onClick={() => navigate('/profile')}
+                className="mt-2 text-xs text-indigo-600 hover:underline"
+              >
+                전체 이력 보기 →
+              </button>
             )}
           </div>
-        </div>
-      </main>
-
-      {/* Mobile Nav – mobile only */}
-      <div className="lg:hidden">
-        <MobileNav />
+        )}
       </div>
+
+      <MobileNav />
     </div>
   );
-}
-
-/* Placeholder rows when no API data */
-function placeholderRows() {
-  return [
-    { date: '2026-03-15', name: '김민수', course: '국어', type: '필수', credits: 3 },
-    { date: '2026-03-15', name: '이서연', course: '수학 I', type: '필수', credits: 3 },
-    { date: '2026-03-14', name: '박지훈', course: '영어회화', type: '선택', credits: 2 },
-    { date: '2026-03-14', name: '최유진', course: '미술', type: '예술', credits: 2 },
-    { date: '2026-03-13', name: '정해린', course: '윤리와사상', type: '교양', credits: 2 },
-    { date: '2026-03-13', name: '한도윤', course: '물리학 I', type: '선택', credits: 3 },
-    { date: '2026-03-12', name: '오수빈', course: '한국사', type: '필수', credits: 3 },
-    { date: '2026-03-12', name: '윤재원', course: '음악', type: '예술', credits: 2 },
-  ];
 }

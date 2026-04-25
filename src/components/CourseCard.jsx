@@ -13,6 +13,9 @@ export default function CourseCard({
   required = false,
   disabled = false,
   hint = '',
+  joint = false,
+  host = '',
+  schedule = '',
   onToggle,
 }) {
   const { subjectName, credits, category, subCategory, prerequisites } = course;
@@ -88,6 +91,19 @@ export default function CourseCard({
               필수
             </span>
           )}
+          {joint && (
+            <span
+              className="inline-block px-1.5 py-0.5 rounded text-white font-semibold"
+              style={{
+                fontSize: '0.6rem',
+                backgroundColor: '#7c3aed',
+                fontFamily: "'Inter', sans-serif",
+                lineHeight: 1.2,
+              }}
+            >
+              공동교육
+            </span>
+          )}
         </div>
 
         {/* Name + credits */}
@@ -105,6 +121,13 @@ export default function CourseCard({
             </span>
           )}
         </p>
+        {joint && (host || schedule) && (
+          <p className="text-[0.65rem] text-violet-600 mt-0.5">
+            {host && <>🏫 {host}</>}
+            {host && schedule && <span className="mx-1 text-slate-300">·</span>}
+            {schedule && <>🕒 {schedule}</>}
+          </p>
+        )}
         {disabled && hint && !required && (
           <p className="text-[0.65rem] text-rose-500 mt-1 leading-tight line-clamp-2">{hint}</p>
         )}
