@@ -95,7 +95,14 @@ export default function ProfilePage() {
         </h3>
         {submissionHistory.length > 0 ? (
           <div className="space-y-2 mb-4">
-            {submissionHistory.map((h, i) => (
+            {submissionHistory.map((h, i) => {
+              const cs = h.courses || [];
+              const sumIf = (pred) => cs.filter(pred).reduce((s, c) => s + (Number(c.credits) || 0), 0);
+              const totalC = h.totalCredits || sumIf(() => true);
+              const reqC = (typeof h.requiredCredits === 'number' && h.requiredCredits > 0) ? h.requiredCredits : sumIf((c) => c.required);
+              const optC = (typeof h.optionalCredits === 'number' && h.optionalCredits > 0) ? h.optionalCredits : sumIf((c) => !c.required && !c.joint);
+              const jointC = (typeof h.jointCredits === 'number' && h.jointCredits > 0) ? h.jointCredits : sumIf((c) => c.joint);
+              return (
               <Card key={i} className="!p-4 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition" >
                 <div onClick={() => setOpenDetailIdx(i)}>
                   <div className="flex items-center justify-between mb-2">
@@ -108,15 +115,15 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
-                        {h.totalCredits || 0}학점
+                        {totalC}학점
                       </span>
                       <span className="text-slate-300 text-base">›</span>
                     </div>
                   </div>
                   <div className="text-[0.7rem] text-slate-500 mb-1.5">
-                    학교지정 {h.requiredCredits ?? '-'}학점 · 학생선택 {h.optionalCredits ?? '-'}학점 · 기초교과 {h.foundationCredits ?? '-'}학점
-                    {(h.jointCredits ?? 0) > 0 && (
-                      <span className="text-violet-600 font-semibold"> · 공동 {h.jointCredits}학점</span>
+                    학교지정 {reqC}학점 · 학생선택 {optC}학점{(h.foundationCredits ?? null) !== null ? ` · 기초교과 ${h.foundationCredits}학점` : ''}
+                    {jointC > 0 && (
+                      <span className="text-violet-600 font-semibold"> · 공동 {jointC}학점</span>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1">
@@ -142,7 +149,8 @@ export default function ProfilePage() {
                   <p className="mt-2 text-[0.65rem] text-indigo-500">탭하여 학년·학기별 상세 보기</p>
                 </div>
               </Card>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <Card className="mb-4 text-center">
@@ -220,10 +228,25 @@ export default function ProfilePage() {
   );
 }
 
-/* ─── 신청 이력 상세 모달: 학년·학기 단위 그룹 + 학교지정/학생선택/공동교육과정 표시 ─── */
+/* ─── 신청 이력 상세 모달 (콤팩트): 학년·학기 그룹 + 1-line 행 ─── */
 function SubmissionDetailModal({ submission, onClose }) {
+  const courses = submission.courses || [];
+
+  /* 합계 — 저장된 값이 없으면 courses에서 즉석 계산 (학교지정 학점 포함) */
+  const sumCredits = (predicate) =>
+    courses.filter(predicate).reduce((s, c) => s + (Number(c.credits) || 0), 0);
+  const totalCredits = (typeof submission.totalCredits === 'number' && submission.totalCredits > 0)
+    ? submission.totalCredits : sumCredits(() => true);
+  const requiredCredits = (typeof submission.requiredCredits === 'number' && submission.requiredCredits > 0)
+    ? submission.requiredCredits : sumCredits((c) => c.required);
+  const optionalCredits = (typeof submission.optionalCredits === 'number' && submission.optionalCredits > 0)
+    ? submission.optionalCredits : sumCredits((c) => !c.required && !c.joint);
+  const jointCredits = (typeof submission.jointCredits === 'number' && submission.jointCredits > 0)
+    ? submission.jointCredits : sumCredits((c) => c.joint);
+
+  /* 학년·학기 그룹 */
   const grouped = {};
-  (submission.courses || []).forEach((c) => {
+  courses.forEach((c) => {
     const g = c.grade || 0;
     const s = c.semester || 0;
     const key = g && s ? `${g}-${s}` : '미지정';
@@ -231,14 +254,6 @@ function SubmissionDetailModal({ submission, onClose }) {
     grouped[key].push(c);
   });
   const sortedKeys = Object.keys(grouped).sort();
-
-  function semSummary(items) {
-    const total = items.reduce((sum, c) => sum + (Number(c.credits) || 0), 0);
-    const reqCount = items.filter((c) => c.required).length;
-    const optCount = items.filter((c) => !c.required && !c.joint).length;
-    const jointCount = items.filter((c) => c.joint).length;
-    return { total, reqCount, optCount, jointCount };
-  }
 
   return (
     <div
@@ -250,98 +265,85 @@ function SubmissionDetailModal({ submission, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle */}
-        <div className="pt-3 pb-2 flex items-center justify-center">
-          <div className="w-12 h-1.5 rounded-full bg-slate-200" />
+        <div className="pt-2 pb-1 flex items-center justify-center">
+          <div className="w-10 h-1 rounded-full bg-slate-200" />
         </div>
 
-        {/* Header */}
-        <div className="px-5 pb-3 border-b border-slate-100">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-base font-extrabold text-slate-800" style={{ fontFamily: "'Manrope', sans-serif" }}>
+        {/* Header — compact */}
+        <div className="px-4 pb-2 border-b border-slate-100">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="min-w-0">
+              <h3 className="text-sm font-extrabold text-slate-800 leading-tight" style={{ fontFamily: "'Manrope', sans-serif" }}>
                 수강신청 상세
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">{submission.dateLabel}</p>
+              <p className="text-[0.65rem] text-slate-400 leading-tight">{submission.dateLabel}</p>
             </div>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">×</button>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none px-1">×</button>
           </div>
-          <div className="grid grid-cols-4 gap-2 mt-3">
-            <div className="bg-indigo-50 rounded-xl p-2 text-center">
-              <div className="text-[0.6rem] text-indigo-500 font-medium">총 학점</div>
-              <div className="text-base font-extrabold text-indigo-700" style={{ fontFamily: "'Manrope', sans-serif" }}>{submission.totalCredits || 0}</div>
+          <div className="grid grid-cols-4 gap-1">
+            <div className="bg-indigo-50 rounded-lg py-1 text-center">
+              <div className="text-[0.55rem] text-indigo-500 font-medium leading-none">총</div>
+              <div className="text-sm font-extrabold text-indigo-700 leading-tight" style={{ fontFamily: "'Manrope', sans-serif" }}>{totalCredits}</div>
             </div>
-            <div className="bg-red-50 rounded-xl p-2 text-center">
-              <div className="text-[0.6rem] text-red-500 font-medium">학교지정</div>
-              <div className="text-base font-extrabold text-red-600" style={{ fontFamily: "'Manrope', sans-serif" }}>{submission.requiredCredits ?? '-'}</div>
+            <div className="bg-red-50 rounded-lg py-1 text-center">
+              <div className="text-[0.55rem] text-red-500 font-medium leading-none">학교지정</div>
+              <div className="text-sm font-extrabold text-red-600 leading-tight" style={{ fontFamily: "'Manrope', sans-serif" }}>{requiredCredits}</div>
             </div>
-            <div className="bg-emerald-50 rounded-xl p-2 text-center">
-              <div className="text-[0.6rem] text-emerald-600 font-medium">학생선택</div>
-              <div className="text-base font-extrabold text-emerald-700" style={{ fontFamily: "'Manrope', sans-serif" }}>{submission.optionalCredits ?? '-'}</div>
+            <div className="bg-emerald-50 rounded-lg py-1 text-center">
+              <div className="text-[0.55rem] text-emerald-600 font-medium leading-none">학생선택</div>
+              <div className="text-sm font-extrabold text-emerald-700 leading-tight" style={{ fontFamily: "'Manrope', sans-serif" }}>{optionalCredits}</div>
             </div>
-            <div className="bg-violet-50 rounded-xl p-2 text-center">
-              <div className="text-[0.6rem] text-violet-600 font-medium">공동교육</div>
-              <div className="text-base font-extrabold text-violet-700" style={{ fontFamily: "'Manrope', sans-serif" }}>{submission.jointCredits ?? 0}</div>
+            <div className="bg-violet-50 rounded-lg py-1 text-center">
+              <div className="text-[0.55rem] text-violet-600 font-medium leading-none">공동교육</div>
+              <div className="text-sm font-extrabold text-violet-700 leading-tight" style={{ fontFamily: "'Manrope', sans-serif" }}>{jointCredits}</div>
             </div>
           </div>
         </div>
 
-        {/* Semesters */}
-        <div className="flex-1 overflow-y-auto px-5 py-3">
+        {/* Semesters — compact 1-line rows */}
+        <div className="flex-1 overflow-y-auto px-4 py-2">
           {sortedKeys.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-12">신청 과목이 없습니다.</p>
           ) : (
             sortedKeys.map((key) => {
               const items = grouped[key];
-              const { total, reqCount, optCount, jointCount } = semSummary(items);
+              const total = items.reduce((s, c) => s + (Number(c.credits) || 0), 0);
+              const reqCount = items.filter((c) => c.required).length;
+              const optCount = items.filter((c) => !c.required && !c.joint).length;
+              const jointCount = items.filter((c) => c.joint).length;
               return (
-                <div key={key} className="mb-4">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <h4 className="text-sm font-bold text-indigo-700" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                      {key === '미지정' ? '미지정' : `${key.split('-')[0]}학년 ${key.split('-')[1]}학기`}
+                <div key={key} className="mb-2">
+                  <div className="flex items-center justify-between py-0.5 sticky top-0 bg-white z-10">
+                    <h4 className="text-[0.7rem] font-extrabold text-indigo-700 tracking-tight">
+                      {key === '미지정' ? '미지정' : `${key.split('-')[0]}-${key.split('-')[1]}학기`}
                     </h4>
-                    <div className="text-[0.65rem] text-slate-500">
-                      <span className="font-mono font-semibold text-slate-700">{total}학점</span>
-                      <span className="text-slate-300 mx-1">·</span>
-                      {reqCount > 0 && <span className="text-red-600">필수 {reqCount}</span>}
-                      {reqCount > 0 && (optCount > 0 || jointCount > 0) && <span className="text-slate-300 mx-1">·</span>}
-                      {optCount > 0 && <span className="text-emerald-600">선택 {optCount}</span>}
-                      {optCount > 0 && jointCount > 0 && <span className="text-slate-300 mx-1">·</span>}
-                      {jointCount > 0 && <span className="text-violet-600">공동 {jointCount}</span>}
+                    <div className="text-[0.6rem] text-slate-500 flex items-center gap-1">
+                      <span className="font-mono font-bold text-slate-700">{total}학점</span>
+                      {reqCount > 0 && <span className="text-red-600">·필수{reqCount}</span>}
+                      {optCount > 0 && <span className="text-emerald-600">·선택{optCount}</span>}
+                      {jointCount > 0 && <span className="text-violet-600">·공동{jointCount}</span>}
                     </div>
                   </div>
-                  <div className="space-y-1.5">
+                  <div>
                     {items.map((c, i) => (
                       <div
                         key={i}
-                        className={`rounded-xl px-3 py-2 flex items-center justify-between border ${
-                          c.joint
-                            ? 'bg-violet-50/70 border-violet-200'
-                            : c.required
-                              ? 'bg-red-50/70 border-red-200'
-                              : 'bg-emerald-50/70 border-emerald-200'
-                        }`}
+                        className="flex items-center gap-1.5 py-0.5 text-[0.7rem] border-b border-slate-50 last:border-b-0"
                       >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className={`px-1.5 py-0.5 rounded text-[0.6rem] font-bold flex-shrink-0 ${
-                            c.joint
-                              ? 'bg-violet-200 text-violet-800'
-                              : c.required
-                                ? 'bg-red-200 text-red-800'
-                                : 'bg-emerald-200 text-emerald-800'
-                          }`}>
-                            {c.joint ? '공동교육' : c.required ? '학교지정' : '학생선택'}
-                          </span>
-                          <span className="text-sm text-slate-800 font-medium truncate">{c.subjectName}</span>
-                          {c.joint && c.host && (
-                            <span className="text-[0.65rem] text-violet-600 flex-shrink-0">🏫 {c.host}</span>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-end flex-shrink-0">
-                          <span className="text-xs font-mono font-semibold text-slate-700">{c.credits}학점</span>
-                          {c.subCategory && (
-                            <span className="text-[0.6rem] text-slate-400">{c.subCategory}</span>
-                          )}
-                        </div>
+                        <span className={`px-1 py-0.5 rounded text-[0.55rem] font-bold flex-shrink-0 leading-none ${
+                          c.joint
+                            ? 'bg-violet-100 text-violet-700'
+                            : c.required
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {c.joint ? '공동' : c.required ? '지정' : '선택'}
+                        </span>
+                        <span className="flex-1 min-w-0 truncate text-slate-800">{c.subjectName}</span>
+                        {c.joint && c.host && (
+                          <span className="text-[0.55rem] text-violet-500 flex-shrink-0">🏫{c.host}</span>
+                        )}
+                        <span className="font-mono font-semibold text-slate-700 flex-shrink-0">{c.credits}</span>
                       </div>
                     ))}
                   </div>
@@ -352,10 +354,10 @@ function SubmissionDetailModal({ submission, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-slate-100">
+        <div className="px-4 py-2 border-t border-slate-100">
           <button
             onClick={onClose}
-            className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200"
+            className="w-full py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200"
           >
             닫기
           </button>
