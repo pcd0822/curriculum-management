@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import StatCard from '../components/StatCard';
 import GaugeChart from '../components/GaugeChart';
@@ -392,8 +392,12 @@ export default function AdminPage() {
 
   /* ── Rules tab ── */
   const [ruleInputs, setRuleInputs] = useState({});
+  const [minCreditRules, setMinCreditRules] = useState([]); // [{ type:'subCategory'|'category', name:'국어', min:8 }]
+  const [requiredTotalInput, setRequiredTotalInput] = useState(180);
   useEffect(() => {
     if (settings?.selectionRules) setRuleInputs(settings.selectionRules);
+    if (Array.isArray(settings?.minCreditRules)) setMinCreditRules(settings.minCreditRules);
+    if (settings?.requiredTotalCredits) setRequiredTotalInput(Number(settings.requiredTotalCredits) || 180);
   }, [settings]);
 
   function updateRule(semKey, idx, field, value) {
@@ -421,15 +425,57 @@ export default function AdminPage() {
       return next;
     });
   }
+
+  /* ── 교과별 최소 이수학점 ── */
+  function addMinRule(type, name) {
+    if (!name) return;
+    setMinCreditRules(prev => {
+      if (prev.some(r => r.type === type && r.name === name)) return prev;
+      return [...prev, { type, name, min: 8 }];
+    });
+  }
+  function updateMinRule(idx, field, value) {
+    setMinCreditRules(prev => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  }
+  function removeMinRule(idx) {
+    setMinCreditRules(prev => prev.filter((_, i) => i !== idx));
+  }
+
   async function saveRules() {
     if (!DB.isConfigured()) return alert('API URL을 먼저 설정하세요.');
     try {
-      const newSettings = { ...(settings || {}), selectionRules: ruleInputs };
+      const cleanedMinRules = minCreditRules
+        .filter(r => r.name && Number(r.min) >= 0)
+        .map(r => ({ type: r.type, name: String(r.name).trim(), min: Number(r.min) || 0 }));
+      const newSettings = {
+        ...(settings || {}),
+        selectionRules: ruleInputs,
+        minCreditRules: cleanedMinRules,
+        requiredTotalCredits: Number(requiredTotalInput) || 180,
+      };
       await DB.saveSettings(newSettings);
       setSettings(newSettings);
       alert('규칙이 저장되었습니다!');
     } catch (e) { alert('저장 실패: ' + e.message); }
   }
+
+  /* ── 과목 데이터에서 교과군/세부교과 자동 추출 ── */
+  const availableCategories = useMemo(() => {
+    const set = new Set();
+    courses.forEach(c => {
+      const v = c.교과군 || c.category;
+      if (v) set.add(String(v).trim());
+    });
+    return [...set].sort();
+  }, [courses]);
+  const availableSubCategories = useMemo(() => {
+    const set = new Set();
+    courses.forEach(c => {
+      const v = c.세부교과 || c.subCategory || c['교과(군)'];
+      if (v) set.add(String(v).trim());
+    });
+    return [...set].sort();
+  }, [courses]);
 
   /* ── Share tab ── */
   const shareUrl = apiUrl ? `${window.location.origin}/login?key=${btoa(apiUrl)}` : '';
@@ -709,8 +755,12 @@ export default function AdminPage() {
                         <th className="text-center py-2 px-2 text-slate-500 text-xs">학점</th>
                         <th className="text-left py-2 px-2 text-slate-500 text-xs">교과군</th>
                         <th className="text-center py-2 px-2 text-slate-500 text-xs">필수</th>
+                        <th className="text-left py-2 px-2 text-slate-500 text-xs">선이수과목</th>
                       </tr></thead>
-                      <tbody>{courses.slice(0, 50).map((c, i) => (
+                      <tbody>{courses.slice(0, 50).map((c, i) => {
+                        const prereq = c.선이수과목 || c.선수과목 || c.prerequisites || '';
+                        const prereqStr = Array.isArray(prereq) ? prereq.join(', ') : String(prereq);
+                        return (
                         <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/60">
                           <td className="py-2 px-2 font-medium text-slate-800">{c.과목명 || c.subjectName || '-'}</td>
                           <td className="py-2 px-2 text-center text-slate-600">{c.학년 || c.grade || '-'}</td>
@@ -718,8 +768,10 @@ export default function AdminPage() {
                           <td className="py-2 px-2 text-center font-semibold">{c.학점 || c.credits || '-'}</td>
                           <td className="py-2 px-2 text-slate-600">{c.교과군 || c.category || '-'}</td>
                           <td className="py-2 px-2 text-center">{String(c.필수여부 || c.required || 'FALSE').toUpperCase() === 'TRUE' ? '✅' : '-'}</td>
+                          <td className="py-2 px-2 text-amber-700 text-xs">{prereqStr || '-'}</td>
                         </tr>
-                      ))}</tbody>
+                        );
+                      })}</tbody>
                     </table>
                     {courses.length > 50 && <p className="text-xs text-slate-400 text-center py-2">...외 {courses.length - 50}개 과목</p>}
                   </div>
@@ -731,6 +783,120 @@ export default function AdminPage() {
           {/* ======================== RULES TAB ======================== */}
           {tab === 'rules' && (
             <div className="grid md:grid-cols-2 gap-6">
+              {/* 졸업 요건: 총 이수학점 */}
+              <Card className="md:col-span-2">
+                <SectionTitle>졸업 요건 — 총 이수학점</SectionTitle>
+                <p className="text-sm text-slate-500 mb-3">
+                  학생이 충족해야 할 총 이수학점입니다. 이 값의 50%가 기초교과(국·영·수·한국사1·2) 한도로 자동 적용됩니다.
+                </p>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    value={requiredTotalInput}
+                    onChange={(e) => setRequiredTotalInput(e.target.value)}
+                    className="w-32 px-3 py-2 border border-slate-200 rounded-lg text-sm text-center"
+                    min="0"
+                  />
+                  <span className="text-sm text-slate-500">학점</span>
+                  <span className="text-xs text-slate-400 ml-3">
+                    → 기초교과 최대 <span className="font-bold text-indigo-600">{Math.floor((Number(requiredTotalInput) || 0) * 0.5)}학점</span>
+                  </span>
+                </div>
+              </Card>
+
+              {/* 교과별 최소 이수학점 */}
+              <Card className="md:col-span-2">
+                <SectionTitle>교과별 최소 이수학점 설정</SectionTitle>
+                <p className="text-sm text-slate-500 mb-4">
+                  교과군(예: 체육교과) 또는 세부교과(예: 국어, 수학) 단위로 최소 이수학점을 설정하세요.
+                  학생의 신청 학점이 이 값을 충족하지 못하면 최종 제출이 차단됩니다.
+                </p>
+
+                {/* 추가 영역 */}
+                <div className="bg-slate-50 rounded-xl p-3 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block">교과군 추가</label>
+                      <select
+                        onChange={(e) => { if (e.target.value) { addMinRule('category', e.target.value); e.target.value = ''; } }}
+                        defaultValue=""
+                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
+                      >
+                        <option value="">교과군을 선택하세요…</option>
+                        {availableCategories.map(c => (<option key={c} value={c}>{c}</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block">세부교과 추가</label>
+                      <select
+                        onChange={(e) => { if (e.target.value) { addMinRule('subCategory', e.target.value); e.target.value = ''; } }}
+                        defaultValue=""
+                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
+                      >
+                        <option value="">세부교과를 선택하세요…</option>
+                        {availableSubCategories.map(c => (<option key={c} value={c}>{c}</option>))}
+                      </select>
+                    </div>
+                  </div>
+                  {(availableCategories.length === 0 && availableSubCategories.length === 0) && (
+                    <p className="text-xs text-amber-600 mt-2">
+                      ⚠️ 과목 데이터를 먼저 업로드해야 교과군·세부교과를 자동으로 인식할 수 있습니다.
+                    </p>
+                  )}
+                </div>
+
+                {/* 등록된 규칙 리스트 */}
+                {minCreditRules.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-6">
+                    설정된 최소 이수학점 규칙이 없습니다. 위에서 추가하세요.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-slate-500 px-2 pb-1 border-b border-slate-100">
+                      <div className="col-span-2">분류</div>
+                      <div className="col-span-5">교과명</div>
+                      <div className="col-span-3 text-center">최소 학점</div>
+                      <div className="col-span-2"></div>
+                    </div>
+                    {minCreditRules.map((rule, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2 items-center px-2 py-1.5 hover:bg-slate-50 rounded-lg">
+                        <div className="col-span-2">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[0.65rem] font-semibold ${
+                            rule.type === 'category' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {rule.type === 'category' ? '교과군' : '세부교과'}
+                          </span>
+                        </div>
+                        <div className="col-span-5 text-sm font-medium text-slate-800 truncate">{rule.name}</div>
+                        <div className="col-span-3 flex items-center justify-center gap-1">
+                          <input
+                            type="number"
+                            value={rule.min}
+                            onChange={(e) => updateMinRule(idx, 'min', e.target.value)}
+                            min="0"
+                            className="w-16 px-2 py-1 border border-slate-200 rounded text-sm text-center"
+                          />
+                          <span className="text-xs text-slate-500">학점</span>
+                        </div>
+                        <div className="col-span-2 text-right">
+                          <button
+                            onClick={() => removeMinRule(idx)}
+                            className="text-rose-500 hover:text-rose-700 text-xs"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-3 px-3 py-2 bg-amber-50 rounded-lg text-xs text-amber-700 leading-relaxed">
+                  <span className="font-semibold">참고:</span> "교과군"은 과목 데이터의 <code className="bg-white px-1 rounded">교과군</code>(예: 기초교과, 체육교과) 컬럼,
+                  "세부교과"는 <code className="bg-white px-1 rounded">세부교과</code>(예: 국어, 수학, 한국사) 컬럼을 기준으로 합산합니다.
+                </div>
+              </Card>
+
               <Card>
                 <SectionTitle>학년-학기별 선택 규칙 설정</SectionTitle>
                 <p className="text-sm text-slate-500 mb-4">각 학기별로 학점 단위 선택 규칙을 추가하세요. (예: 4학점 과목 3개 선택)</p>

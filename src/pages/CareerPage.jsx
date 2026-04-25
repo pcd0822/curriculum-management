@@ -2,19 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import Header from '../components/Header';
 import MobileNav from '../components/MobileNav';
 import {
-  getAiRecommendation,
-  getCareernetRecommendation,
   getQuestions,
   submitReport,
   getMajorList,
   getMajorDetail,
 } from '../api/careernet';
-import { fetchConfig, fetchSettings, isConfigured } from '../api/db';
+import { getStudentAvatarLabel } from '../api/student';
 
 /* ───────────────────────── constants ───────────────────────── */
 
 const TABS = [
-  { key: 'home', label: 'AI 추천' },
   { key: 'tests', label: '심리검사' },
   { key: 'majors', label: '학과탐색' },
 ];
@@ -103,258 +100,8 @@ function TabBar({ view, onChange }) {
   );
 }
 
-/* ───────── View 1 : AI 추천 (Home) ───────── */
+/* HomeView (AI 추천) 본체는 src/pages/AiRecommendPage.jsx 로 이전됨 */
 
-function HomeView({ major, setMajor, recommendations, setRecommendations, loading, setLoading }) {
-  const [inputValue, setInputValue] = useState(major || '');
-  const [aiTip, setAiTip] = useState('');
-  const [aiError, setAiError] = useState('');
-  const [dbCourses, setDbCourses] = useState([]);
-  const [selectionRules, setSelectionRules] = useState(null);
-
-  // DB에서 과목 목록 + 선택 규칙 로드
-  useEffect(() => {
-    if (!isConfigured()) return;
-    fetchConfig().then(cfg => {
-      const arr = Array.isArray(cfg) ? cfg : cfg?.data || [];
-      setDbCourses(arr);
-    }).catch(() => {});
-    fetchSettings().then(stg => {
-      if (stg?.selectionRules) setSelectionRules(stg.selectionRules);
-    }).catch(() => {});
-  }, []);
-
-  const handleSearch = async () => {
-    if (!inputValue.trim()) return;
-    setMajor(inputValue.trim());
-    setLoading(true);
-    setAiError('');
-    setAiTip('');
-    try {
-      // DB 등록 과목명만 전달 → AI가 이 중에서만 추천
-      const courseNames = dbCourses.map(c => c.과목명 || c.subjectName || '').filter(Boolean);
-      const rulesText = selectionRules ? Object.entries(selectionRules).map(([k, rules]) =>
-        `${k}학기: ${rules.map(r => `${r.credits === 'all' ? '모든' : r.credits + '학점'} ${r.count}개`).join(', ')}`
-      ).join(' / ') : '';
-      const coursesStr = courseNames.length > 0
-        ? courseNames.join(', ')
-        : '(과목 목록이 등록되지 않았습니다)';
-      const fullPrompt = rulesText
-        ? `${coursesStr}\n\n[선택 규칙] ${rulesText}`
-        : coursesStr;
-
-      const data = await getAiRecommendation(inputValue.trim(), fullPrompt);
-      const content = data?.choices?.[0]?.message?.content || '';
-      if (!content) throw new Error('AI 응답이 비어 있습니다.');
-
-      // Parse "과목명: 이유" format lines + DB 매칭으로 학년/학기/학점 추가
-      const lines = content.split('\n').filter(l => l.trim());
-      const recs = [];
-      for (const line of lines) {
-        const match = line.match(/^[\d.)\-*]*\s*(.+?)\s*[:：]\s*(.+)$/);
-        if (match) {
-          const name = match[1].trim();
-          // DB 과목과 매칭
-          const dbMatch = dbCourses.find(c => {
-            const dbName = (c.과목명 || c.subjectName || '').trim();
-            return dbName === name || dbName.includes(name) || name.includes(dbName);
-          });
-          recs.push({
-            name,
-            description: match[2].trim(),
-            category: dbMatch ? (dbMatch.교과군 || dbMatch.category || '교과') : '교과',
-            subCategory: dbMatch ? (dbMatch.세부교과 || dbMatch.subCategory || '') : '',
-            grade: dbMatch ? (dbMatch.학년 || dbMatch.grade || '') : '',
-            semester: dbMatch ? (dbMatch.학기 || dbMatch.semester || '') : '',
-            credits: dbMatch ? (dbMatch.학점 || dbMatch.credits || '') : '',
-          });
-        }
-      }
-      if (recs.length > 0) {
-        setRecommendations(recs);
-        setAiTip(`"${inputValue.trim()}" 진로에 맞춰 AI가 ${recs.length}개 과목을 추천했습니다. 추천 과목을 참고하여 수강신청에 반영하세요.`);
-        // AI 추천 이력 저장
-        try {
-          const history = JSON.parse(localStorage.getItem('aiHistory') || '[]');
-          history.push({ major: inputValue.trim(), date: new Date().toLocaleDateString('ko-KR'), courses: recs.map(r => r.name) });
-          localStorage.setItem('aiHistory', JSON.stringify(history.slice(-20)));
-        } catch {}
-      } else {
-        setRecommendations([{ name: 'AI 추천 결과', description: content, category: '전체' }]);
-        setAiTip(content.substring(0, 150));
-      }
-    } catch (err) {
-      console.error(err);
-      setAiError(err.message || 'AI 추천을 받을 수 없습니다.');
-      setRecommendations([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // AI 추천은 사용자가 검색 버튼을 누를 때만 호출
-
-  return (
-    <div className="px-5 pb-6">
-      {/* Hero */}
-      <div className="mt-5 mb-4">
-        <h1
-          className="text-slate-900 font-bold leading-tight"
-          style={{ fontFamily: "'Manrope', sans-serif", fontSize: '1.75rem' }}
-        >
-          진로 맞춤형 과목 추천
-        </h1>
-        <p className="text-slate-500 text-sm mt-2 leading-relaxed">
-          AI가 학생의 과목을 분석하여 최적의 직업 경로를 안내합니다.
-        </p>
-      </div>
-
-      {/* Input + Search button */}
-      <div className="flex gap-2 mb-5">
-        <div className="relative flex-1">
-          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-500">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2a7 7 0 0 1 7 7c0 3-2 5.5-4 7.5L12 22l-3-5.5C7 14.5 5 12 5 9a7 7 0 0 1 7-7z" />
-              <circle cx="12" cy="9" r="2.5" />
-            </svg>
-          </div>
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="희망 직업 또는 전공 입력"
-            disabled={loading}
-            className="w-full bg-white rounded-xl pl-10 pr-4 py-3 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
-          />
-        </div>
-        <button
-          onClick={handleSearch}
-          disabled={loading || !inputValue.trim()}
-          className="px-5 py-3 rounded-xl text-white text-sm font-semibold shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
-        >
-          {loading ? (
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          )}
-          {loading ? '분석 중' : '추천'}
-        </button>
-      </div>
-
-      {/* Section header */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-slate-800 font-bold text-base" style={{ fontFamily: "'Manrope', sans-serif" }}>
-          AI 추천 과목 리스트
-        </h2>
-        <span className="bg-indigo-50 text-indigo-600 text-xs font-semibold px-2.5 py-1 rounded-full">
-          {recommendations.length}개의 추천 과목
-        </span>
-      </div>
-
-      {loading ? (
-        <div className="flex flex-col items-center py-12 gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center">
-              <svg className="animate-spin h-7 w-7 text-indigo-600" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            </div>
-            <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center animate-pulse">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z" /></svg>
-            </div>
-          </div>
-          <div className="text-center">
-            <p className="text-sm font-semibold text-slate-700" style={{ fontFamily: "'Manrope', sans-serif" }}>AI가 과목을 분석하고 있습니다</p>
-            <p className="text-xs text-slate-400 mt-1">등록된 교과 데이터와 진로를 매칭 중...</p>
-          </div>
-          <div className="flex gap-1">
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Error */}
-          {aiError && (
-            <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3 mb-4">
-              {aiError}
-              <p className="text-xs mt-1 text-red-400">Netlify 환경변수 OPENAI_API_KEY가 설정되어 있는지 확인하세요.</p>
-            </div>
-          )}
-
-          {/* Cards */}
-          <div className="space-y-3 mb-4">
-            {recommendations.map((rec, i) => (
-              <div key={i} className="bg-white rounded-2xl p-4 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    {getCategoryIcon(rec.category)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-slate-800 font-bold text-sm">{rec.name || rec.subject}</h3>
-                    <p className="text-slate-400 text-xs mt-0.5">{rec.subCategory || rec.category || '교과'}</p>
-                    <p className="text-slate-500 text-xs mt-1.5 leading-relaxed">{rec.description || rec.reason}</p>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {rec.grade && rec.semester && (
-                        <span className="bg-indigo-50 text-indigo-600 text-[0.65rem] font-semibold px-2 py-0.5 rounded-full">
-                          {rec.grade}학년 {rec.semester}학기
-                        </span>
-                      )}
-                      {rec.credits && (
-                        <span className="bg-slate-100 text-slate-600 text-[0.65rem] font-medium px-2 py-0.5 rounded-full">
-                          {rec.credits}학점
-                        </span>
-                      )}
-                      {rec.category && rec.category !== '교과' && rec.category !== '전체' && (
-                        <span className="bg-emerald-50 text-emerald-600 text-[0.65rem] font-medium px-2 py-0.5 rounded-full">
-                          {rec.category}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* AI tip */}
-          {(aiTip || recommendations.length > 0) && (
-            <div className="bg-violet-50 rounded-2xl p-4 mb-5">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-5 h-5 rounded-full bg-violet-200 flex items-center justify-center">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.5">
-                    <path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z" />
-                  </svg>
-                </div>
-                <span className="text-violet-700 font-bold text-xs">AI 어드바이저의 팁</span>
-              </div>
-              <p className="text-violet-600 text-xs leading-relaxed">
-                {aiTip || `"${major}" 진로에 맞는 과목을 AI가 추천했습니다. 추천 과목을 참고하여 수강신청에 반영하세요.`}
-              </p>
-            </div>
-          )}
-
-          {/* CTA */}
-          <button
-            className="w-full py-3.5 rounded-xl text-white font-bold text-sm shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
-          >
-            추천과목 모두 선택하기
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
 
 /* ───────── View 2 : 진로심리검사 (Tests) ───────── */
 
@@ -984,36 +731,20 @@ function MajorsView() {
 /* ───────────────────────── Main Page ───────────────────────── */
 
 export default function CareerPage() {
-  const [view, setView] = useState('home');
-  const [major, setMajor] = useState('데이터사이언티스트');
-  const [recommendations, setRecommendations] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [view, setView] = useState('tests');
+  const avatarLabel = getStudentAvatarLabel();
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f7f9fb]">
-      {/* Header */}
-      <Header title={localStorage.getItem('school_name') || '진로탐색'} />
+      <Header title={localStorage.getItem('school_name') || '진로탐색'} avatarLabel={avatarLabel} />
 
-      {/* Tab bar */}
       <TabBar view={view} onChange={setView} />
 
-      {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto pb-20">
-        {view === 'home' && (
-          <HomeView
-            major={major}
-            setMajor={setMajor}
-            recommendations={recommendations}
-            setRecommendations={setRecommendations}
-            loading={loading}
-            setLoading={setLoading}
-          />
-        )}
         {view === 'tests' && <TestsView />}
         {view === 'majors' && <MajorsView />}
       </div>
 
-      {/* Bottom nav */}
       <MobileNav />
     </div>
   );

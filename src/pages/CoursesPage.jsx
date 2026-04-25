@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isConfigured, fetchConfig, fetchSettings } from '../api/db.js';
+import { getVerifiedStudent, getStudentAvatarLabel } from '../api/student.js';
 import Header from '../components/Header';
 import MobileNav from '../components/MobileNav';
 import CourseCard from '../components/CourseCard';
@@ -19,6 +20,8 @@ const FIELD_MAP = {
   '영문ID': 'slug',
   '과목코드': 'code',
   '추천': 'recommended',
+  '선이수과목': 'prerequisites',
+  '선수과목': 'prerequisites',
 };
 
 function normaliseCourse(raw) {
@@ -27,13 +30,19 @@ function normaliseCourse(raw) {
     const mapped = FIELD_MAP[k] || k;
     out[mapped] = v;
   }
-  /* Ensure numeric types */
   out.credits = Number(out.credits) || 0;
   out.grade = Number(out.grade) || 0;
   out.semester = Number(out.semester) || 0;
   const req = String(out.required || '').toUpperCase().trim();
   out.required = req === 'TRUE' || req === 'Y' || req === '1' || req === '필수' || out.required === true;
   out.recommended = out.recommended === true || out.recommended === '추천' || out.recommended === 'Y';
+  if (Array.isArray(out.prerequisites)) {
+    out.prerequisites = out.prerequisites.map((s) => String(s).trim()).filter(Boolean);
+  } else if (typeof out.prerequisites === 'string') {
+    out.prerequisites = out.prerequisites.split(',').map((s) => s.trim()).filter(Boolean);
+  } else {
+    out.prerequisites = [];
+  }
   return out;
 }
 
@@ -45,6 +54,23 @@ const SEMESTERS = [
   { key: '3-2', label: '3-2학기', grade: 3, semester: 2 },
 ];
 
+const semKeyOf = (c) => `${c.grade}-${c.semester}`;
+const semOrder = (k) => {
+  const [g, s] = k.split('-').map(Number);
+  return g * 10 + s;
+};
+
+/* 기초교과 정의: 세부교과(국어·영어·수학) ∪ 과목명(한국사1·한국사2) */
+const FOUNDATION_SUBCATS = ['국어', '영어', '수학'];
+const FOUNDATION_NAMES = ['한국사1', '한국사2'];
+function isFoundationCourse(course) {
+  const sub = String(course.subCategory || '').trim();
+  if (FOUNDATION_SUBCATS.includes(sub)) return true;
+  const name = String(course.subjectName || '').trim();
+  if (FOUNDATION_NAMES.includes(name)) return true;
+  return false;
+}
+
 export default function CoursesPage() {
   const navigate = useNavigate();
 
@@ -53,20 +79,14 @@ export default function CoursesPage() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [activeSemester, setActiveSemester] = useState('2-1');
   const [loading, setLoading] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [blockedReason, setBlockedReason] = useState(null); // {courseName, reason}
 
-  /* Read verified student info */
-  const student = useMemo(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem('verifiedStudent') || '{}');
-    } catch {
-      return {};
-    }
-  }, []);
-
-  const avatarLabel = student.name ? student.name.charAt(0) : '?';
+  /* Read verified student info — 앱 종료 전까지 유지 */
+  const student = useMemo(() => getVerifiedStudent(), []);
+  const avatarLabel = getStudentAvatarLabel();
   const schoolName = settings?.schoolName || localStorage.getItem('school_name') || 'OO고등학교';
 
-  /* ── Data fetch ── */
   useEffect(() => {
     if (!isConfigured()) {
       navigate('/login');
@@ -84,7 +104,6 @@ export default function CoursesPage() {
 
         if (cancelled) return;
 
-        /* Normalise course rows */
         const rawCourses = Array.isArray(configRes)
           ? configRes
           : configRes?.courses ?? configRes?.data ?? [];
@@ -96,12 +115,34 @@ export default function CoursesPage() {
 
         setCourses(processed);
 
-        /* Settings */
         const s = settingsRes?.settings ?? settingsRes?.data ?? settingsRes ?? {};
         setSettings(s);
 
-        /* Auto-select required courses */
         const reqIds = new Set(processed.filter((c) => c.required).map((c) => c.id));
+
+        /* AI 추천 적용 플래그가 있으면, 추천 과목명을 매칭하여 선택 set에 추가 */
+        let aiNames = null;
+        try {
+          const raw = sessionStorage.getItem('applyAiRecommendations');
+          if (raw) {
+            aiNames = JSON.parse(raw);
+            sessionStorage.removeItem('applyAiRecommendations');
+          }
+        } catch {}
+        if (Array.isArray(aiNames) && aiNames.length > 0) {
+          processed.forEach((c) => {
+            const name = String(c.subjectName || '').trim();
+            if (aiNames.some((n) => n === name || name.includes(n) || n.includes(name))) {
+              reqIds.add(c.id);
+            }
+          });
+        } else {
+          /* 이전 세션에서 진행 중이던 선택을 복원 */
+          try {
+            const saved = JSON.parse(sessionStorage.getItem('currentSelection') || '[]');
+            if (Array.isArray(saved)) saved.forEach((id) => reqIds.add(id));
+          } catch {}
+        }
         setSelectedIds(reqIds);
       } catch (err) {
         console.error('Failed to load courses:', err);
@@ -127,83 +168,273 @@ export default function CoursesPage() {
     [courses, selectedIds],
   );
 
+  const optionalSelected = useMemo(
+    () => selectedCourses.filter((c) => !c.required),
+    [selectedCourses],
+  );
+
   const totalCredits = useMemo(
     () => selectedCourses.reduce((sum, c) => sum + c.credits, 0),
+    [selectedCourses],
+  );
+
+  const optionalCredits = useMemo(
+    () => optionalSelected.reduce((sum, c) => sum + c.credits, 0),
+    [optionalSelected],
+  );
+
+  const foundationCredits = useMemo(
+    () => selectedCourses.filter(isFoundationCourse).reduce((s, c) => s + c.credits, 0),
     [selectedCourses],
   );
 
   const maxCourses = courses.length || 1;
   const progress = Math.round((selectedIds.size / maxCourses) * 100);
 
-  /* ── Selection rule check ── */
-  const selectionRules = settings?.selectionRules || {};
+  /* 선택 상태가 바뀔 때마다 sessionStorage에 저장 (탭 이동 시 유지) */
+  useEffect(() => {
+    if (loading) return;
+    try {
+      sessionStorage.setItem('currentSelection', JSON.stringify([...selectedIds]));
+    } catch {}
+  }, [selectedIds, loading]);
 
-  // 특정 학기에서 특정 학점의 선택(비필수) 과목 수 계산
+  /* ── Settings ── */
+  const selectionRules = settings?.selectionRules || {};
+  const allowMultiSemesterDuplicate = !!settings?.allowMultiSemesterDuplicate;
+  const duplicateCourseSlugs = Array.isArray(settings?.duplicateCourseSlugs)
+    ? settings.duplicateCourseSlugs
+    : [];
+  const requiredTotalCredits = Number(settings?.requiredTotalCredits) || 180;
+  const foundationCap = Math.floor(requiredTotalCredits * 0.5);
+  const minCreditRules = Array.isArray(settings?.minCreditRules) ? settings.minCreditRules : [];
+
+  /* 학기별 학점·과목수 규칙 검사 */
   function countSelected(semKey, creditFilter, excludeId) {
-    return courses.filter(c => {
+    return courses.filter((c) => {
       if (c.required) return false;
       if (!selectedIds.has(c.id)) return false;
       if (c.id === excludeId) return false;
-      if (`${c.grade}-${c.semester}` !== semKey) return false;
+      if (semKeyOf(c) !== semKey) return false;
       if (creditFilter !== 'all' && c.credits !== Number(creditFilter)) return false;
       return true;
     }).length;
   }
 
-  // 과목이 선택 규칙에 의해 비활성화되어야 하는지 확인
-  function isDisabledByRule(course) {
-    if (course.required) return false; // 필수 과목은 항상 활성
-    if (selectedIds.has(course.id)) return false; // 이미 선택된 건 체크 해제 가능
-    const semKey = `${course.grade}-${course.semester}`;
+  function violatedSelectionRule(course) {
+    const semKey = semKeyOf(course);
     const rules = selectionRules[semKey];
-    if (!rules || !Array.isArray(rules)) return false;
+    if (!rules || !Array.isArray(rules)) return null;
     for (const rule of rules) {
       const creditMatch = rule.credits === 'all' || course.credits === Number(rule.credits);
       if (creditMatch) {
-        const currentCount = countSelected(semKey, rule.credits, null);
-        if (currentCount >= Number(rule.count)) return true;
+        const cur = countSelected(semKey, rule.credits, null);
+        if (cur >= Number(rule.count)) {
+          return `${semKey.replace('-', '학년 ')}학기 ${rule.credits === 'all' ? '모든' : rule.credits + '학점'} 과목은 최대 ${rule.count}개까지 선택할 수 있습니다.`;
+        }
       }
     }
-    return false;
+    return null;
   }
+
+  /* 선이수 검사: 선이수 과목이 같은 학기 또는 이전 학기에 선택되어 있어야 함 */
+  function missingPrerequisites(course) {
+    if (!course.prerequisites || course.prerequisites.length === 0) return [];
+    const here = semOrder(semKeyOf(course));
+    const satisfied = new Set();
+    courses.forEach((c) => {
+      if (!selectedIds.has(c.id)) return;
+      if (semOrder(semKeyOf(c)) > here) return; // 같은 학기 또는 이전만 인정
+      if (c.slug) satisfied.add(c.slug);
+      if (c.subjectName) satisfied.add(c.subjectName);
+    });
+    return course.prerequisites.filter((p) => !satisfied.has(p));
+  }
+
+  /* 같은 이름 과목 다학기 중복 신청 차단 (예외: duplicateCourseSlugs) */
+  function isDuplicateAcrossSemester(course) {
+    if (allowMultiSemesterDuplicate) return false;
+    const allowedDup = duplicateCourseSlugs.some(
+      (x) => x === course.slug || x === course.subjectName || x === course.id,
+    );
+    if (allowedDup) return false;
+    for (const c of courses) {
+      if (c.id === course.id) continue;
+      if (!selectedIds.has(c.id)) continue;
+      if (c.subjectName && c.subjectName === course.subjectName) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  /* 기초교과 50% 상한 검사 (선택 후 합이 전체 이수학점 50%를 초과하면 차단) */
+  function violatesFoundationCap(course) {
+    if (!isFoundationCourse(course)) return null;
+    const newFoundation = foundationCredits + course.credits;
+    const newTotal = totalCredits + course.credits;
+    if (newTotal <= 0) return null;
+    if (newFoundation > newTotal * 0.5) {
+      return `기초교과(국·영·수·한국사1·2)는 전체 이수학점의 50%를 초과할 수 없습니다. ` +
+        `현재 기초교과 ${foundationCredits}학점 / 총 ${totalCredits}학점. ` +
+        `이 과목(${course.credits}학점)을 추가하면 ${newFoundation}/${newTotal}학점이 되어 50%를 넘습니다.`;
+    }
+    return null;
+  }
+
+  /* 비활성 사유 종합 */
+  function getDisableInfo(course) {
+    if (course.required) return null;
+    if (selectedIds.has(course.id)) return null;
+    const ruleMsg = violatedSelectionRule(course);
+    if (ruleMsg) return { type: 'rule', message: ruleMsg };
+    const dup = isDuplicateAcrossSemester(course);
+    if (dup) return {
+      type: 'duplicate',
+      message: `같은 과목 "${course.subjectName}"이(가) ${dup.grade}-${dup.semester}학기에 이미 신청되어 있습니다. 학기별 중복 신청은 허용되지 않습니다.`,
+    };
+    const foundationMsg = violatesFoundationCap(course);
+    if (foundationMsg) return { type: 'foundation50', message: foundationMsg };
+    const missing = missingPrerequisites(course);
+    if (missing.length > 0) {
+      const names = missing.map((p) => {
+        const found = courses.find((c) => c.slug === p || c.subjectName === p);
+        return found?.subjectName || p;
+      });
+      return {
+        type: 'prereq',
+        message: `이 과목을 선택하려면 선이수 과목을 먼저 선택해야 합니다: ${names.join(', ')}`,
+      };
+    }
+    return null;
+  }
+
+  /* 교과별 최소 이수학점 집계 (관리자 설정 기반) */
+  const minCreditStatus = useMemo(() => {
+    return minCreditRules.map((rule) => {
+      const sum = selectedCourses.reduce((acc, c) => {
+        if (rule.type === 'category') {
+          if (String(c.category || '').trim() === rule.name) return acc + c.credits;
+        } else if (rule.type === 'subCategory') {
+          if (String(c.subCategory || '').trim() === rule.name) return acc + c.credits;
+        }
+        return acc;
+      }, 0);
+      return { ...rule, current: sum, ok: sum >= Number(rule.min || 0) };
+    });
+  }, [minCreditRules, selectedCourses]);
+
+  /* 최종 제출 검증: 위배되면 제출 불가 */
+  const submitIssues = useMemo(() => {
+    const issues = [];
+    if (totalCredits < requiredTotalCredits) {
+      issues.push(`총 이수학점이 부족합니다. 현재 ${totalCredits}학점, ${requiredTotalCredits - totalCredits}학점 더 필요 (목표 ${requiredTotalCredits}학점).`);
+    }
+    if (totalCredits > 0 && foundationCredits > totalCredits * 0.5) {
+      issues.push(`기초교과(국·영·수·한국사1·2)가 전체의 50%를 초과했습니다 (${foundationCredits}/${totalCredits}학점). 기초교과 외 과목을 더 선택하거나 선택한 기초교과 일부를 해제하세요.`);
+    }
+    /* 교과별 최소 이수학점 검증 */
+    minCreditStatus.forEach((s) => {
+      if (!s.ok) {
+        const label = s.type === 'category' ? '교과군' : '세부교과';
+        issues.push(`${label} "${s.name}" 최소 이수학점(${s.min}) 부족: 현재 ${s.current}학점, ${s.min - s.current}학점 더 필요.`);
+      }
+    });
+    /* 학기별 선택 규칙 사후 검증 */
+    Object.keys(selectionRules).forEach((semKey) => {
+      const rules = selectionRules[semKey];
+      if (!Array.isArray(rules)) return;
+      rules.forEach((rule) => {
+        const cur = countSelected(semKey, rule.credits, null);
+        if (cur > Number(rule.count)) {
+          issues.push(`${semKey} 학기 ${rule.credits === 'all' ? '모든' : rule.credits + '학점'} 과목 선택 규칙(최대 ${rule.count}개)을 초과했습니다.`);
+        }
+      });
+    });
+    /* 선이수 미충족 사후 검증 */
+    selectedCourses.forEach((c) => {
+      if (c.required) return;
+      const missing = missingPrerequisites(c);
+      if (missing.length > 0) {
+        const names = missing.map((p) => {
+          const f = courses.find((x) => x.slug === p || x.subjectName === p);
+          return f?.subjectName || p;
+        });
+        issues.push(`"${c.subjectName}" 선이수 과목 미이수: ${names.join(', ')}`);
+      }
+    });
+    return issues;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCourses, totalCredits, foundationCredits, requiredTotalCredits, selectionRules, minCreditStatus, courses]);
+
+  const canSubmit = submitIssues.length === 0 && selectedIds.size > 0;
 
   /* ── Handlers ── */
   const toggleCourse = useCallback(
     (id) => {
+      const course = courses.find((c) => c.id === id);
+      if (!course) return;
+
       setSelectedIds((prev) => {
         const next = new Set(prev);
         if (next.has(id)) {
           next.delete(id);
-        } else {
-          // 선택 시 규칙 체크
-          const course = courses.find(c => c.id === id);
-          if (course) {
-            const semKey = `${course.grade}-${course.semester}`;
-            const rules = selectionRules[semKey];
-            if (rules && Array.isArray(rules)) {
-              for (const rule of rules) {
-                const creditMatch = rule.credits === 'all' || course.credits === Number(rule.credits);
-                if (creditMatch) {
-                  // 현재 선택된 수 계산 (next 기준)
-                  const currentCount = courses.filter(c => {
-                    if (c.required) return false;
-                    if (!next.has(c.id)) return false;
-                    if (`${c.grade}-${c.semester}` !== semKey) return false;
-                    if (rule.credits !== 'all' && c.credits !== Number(rule.credits)) return false;
-                    return true;
-                  }).length;
-                  if (currentCount >= Number(rule.count)) return prev; // 초과 → 선택 불가
-                }
-              }
-            }
-          }
-          next.add(id);
+          setBlockedReason(null);
+          return next;
         }
+
+        const info = getDisableInfo(course);
+        if (info) {
+          setBlockedReason({ courseName: course.subjectName, reason: info.message });
+          return prev;
+        }
+        next.add(id);
+        setBlockedReason(null);
         return next;
       });
     },
-    [courses, selectionRules],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [courses, selectedIds, settings],
   );
+
+  function handleNextStep() {
+    if (!canSubmit) {
+      const reasons = submitIssues.map((s, i) => `${i + 1}. ${s}`).join('\n');
+      alert(`최종 제출 불가\n\n다음 규칙을 위배하여 제출할 수 없습니다:\n\n${reasons}`);
+      setSheetOpen(true);
+      return;
+    }
+    const snapshot = selectedCourses.map((c) => ({
+      id: c.id,
+      subjectName: c.subjectName,
+      credits: c.credits,
+      grade: c.grade,
+      semester: c.semester,
+      required: c.required,
+    }));
+    sessionStorage.setItem('pendingSelectedCourses', JSON.stringify(snapshot));
+
+    /* 수강신청 이력 저장 (날짜·시간대별로 누적) */
+    try {
+      const studentId = student?.studentId || student?.학번 || '';
+      const studentName = student?.name || student?.이름 || '';
+      const history = JSON.parse(localStorage.getItem('submissionHistory') || '[]');
+      history.push({
+        timestamp: Date.now(),
+        dateLabel: new Date().toLocaleString('ko-KR'),
+        studentId,
+        studentName,
+        totalCredits,
+        optionalCredits,
+        foundationCredits,
+        courses: snapshot,
+        submitOk: true,
+      });
+      localStorage.setItem('submissionHistory', JSON.stringify(history.slice(-50)));
+    } catch {}
+
+    navigate('/credits');
+  }
 
   /* ── Render ── */
   if (loading) {
@@ -222,13 +453,11 @@ export default function CoursesPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f7f9fb' }}>
-      {/* ── Header ── */}
       <Header title={schoolName} avatarLabel={avatarLabel} />
 
       {/* ── Stepper ── */}
       <div className="px-5 pt-4 pb-2">
         <div className="flex items-center gap-2">
-          {/* Step 1: done */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
             <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -240,10 +469,8 @@ export default function CoursesPage() {
             </span>
           </div>
 
-          {/* Connector */}
           <div className="w-6 h-px bg-slate-200" />
 
-          {/* Step 2: active */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-200">
             <div
               className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[0.6rem] font-bold"
@@ -252,7 +479,16 @@ export default function CoursesPage() {
               2
             </div>
             <span className="text-xs font-semibold text-indigo-700" style={{ fontFamily: "'Inter', sans-serif" }}>
-              교육선택
+              과목선택
+            </span>
+          </div>
+
+          <div className="w-6 h-px bg-slate-200" />
+
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200">
+            <div className="w-5 h-5 rounded-full bg-slate-300 flex items-center justify-center text-white text-[0.6rem] font-bold">3</div>
+            <span className="text-xs font-semibold text-slate-500" style={{ fontFamily: "'Inter', sans-serif" }}>
+              제출완료
             </span>
           </div>
         </div>
@@ -268,9 +504,7 @@ export default function CoursesPage() {
                 key={s.key}
                 onClick={() => setActiveSemester(s.key)}
                 className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-semibold transition-colors ${
-                  active
-                    ? 'text-white'
-                    : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                  active ? 'text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
                 }`}
                 style={
                   active
@@ -285,25 +519,18 @@ export default function CoursesPage() {
         </div>
       </div>
 
-      {/* ── Section header ── */}
       <div className="flex items-center justify-between px-5 pb-2">
-        <h2
-          className="text-base font-bold text-slate-800"
-          style={{ fontFamily: "'Manrope', sans-serif" }}
-        >
+        <h2 className="text-base font-bold text-slate-800" style={{ fontFamily: "'Manrope', sans-serif" }}>
           개설 교과 목록
         </h2>
-        <span
-          className="text-xs font-medium text-slate-400"
-          style={{ fontFamily: "'Inter', sans-serif" }}
-        >
+        <span className="text-xs font-medium text-slate-400" style={{ fontFamily: "'Inter', sans-serif" }}>
           총 {filteredCourses.length}과목
         </span>
       </div>
 
-      {/* ── Selection rule hint ── */}
-      {selectionRules[activeSemester] && (
-        <div className="px-5 pb-2">
+      {/* ── 안내 카드: 선택 가이드 ── */}
+      <div className="px-5 pb-2 space-y-2">
+        {selectionRules[activeSemester] && (
           <div className="bg-indigo-50 rounded-xl px-3 py-2 flex items-start gap-2">
             <span className="text-indigo-500 text-xs mt-0.5">📏</span>
             <div className="text-xs text-indigo-700">
@@ -317,82 +544,336 @@ export default function CoursesPage() {
               <span className="text-indigo-400"> (초과 선택 불가)</span>
             </div>
           </div>
+        )}
+        <div className="bg-amber-50 rounded-xl px-3 py-2 flex items-start gap-2">
+          <span className="text-amber-500 text-xs mt-0.5">ℹ️</span>
+          <div className="text-xs text-amber-700 leading-relaxed">
+            <span className="font-semibold">선택 지침</span><br />
+            • 선이수 과목이 있는 과목은 해당 선이수 과목을 먼저 선택해야 합니다.<br />
+            • 같은 이름의 과목은 한 학기에서만 신청할 수 있습니다 (학기간 중복 차단).<br />
+            • 학기별 선택 규칙을 초과하면 자동으로 비활성화됩니다.<br />
+            • 기초교과(국·영·수·한국사1·2)는 전체 이수학점의 50%를 넘을 수 없습니다.
+          </div>
         </div>
-      )}
+        {/* 기초교과 진행도 미터 */}
+        <div className="bg-white rounded-xl px-3 py-2 border border-slate-100 shadow-sm">
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <span className="font-semibold text-slate-700">기초교과 한도 (50%)</span>
+            <span className={`font-mono ${foundationCredits > totalCredits * 0.5 && totalCredits > 0 ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
+              {foundationCredits} / {totalCredits > 0 ? Math.floor(totalCredits * 0.5) : 0}학점
+              {totalCredits > 0 && (
+                <span className="text-slate-400"> · 총 {totalCredits}학점 중 {Math.round((foundationCredits / totalCredits) * 100)}%</span>
+              )}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${totalCredits > 0 ? Math.min((foundationCredits / (totalCredits * 0.5)) * 100, 100) : 0}%`,
+                background: foundationCredits > totalCredits * 0.5 && totalCredits > 0
+                  ? 'linear-gradient(135deg, #f43f5e, #e11d48)'
+                  : 'linear-gradient(135deg, #3525cd, #4f46e5)',
+              }}
+            />
+          </div>
+          <p className="text-[0.65rem] text-slate-400 mt-1">
+            목표 총 {requiredTotalCredits}학점 기준 기초교과 최대 {foundationCap}학점 (한국사 6학점 포함)
+          </p>
+        </div>
+        {/* 교과별 최소 이수학점 진행도 */}
+        {minCreditStatus.length > 0 && (
+          <div className="bg-white rounded-xl px-3 py-2 border border-slate-100 shadow-sm">
+            <div className="text-xs font-semibold text-slate-700 mb-2">교과별 최소 이수학점</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {minCreditStatus.map((s, i) => {
+                const ratio = Math.min((s.current / Math.max(s.min, 1)) * 100, 100);
+                return (
+                  <div key={i} className="text-[0.7rem]">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-slate-600 truncate">
+                        {s.type === 'category' ? '🏷' : '📂'} {s.name}
+                      </span>
+                      <span className={`font-mono ${s.ok ? 'text-emerald-600' : 'text-rose-600 font-bold'}`}>
+                        {s.current}/{s.min}
+                      </span>
+                    </div>
+                    <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${ratio}%`,
+                          background: s.ok
+                            ? 'linear-gradient(135deg, #10b981, #059669)'
+                            : 'linear-gradient(135deg, #f43f5e, #e11d48)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {blockedReason && (
+          <div className="bg-rose-50 rounded-xl px-3 py-2 flex items-start gap-2 border border-rose-200">
+            <span className="text-rose-500 text-xs mt-0.5">⚠️</span>
+            <div className="text-xs text-rose-700 leading-relaxed flex-1">
+              <span className="font-semibold">{blockedReason.courseName}</span> 선택 차단<br />
+              {blockedReason.reason}
+            </div>
+            <button onClick={() => setBlockedReason(null)} className="text-rose-400 hover:text-rose-600 text-xs">✕</button>
+          </div>
+        )}
+      </div>
 
       {/* ── Course list ── */}
-      <div
-        className="flex-1 overflow-y-auto px-5 pb-40"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
+      <div className="flex-1 overflow-y-auto px-5 pb-48" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="flex flex-col gap-2.5">
           {filteredCourses.length === 0 ? (
             <div className="py-16 text-center">
-              <p className="text-sm text-slate-400">
-                이 학기에 개설된 교과가 없습니다.
-              </p>
+              <p className="text-sm text-slate-400">이 학기에 개설된 교과가 없습니다.</p>
             </div>
           ) : (
-            filteredCourses.map((course) => (
-              <CourseCard
-                key={course.id}
-                course={course}
-                selected={selectedIds.has(course.id)}
-                recommended={course.recommended}
-                required={course.required}
-                disabled={course.required || isDisabledByRule(course)}
-                onToggle={() => toggleCourse(course.id)}
-              />
-            ))
+            filteredCourses.map((course) => {
+              const info = getDisableInfo(course);
+              return (
+                <CourseCard
+                  key={course.id}
+                  course={course}
+                  selected={selectedIds.has(course.id)}
+                  recommended={course.recommended}
+                  required={course.required}
+                  disabled={course.required || !!info}
+                  hint={info?.message}
+                  onToggle={() => toggleCourse(course.id)}
+                />
+              );
+            })
           )}
         </div>
       </div>
 
-      {/* ── Bottom status bar (above MobileNav) ── */}
-      <div
-        className="fixed left-0 right-0 bg-white border-t border-slate-100 px-5 py-3 z-40"
-        style={{ bottom: '60px', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)' }}
-      >
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          {/* Left: selection info */}
-          <div className="flex flex-col">
-            <span
-              className="text-xs font-semibold text-slate-700"
-              style={{ fontFamily: "'Inter', sans-serif" }}
-            >
-              선택: {selectedIds.size}과목 / 총 {totalCredits}학점
-            </span>
-            <span className="text-[0.65rem] text-slate-400">{progress}% 달성</span>
-          </div>
+      {/* ── Bottom sheet: 신청 과목 미리보기 (드래그 / 토글) ── */}
+      <BottomSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        selectedCount={selectedIds.size}
+        totalCredits={totalCredits}
+        optionalCredits={optionalCredits}
+        foundationCredits={foundationCredits}
+        progress={progress}
+        selectedCourses={selectedCourses}
+        onUnselect={(id) => toggleCourse(id)}
+        onNext={handleNextStep}
+        submitIssues={submitIssues}
+        canSubmit={canSubmit}
+      />
 
-          {/* Right: progress + next button */}
-          <div className="flex items-center gap-3">
-            {/* Mini progress bar */}
-            <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${Math.min(progress, 100)}%`,
-                  background: 'linear-gradient(135deg, #3525cd, #4f46e5)',
-                }}
-              />
+      {/* ── Mini status bar (시트가 닫혀 있을 때) ── */}
+      {!sheetOpen && (
+        <div
+          className="fixed left-0 right-0 z-40 px-5 pb-2"
+          style={{ bottom: '64px' }}
+        >
+          <button
+            onClick={() => setSheetOpen(true)}
+            className="w-full max-w-lg mx-auto bg-white border border-slate-200 rounded-2xl px-4 py-3 flex items-center justify-between shadow-md hover:shadow-lg transition-shadow"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 text-xs">↑</span>
+              <div className="flex flex-col items-start">
+                <span className="text-xs font-semibold text-slate-700" style={{ fontFamily: "'Inter', sans-serif" }}>
+                  선택: {selectedIds.size}과목 / 총 {totalCredits}학점
+                </span>
+                <span className="text-[0.65rem] text-slate-400">
+                  학생선택 {optionalCredits}학점 · {progress}% 달성
+                </span>
+              </div>
             </div>
-
-            <button
-              className="px-4 py-2 rounded-xl text-white text-xs font-bold tracking-tight transition-opacity"
-              style={{
-                background: 'linear-gradient(135deg, #3525cd, #4f46e5)',
-                fontFamily: "'Manrope', sans-serif",
-              }}
-            >
-              다음 단계 →
-            </button>
-          </div>
+            <div className="flex items-center gap-2">
+              <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(progress, 100)}%`,
+                    background: 'linear-gradient(135deg, #3525cd, #4f46e5)',
+                  }}
+                />
+              </div>
+              <span className="text-[0.65rem] text-indigo-600 font-semibold">신청 보기</span>
+            </div>
+          </button>
         </div>
-      </div>
+      )}
 
-      {/* ── Bottom nav ── */}
       <MobileNav />
     </div>
+  );
+}
+
+/* ─── Bottom sheet component ─── */
+function BottomSheet({ open, onClose, selectedCount, totalCredits, optionalCredits, foundationCredits, progress, selectedCourses, onUnselect, onNext, submitIssues, canSubmit }) {
+  const grouped = useMemo(() => {
+    const map = {};
+    selectedCourses.forEach((c) => {
+      const k = `${c.grade}-${c.semester}`;
+      if (!map[k]) map[k] = [];
+      map[k].push(c);
+    });
+    return Object.keys(map)
+      .sort()
+      .map((k) => ({ key: k, label: `${k.replace('-', '학년 ')}학기`, items: map[k] }));
+  }, [selectedCourses]);
+
+  // 드래그로 닫기
+  const [dragY, setDragY] = useState(0);
+  const [dragStart, setDragStart] = useState(null);
+  const onTouchStart = (e) => setDragStart(e.touches[0].clientY);
+  const onTouchMove = (e) => {
+    if (dragStart == null) return;
+    const dy = e.touches[0].clientY - dragStart;
+    if (dy > 0) setDragY(dy);
+  };
+  const onTouchEnd = () => {
+    if (dragY > 80) onClose();
+    setDragY(0);
+    setDragStart(null);
+  };
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className={`fixed inset-0 z-40 bg-black transition-opacity ${open ? 'opacity-30 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+        onClick={onClose}
+      />
+      {/* Sheet */}
+      <div
+        className="fixed left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl flex flex-col"
+        style={{
+          bottom: '64px',
+          maxHeight: '70vh',
+          transform: open ? `translateY(${dragY}px)` : 'translateY(100%)',
+          transition: dragStart == null ? 'transform 0.28s ease' : 'none',
+        }}
+      >
+        {/* Drag handle */}
+        <div
+          className="pt-3 pb-2 flex items-center justify-center cursor-pointer"
+          onClick={onClose}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          <div className="w-12 h-1.5 rounded-full bg-slate-200" />
+        </div>
+
+        {/* Summary */}
+        <div className="px-5 pb-2 flex items-end justify-between">
+          <div>
+            <div className="text-xs text-slate-400">현재 신청 과목</div>
+            <div className="text-lg font-extrabold text-slate-800" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              {selectedCount}과목 · {totalCredits}학점
+            </div>
+            <div className="text-[0.7rem] text-slate-400">
+              학생선택 {optionalCredits}학점 · {progress}% 달성
+            </div>
+            <div className={`text-[0.7rem] mt-0.5 ${
+              foundationCredits > totalCredits * 0.5 && totalCredits > 0
+                ? 'text-rose-600 font-semibold'
+                : 'text-slate-500'
+            }`}>
+              기초교과 {foundationCredits}학점
+              {totalCredits > 0 && ` (${Math.round((foundationCredits / totalCredits) * 100)}%)`}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100"
+          >
+            ↓ 내리고 계속 선택
+          </button>
+        </div>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto px-5 pb-4">
+          {grouped.length === 0 ? (
+            <div className="py-12 text-center text-sm text-slate-400">
+              아직 선택한 과목이 없습니다.
+            </div>
+          ) : (
+            grouped.map((g) => (
+              <div key={g.key} className="mb-4">
+                <div className="text-xs font-semibold text-indigo-600 mb-1.5">
+                  {g.label} ({g.items.length}과목 · {g.items.reduce((s, c) => s + c.credits, 0)}학점)
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {g.items.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {c.required && (
+                          <span className="px-1.5 py-0.5 rounded text-[0.6rem] font-bold bg-red-100 text-red-700 flex-shrink-0">필수</span>
+                        )}
+                        <span className="text-sm text-slate-700 truncate">{c.subjectName}</span>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <span className="text-xs text-slate-500">{c.credits}학점</span>
+                        {!c.required && (
+                          <button
+                            onClick={() => onUnselect(c.id)}
+                            className="text-rose-500 hover:text-rose-700 text-xs"
+                          >
+                            제거
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* CTA + 검증 결과 */}
+        <div className="px-5 pt-2 pb-4 border-t border-slate-100">
+          {submitIssues && submitIssues.length > 0 ? (
+            <div className="mb-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-rose-500 text-xs">⚠️</span>
+                <span className="text-xs font-bold text-rose-700">최종 제출 불가 — 위배 규칙 {submitIssues.length}건</span>
+              </div>
+              <ul className="text-[0.68rem] text-rose-700 leading-snug list-disc list-inside space-y-0.5">
+                {submitIssues.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ul>
+            </div>
+          ) : selectedCount > 0 ? (
+            <div className="mb-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex items-center gap-2">
+              <span className="text-emerald-500 text-xs">✅</span>
+              <span className="text-xs font-semibold text-emerald-700">모든 학점 이수 규칙을 충족했습니다.</span>
+            </div>
+          ) : null}
+          <button
+            onClick={onNext}
+            disabled={!canSubmit}
+            className="w-full py-3 rounded-2xl text-white text-sm font-bold transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              background: canSubmit
+                ? 'linear-gradient(135deg, #3525cd, #4f46e5)'
+                : 'linear-gradient(135deg, #94a3b8, #64748b)',
+              fontFamily: "'Manrope', sans-serif",
+            }}
+          >
+            {canSubmit ? '다음 단계 →' : '제출 불가 (규칙 위배)'}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { init, verifyStudent } from '../api/db.js';
+import { setVerifiedStudent } from '../api/student.js';
 import MobileNav from '../components/MobileNav';
 
 export default function LoginPage() {
@@ -44,15 +45,12 @@ export default function LoginPage() {
       });
 
       /* Store verified student info for downstream pages */
-      sessionStorage.setItem(
-        'verifiedStudent',
-        JSON.stringify({
-          studentCode: studentCode.trim(),
-          studentId: studentId.trim(),
-          name: name.trim(),
-          ...res,
-        }),
-      );
+      setVerifiedStudent({
+        studentCode: studentCode.trim(),
+        studentId: studentId.trim(),
+        name: name.trim(),
+        ...res,
+      });
 
       navigate('/courses');
     } catch (err) {

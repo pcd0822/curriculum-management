@@ -12,10 +12,12 @@ export default function CourseCard({
   recommended = false,
   required = false,
   disabled = false,
+  hint = '',
   onToggle,
 }) {
-  const { subjectName, credits, category, subCategory } = course;
+  const { subjectName, credits, category, subCategory, prerequisites } = course;
   const style = CATEGORY_STYLES[category] || CATEGORY_STYLES['교양교과'];
+  const prereqList = Array.isArray(prerequisites) ? prerequisites : [];
 
   return (
     <div
@@ -26,7 +28,14 @@ export default function CourseCard({
         boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06)',
         fontFamily: "'Plus Jakarta Sans', sans-serif",
       }}
-      onClick={() => !disabled && onToggle?.()}
+      title={hint || ''}
+      onClick={(e) => {
+        if (disabled) {
+          if (hint) alert(hint);
+          return;
+        }
+        onToggle?.(e);
+      }}
     >
       {/* Category icon */}
       <div
@@ -90,7 +99,15 @@ export default function CourseCard({
           style={{ fontFamily: "'Inter', sans-serif" }}
         >
           {credits}학점
+          {prereqList.length > 0 && (
+            <span className="ml-2 text-[0.65rem] text-amber-600">
+              · 선이수: {prereqList.join(', ')}
+            </span>
+          )}
         </p>
+        {disabled && hint && !required && (
+          <p className="text-[0.65rem] text-rose-500 mt-1 leading-tight line-clamp-2">{hint}</p>
+        )}
       </div>
 
       {/* Checkbox */}

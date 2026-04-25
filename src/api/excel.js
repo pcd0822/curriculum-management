@@ -28,7 +28,7 @@ export function downloadExcel(data, fileName, sheetName = 'Sheet1') {
 export function downloadTemplate() {
   downloadExcel([{
     과목명: '예시: 문학', 영문ID: 'munhag', 학년: 2, 학기: 1, 학점: 4,
-    교과군: '기초교과', 세부교과: '국어', 필수여부: 'FALSE', 개설여부: 'TRUE', 선수과목: ''
+    교과군: '기초교과', 세부교과: '국어', 필수여부: 'FALSE', 개설여부: 'TRUE', 선이수과목: ''
   }], 'course_template_korean.xlsx', 'Courses');
 }
 

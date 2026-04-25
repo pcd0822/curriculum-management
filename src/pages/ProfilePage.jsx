@@ -3,6 +3,7 @@ import Header from '../components/Header';
 import MobileNav from '../components/MobileNav';
 import GaugeChart from '../components/GaugeChart';
 import { isConfigured, fetchResponses, fetchConfig, fetchSettings } from '../api/db';
+import { getVerifiedStudent } from '../api/student';
 
 function Card({ children, className = '' }) {
   return (
@@ -21,9 +22,15 @@ export default function ProfilePage() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 저장된 학생 정보
-  const student = useMemo(() => {
-    try { return JSON.parse(sessionStorage.getItem('verifiedStudent') || '{}'); } catch { return {}; }
+  // 저장된 학생 정보 (앱 종료 전까지 유지)
+  const student = useMemo(() => getVerifiedStudent(), []);
+
+  // 로컬 수강신청 이력
+  const submissionHistory = useMemo(() => {
+    try {
+      const arr = JSON.parse(localStorage.getItem('submissionHistory') || '[]');
+      return Array.isArray(arr) ? arr.slice().reverse() : [];
+    } catch { return []; }
   }, []);
 
   // 진로심리검사 기록
@@ -148,6 +155,55 @@ export default function ProfilePage() {
           <Card className="mb-4 text-center">
             <p className="text-sm text-slate-400 py-4">아직 수강신청 이력이 없습니다.</p>
             <p className="text-xs text-slate-300">수강신청 탭에서 과목을 선택하고 제출하세요.</p>
+          </Card>
+        )}
+
+        {/* ── 로컬 수강신청 이력 (날짜/시간대별) ── */}
+        <h3 className="text-sm font-bold text-slate-700 mb-2 mt-5" style={{ fontFamily: "'Manrope', sans-serif" }}>
+          수강신청 이력 (이 기기 기준)
+        </h3>
+        {submissionHistory.length > 0 ? (
+          <div className="space-y-2 mb-4">
+            {submissionHistory.map((h, i) => (
+              <Card key={i} className="!p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {h.studentName ? `${h.studentName} (${h.studentId})` : '내 신청'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">{h.dateLabel}</p>
+                  </div>
+                  <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
+                    {h.totalCredits || 0}학점
+                  </span>
+                </div>
+                <div className="text-[0.7rem] text-slate-500 mb-1.5">
+                  학생선택 {h.optionalCredits ?? '-'}학점 · 기초교과 {h.foundationCredits ?? '-'}학점
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {(h.courses || []).slice(0, 12).map((c, j) => (
+                    <span
+                      key={j}
+                      className={`text-[0.65rem] font-medium px-2 py-0.5 rounded-full ${
+                        c.required
+                          ? 'bg-red-50 text-red-600'
+                          : 'bg-emerald-50 text-emerald-700'
+                      }`}
+                    >
+                      {c.subjectName}
+                    </span>
+                  ))}
+                  {(h.courses || []).length > 12 && (
+                    <span className="text-[0.65rem] text-slate-400">외 {h.courses.length - 12}개</span>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="mb-4 text-center">
+            <p className="text-sm text-slate-400 py-3">기기에 저장된 신청 이력이 없습니다.</p>
+            <p className="text-xs text-slate-300">수강신청 → 다음 단계 클릭 시 자동 저장됩니다.</p>
           </Card>
         )}
 
