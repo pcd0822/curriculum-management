@@ -177,7 +177,59 @@ export default function CoursesPage() {
             if (Array.isArray(saved)) saved.forEach((id) => reqIds.add(id));
           } catch {}
         }
-        setSelectedIds(reqIds);
+
+        /* 복수편제 위반 자동 정리: 같은 식별자(과목명/슬러그)를 가진 다학기 과목이 동시에 선택돼 있으면
+           가장 빠른 학기 한 개만 남기고 제거 — 이전 버그로 인해 sessionStorage에 양쪽이 모두 저장된 경우 대비 */
+        const collectIds = (c) => {
+          const cands = [c.subjectName, c['과목명'], c.slug, c['영문ID'], c.code, c['과목코드']];
+          const out = [];
+          for (const v of cands) {
+            const n = String(v || '').replace(/\s+/g, '').normalize('NFC').toLowerCase();
+            if (n) out.push(n);
+          }
+          return out;
+        };
+        const seenSig = new Map(); // sig → courseId
+        const sortedIds = [...reqIds].sort((a, b) => {
+          const ca = merged.find((x) => x.id === a);
+          const cb = merged.find((x) => x.id === b);
+          if (!ca || !cb) return 0;
+          const ka = (ca.grade || 0) * 10 + (ca.semester || 0);
+          const kb = (cb.grade || 0) * 10 + (cb.semester || 0);
+          return ka - kb;
+        });
+        const dedupReqIds = new Set();
+        for (const id of sortedIds) {
+          const c = merged.find((x) => x.id === id);
+          if (!c) { dedupReqIds.add(id); continue; }
+          const sigs = collectIds(c);
+          const dup = sigs.find((s) => seenSig.has(s));
+          if (dup && !c.required) {
+            console.warn('[중복편제] 정리: 같은 과목 중복 선택 제거', c.subjectName, c.id, '←', seenSig.get(dup));
+            continue; // 동일 식별자가 이미 있는 경우 이 ID는 제외
+          }
+          dedupReqIds.add(id);
+          sigs.forEach((s) => seenSig.set(s, id));
+        }
+        setSelectedIds(dedupReqIds);
+
+        /* 데이터 진단: 동일 과목명을 가진 행이 여러 학기에 분포하는지 콘솔에 노출 */
+        try {
+          const byName = {};
+          merged.forEach((c) => {
+            const sig = String(c.subjectName || '').replace(/\s+/g, '').normalize('NFC').toLowerCase();
+            if (!sig) return;
+            if (!byName[sig]) byName[sig] = [];
+            byName[sig].push({ name: c.subjectName, id: c.id, sem: `${c.grade}-${c.semester}`, slug: c.slug, code: c.code });
+          });
+          const dupGroups = Object.entries(byName).filter(([, arr]) => arr.length > 1);
+          if (dupGroups.length > 0) {
+            console.info('[중복편제] 다학기 편성 과목 그룹:', dupGroups.map(([sig, arr]) => ({ sig, items: arr })));
+            console.info('[중복편제] 진단 로그 활성화: localStorage.setItem("dupDebug","1") 후 새로고침');
+          } else {
+            console.info('[중복편제] 다학기 편성 과목이 발견되지 않음. 데이터에 동일 과목명이 다른 학기에 있는지 확인 필요.');
+          }
+        } catch {}
       } catch (err) {
         console.error('Failed to load courses:', err);
       } finally {
@@ -350,18 +402,19 @@ export default function CoursesPage() {
   }
 
   /* 복수편제 차단: 과목명 또는 영문ID/과목코드가 일치하는 과목이 다른 학기에 편성된 경우,
-     어느 한 쪽이 선택되면 나머지 학기의 동일 과목은 신청 차단.
-     예외: settings.duplicateCourseSlugs 또는 allowMultiSemesterDuplicate=true */
+     어느 한 쪽이 선택되면 나머지 학기의 동일 과목은 신청 차단. */
   function normName(s) {
     return String(s || '').replace(/\s+/g, '').normalize('NFC').toLowerCase();
   }
-  /* 한 과목의 모든 식별자를 정규화된 형태로 수집 — 영문/한국어 컬럼명 둘 다 폴백 */
+  /* 한 과목의 모든 식별자를 정규화된 형태로 수집.
+     매핑된 영문 키(subjectName/slug/code)와 원본 한국어 키(과목명/영문ID/과목코드) 모두 폴백.
+     공백/유니코드/대소문자 차이를 모두 흡수. */
   function collectCourseIds(c) {
     if (!c) return [];
     const candidates = [
-      c.subjectName, c['과목명'],
-      c.slug,        c['영문ID'],
-      c.code,        c['과목코드'],
+      c.subjectName, c['과목명'], c['과목 명'], c['과 목 명'],
+      c.slug,        c['영문ID'], c['영문Id'], c['영문아이디'], c.englishId,
+      c.code,        c['과목코드'], c.courseCode,
     ];
     const out = [];
     for (const v of candidates) {
@@ -370,22 +423,44 @@ export default function CoursesPage() {
     }
     return out;
   }
+  /* 진단 로그 토글 — 콘솔에서 localStorage.setItem('dupDebug','1') 입력 시 활성 */
+  const DUP_DEBUG = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem('dupDebug') === '1');
   function isDuplicateAcrossSemester(course) {
-    if (allowMultiSemesterDuplicate) return false;
+    if (allowMultiSemesterDuplicate) {
+      if (DUP_DEBUG) console.warn('[중복편제] allowMultiSemesterDuplicate=true → 통과', course?.subjectName);
+      return false;
+    }
     const myIds = collectCourseIds(course);
-    if (myIds.length === 0) return null;
-    // 예외 목록(duplicateCourseSlugs)도 정규화 후 비교
+    if (DUP_DEBUG) console.warn('[중복편제] 검사 시작', { name: course?.subjectName, id: course?.id, sem: semKeyOf(course), myIds, selectedSize: selectedIds?.size });
+    if (myIds.length === 0) {
+      if (DUP_DEBUG) console.warn('[중복편제] 식별자 없음 → 통과', course);
+      return null;
+    }
     const exemptIds = duplicateCourseSlugs.map((x) => normName(x)).filter(Boolean);
-    if (myIds.some((id) => exemptIds.includes(id))) return false;
+    if (myIds.some((id) => exemptIds.includes(id))) {
+      if (DUP_DEBUG) console.warn('[중복편제] 예외 목록에 포함 → 통과', course?.subjectName);
+      return false;
+    }
     const mySet = new Set(myIds);
     const myKey = semKeyOf(course);
     for (const c of courses) {
       if (c.id === course.id) continue;
-      if (!selectedIds.has(c.id)) continue;
-      if (semKeyOf(c) === myKey) continue;            // 같은 학기는 제외
+      if (!selectedIds.has(c.id)) {
+        if (DUP_DEBUG && normName(c.subjectName) === myIds[0]) {
+          console.warn('[중복편제] 동일명 발견 but 미선택 → 통과', { other: c.subjectName, otherId: c.id, otherSem: semKeyOf(c) });
+        }
+        continue;
+      }
+      if (semKeyOf(c) === myKey) continue;
       const otherIds = collectCourseIds(c);
-      if (otherIds.some((id) => mySet.has(id))) return c;
+      const intersect = otherIds.filter((id) => mySet.has(id));
+      if (DUP_DEBUG) console.warn('[중복편제] 선택된 과목과 비교', { other: c.subjectName, otherId: c.id, otherSem: semKeyOf(c), otherIds, intersect });
+      if (intersect.length > 0) {
+        if (DUP_DEBUG) console.warn('[중복편제] ✅ 매칭 → 차단', { match: c.subjectName });
+        return c;
+      }
     }
+    if (DUP_DEBUG) console.warn('[중복편제] 매칭 없음 → 통과', course?.subjectName);
     return null;
   }
 
