@@ -990,59 +990,74 @@ export default function AdminPage() {
                   과목 엑셀에 <code className="bg-slate-100 px-1 rounded">선이수과목</code> 컬럼이 비어 있어도 여기서 등록한 매핑이 적용됩니다.
                 </p>
 
-                {/* 추가 폼 */}
+                {/* 추가 폼 — 직접 입력 */}
                 <div className="bg-slate-50 rounded-xl p-3 mb-4">
                   <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto] items-end gap-2">
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 mb-1 block">후수 과목 (과목명)</label>
-                      <select
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block">후수 과목 (과목명 직접 입력)</label>
+                      <input
+                        type="text"
                         value={prereqInputTarget}
                         onChange={(e) => setPrereqInputTarget(e.target.value)}
-                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
-                      >
-                        <option value="">후수 과목을 선택하세요…</option>
-                        {uniqueCourseNames.map((item) => (
-                          <option key={`t-${item.name}`} value={item.name}>
-                            {item.name}{item.semesters.length > 0 ? ` (${item.semesters.join(', ')})` : ''}
-                          </option>
-                        ))}
-                      </select>
+                        onKeyDown={(e) => { if (e.key === 'Enter' && prereqInputTarget && prereqInputPrereq) addPrereqMapping(); }}
+                        placeholder="예: 물질과 에너지"
+                        className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                      />
                     </div>
                     <div className="text-center text-slate-400 text-sm pt-5 hidden md:block">←</div>
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 mb-1 block">선이수 과목 (과목명)</label>
-                      <select
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block">선이수 과목 (과목명 직접 입력)</label>
+                      <input
+                        type="text"
                         value={prereqInputPrereq}
                         onChange={(e) => setPrereqInputPrereq(e.target.value)}
-                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
-                      >
-                        <option value="">선이수 과목을 선택하세요…</option>
-                        {uniqueCourseNames
-                          .filter((item) => item.name !== prereqInputTarget)
-                          .map((item) => (
-                            <option key={`p-${item.name}`} value={item.name}>
-                              {item.name}{item.semesters.length > 0 ? ` (${item.semesters.join(', ')})` : ''}
-                            </option>
-                          ))}
-                      </select>
+                        onKeyDown={(e) => { if (e.key === 'Enter' && prereqInputTarget && prereqInputPrereq) addPrereqMapping(); }}
+                        placeholder="예: 화학"
+                        className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                      />
                     </div>
                     <button
                       onClick={addPrereqMapping}
-                      disabled={!prereqInputTarget || !prereqInputPrereq}
+                      disabled={!prereqInputTarget.trim() || !prereqInputPrereq.trim()}
                       className="px-3 py-2 rounded-lg text-white text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       + 추가
                     </button>
                   </div>
-                  {courses.length === 0 && (
-                    <p className="text-xs text-amber-600 mt-2">
-                      ⚠️ 과목 데이터를 먼저 업로드하세요.
-                    </p>
-                  )}
                   <p className="text-[0.7rem] text-slate-500 mt-2 leading-relaxed">
                     📌 매핑은 <strong>과목명 단위</strong>로만 저장됩니다. 같은 이름이 여러 학기에 복수편제된 경우(예: 화학 2-1·2-2),
                     어느 학기에서 선택해도 선이수 조건이 충족됩니다 — 학기별로 따로 등록할 필요 없습니다.
                   </p>
+                  <p className="text-[0.7rem] text-amber-600 mt-1 leading-relaxed">
+                    ⚠️ 입력한 과목명이 등록된 과목과 정확히 일치해야 학생 화면에서 매칭됩니다.
+                    띄어쓰기·로마자 등 표기를 엑셀과 동일하게 입력하세요.
+                  </p>
+                  {/* 등록된 과목명 참고 */}
+                  {uniqueCourseNames.length > 0 && (
+                    <details className="mt-2">
+                      <summary className="text-[0.7rem] text-indigo-600 cursor-pointer hover:underline">
+                        등록된 과목명 보기 ({uniqueCourseNames.length}개)
+                      </summary>
+                      <div className="mt-1.5 max-h-32 overflow-y-auto bg-white border border-slate-200 rounded-lg p-2">
+                        <div className="flex flex-wrap gap-1">
+                          {uniqueCourseNames.map((item) => (
+                            <button
+                              key={item.name}
+                              type="button"
+                              onClick={() => {
+                                if (!prereqInputTarget) setPrereqInputTarget(item.name);
+                                else if (!prereqInputPrereq) setPrereqInputPrereq(item.name);
+                              }}
+                              title={`클릭하여 입력 — 개설학기: ${item.semesters.join(', ') || '미지정'}`}
+                              className="text-[0.65rem] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-indigo-100 hover:text-indigo-700"
+                            >
+                              {item.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </details>
+                  )}
                 </div>
 
                 {/* 등록된 매핑 리스트 */}
