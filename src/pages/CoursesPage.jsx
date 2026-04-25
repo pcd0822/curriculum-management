@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { isConfigured, fetchConfig, fetchSettings, fetchJointCurriculum } from '../api/db.js';
-import { getVerifiedStudent, getStudentAvatarLabel } from '../api/student.js';
+import { isConfigured, fetchConfig, fetchSettings, fetchJointCurriculum, submitResponse } from '../api/db.js';
+import { getVerifiedStudent, setVerifiedStudent, getStudentAvatarLabel } from '../api/student.js';
 import Header from '../components/Header';
 import MobileNav from '../components/MobileNav';
 import CourseCard from '../components/CourseCard';
@@ -86,15 +86,18 @@ export default function CoursesPage() {
   const [loading, setLoading] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [blockedReason, setBlockedReason] = useState(null); // {courseName, reason}
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [majorModalOpen, setMajorModalOpen] = useState(false);
+  const [majorInput, setMajorInput] = useState('');
 
   /* Read verified student info — 앱 종료 전까지 유지.
      관리자 미리보기 모드에서는 가짜 학생을 사용해 실제 학생 데이터에 영향을 주지 않음. */
-  const student = useMemo(() => {
+  const [student, setStudent] = useState(() => {
     if (isAdminPreview) {
       return { name: '관리자(테스트)', studentId: 'PREVIEW', studentCode: 'TEST-MODE' };
     }
     return getVerifiedStudent();
-  }, [isAdminPreview]);
+  });
   const avatarLabel = isAdminPreview ? '관' : getStudentAvatarLabel();
   const schoolName = settings?.schoolName || localStorage.getItem('school_name') || 'OO고등학교';
 
@@ -255,7 +258,12 @@ export default function CoursesPage() {
   );
 
   const optionalSelected = useMemo(
-    () => selectedCourses.filter((c) => !c.required),
+    () => selectedCourses.filter((c) => !c.required && !c.joint),
+    [selectedCourses],
+  );
+
+  const requiredCredits = useMemo(
+    () => selectedCourses.filter((c) => c.required).reduce((s, c) => s + c.credits, 0),
     [selectedCourses],
   );
 
@@ -608,12 +616,26 @@ export default function CoursesPage() {
     [courses, selectedIds, settings],
   );
 
-  function handleNextStep() {
+  function handleSubmit() {
     if (!canSubmit) {
       const reasons = submitIssues.map((s, i) => `${i + 1}. ${s}`).join('\n');
-      alert(`최종 제출 불가\n\n다음 규칙을 위배하여 제출할 수 없습니다:\n\n${reasons}`);
+      alert(`제출 불가\n\n다음 규칙을 위배하여 제출할 수 없습니다:\n\n${reasons}`);
       setSheetOpen(true);
       return;
+    }
+    /* 제출 전 진로/학과 입력 받기 */
+    setMajorInput(student?.major || student?.희망진로 || '');
+    setMajorModalOpen(true);
+  }
+
+  async function performSubmit(enteredMajor) {
+    if (!canSubmit) return;
+    const major = String(enteredMajor || '').trim() || '탐색중';
+    /* 학생 정보에 진로 저장 (관리자 미리보기에서는 저장 안 함) */
+    if (!isAdminPreview) {
+      const updated = { ...student, major, 희망진로: major };
+      setVerifiedStudent(updated);
+      setStudent(updated);
     }
     const snapshot = selectedCourses.map((c) => ({
       id: c.id,
@@ -621,7 +643,9 @@ export default function CoursesPage() {
       credits: c.credits,
       grade: c.grade,
       semester: c.semester,
-      required: c.required,
+      category: c.category || '',
+      subCategory: c.subCategory || '',
+      required: !!c.required,
       joint: !!c.joint,
       host: c.host || '',
     }));
@@ -639,31 +663,87 @@ export default function CoursesPage() {
       return;
     }
 
-    sessionStorage.setItem('pendingSelectedCourses', JSON.stringify(snapshot));
+    /* 학번을 학년·반·번호로 분해 (예: "20513" → grade 2, class 5, number 13) */
+    const sidStr = String(student?.studentId || student?.학번 || '').trim();
+    const sidGrade = Number(sidStr.charAt(0)) || 0;
+    const sidClass = Number(sidStr.substring(1, 3)) || 0;
+    const sidNumber = Number(sidStr.substring(3)) || 0;
+    const studentName = student?.name || student?.이름 || '';
+    /* major는 모달에서 받은 값을 우선 사용 */
 
-    /* 수강신청 이력 저장 (날짜·시간대별로 누적) */
+    const optionalNames = snapshot.filter((c) => !c.required && !c.joint).map((c) => c.subjectName);
+    const requiredNames = snapshot.filter((c) => c.required).map((c) => c.subjectName);
+    const jointEntries = snapshot.filter((c) => c.joint).map((c) => ({
+      subjectName: c.subjectName,
+      host: c.host,
+    }));
+
+    const validationLines = [
+      `총 이수학점: ${totalCredits}/${requiredTotalCredits}`,
+      `학교지정: ${requiredCredits || (totalCredits - optionalCredits - jointCredits)}학점, 학생선택: ${optionalCredits}학점${jointCredits > 0 ? `, 공동교육: ${jointCredits}학점` : ''}`,
+      `기초교과: ${foundationCredits}학점 (${totalCredits > 0 ? Math.round((foundationCredits / totalCredits) * 100) : 0}%)`,
+      submitIssues.length === 0 ? '✅ 모든 학점 이수 규칙 충족' : `⚠️ ${submitIssues.length}건 위배`,
+    ];
+
+    const payload = {
+      grade: sidGrade,
+      classNum: sidClass,
+      studentNum: sidNumber,
+      name: studentName,
+      major,
+      selectedCourses: optionalNames.join(', '),
+      jointCourses: jointEntries,
+      totalCredits,
+      validationResult: validationLines.join(' / '),
+      aiRecommendation: '',
+      // 추가 메타 — GAS가 헤더 매핑된 것만 저장하지만 향후 확장 대비
+      coursesDetail: JSON.stringify(snapshot),
+      foundationCredits,
+      optionalCredits,
+      requiredCredits,
+      jointCredits,
+    };
+
+    setIsSubmitting(true);
     try {
-      const studentId = student?.studentId || student?.학번 || '';
-      const studentName = student?.name || student?.이름 || '';
-      const history = JSON.parse(localStorage.getItem('submissionHistory') || '[]');
-      history.push({
-        timestamp: Date.now(),
-        dateLabel: new Date().toLocaleString('ko-KR'),
-        studentId,
-        studentName,
-        totalCredits,
-        optionalCredits,
-        foundationCredits,
-        regularCredits,
-        jointCredits,
-        courses: snapshot,
-        submitOk: true,
-      });
-      localStorage.setItem('submissionHistory', JSON.stringify(history.slice(-50)));
-    } catch {}
+      await submitResponse(payload);
 
-    navigate('/credits');
+      sessionStorage.setItem('pendingSelectedCourses', JSON.stringify(snapshot));
+
+      /* 로컬 신청 이력 저장 (날짜·시간대별로 누적) */
+      try {
+        const history = JSON.parse(localStorage.getItem('submissionHistory') || '[]');
+        history.push({
+          timestamp: Date.now(),
+          dateLabel: new Date().toLocaleString('ko-KR'),
+          studentId: sidStr,
+          studentName,
+          major,
+          totalCredits,
+          optionalCredits,
+          foundationCredits,
+          regularCredits,
+          requiredCredits,
+          jointCredits,
+          courses: snapshot,
+          submitOk: true,
+          serverSaved: true,
+        });
+        localStorage.setItem('submissionHistory', JSON.stringify(history.slice(-50)));
+      } catch {}
+
+      alert(`✅ 제출 완료!\n\n· 총 ${totalCredits}학점 (${snapshot.length}과목)\n· 학교지정 ${requiredCredits}학점 + 학생선택 ${optionalCredits}학점${jointCredits > 0 ? ` + 공동교육 ${jointCredits}학점` : ''}\n· 희망 진로: ${major}\n\n관리자 대시보드와 이수현황에 즉시 집계됩니다.`);
+      setMajorModalOpen(false);
+      navigate('/credits');
+    } catch (err) {
+      console.error('submit error', err);
+      alert(`❌ 제출 실패: ${err.message || '서버 오류'}\n\n잠시 후 다시 시도하거나 관리자에게 문의하세요.`);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
+  // 기존 호출부 호환을 위한 별칭
+  const handleNextStep = handleSubmit;
 
   /* ── Render ── */
   if (loading) {
@@ -951,9 +1031,10 @@ export default function CoursesPage() {
         progress={progress}
         selectedCourses={selectedCourses}
         onUnselect={(id) => toggleCourse(id)}
-        onNext={handleNextStep}
+        onNext={handleSubmit}
         submitIssues={submitIssues}
         canSubmit={canSubmit}
+        isSubmitting={isSubmitting}
       />
 
       {/* ── Mini status bar (시트가 닫혀 있을 때) ── */}
@@ -1049,13 +1130,74 @@ export default function CoursesPage() {
         );
       })()}
 
+      {/* ── 진로/학과 입력 모달 ── */}
+      {majorModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-5 bg-black/40"
+          onClick={() => !isSubmitting && setMajorModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-extrabold text-slate-800 mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              진로/학과 입력
+            </h3>
+            <p className="text-sm text-slate-500 mb-4 leading-relaxed">
+              학생이 희망하는 <strong className="text-indigo-600">진로 또는 학과(전공)</strong>은 무엇인가요?<br />
+              <span className="text-xs text-slate-400">아직 정하지 못했다면 <strong>"탐색중"</strong>이라고 입력하세요.</span>
+            </p>
+            <input
+              type="text"
+              value={majorInput}
+              onChange={(e) => setMajorInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isSubmitting) {
+                  performSubmit(majorInput);
+                }
+                if (e.key === 'Escape' && !isSubmitting) setMajorModalOpen(false);
+              }}
+              placeholder="예: 컴퓨터공학, 간호사, 탐색중"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 mb-4"
+              autoFocus
+              disabled={isSubmitting}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMajorModalOpen(false)}
+                disabled={isSubmitting}
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => performSubmit(majorInput)}
+                disabled={isSubmitting}
+                className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    제출중
+                  </>
+                ) : '제출하기 →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <MobileNav />
     </div>
   );
 }
 
 /* ─── Bottom sheet component ─── */
-function BottomSheet({ open, onClose, selectedCount, totalCredits, optionalCredits, foundationCredits, regularCredits, jointCredits, progress, selectedCourses, onUnselect, onNext, submitIssues, canSubmit }) {
+function BottomSheet({ open, onClose, selectedCount, totalCredits, optionalCredits, foundationCredits, regularCredits, jointCredits, progress, selectedCourses, onUnselect, onNext, submitIssues, canSubmit, isSubmitting }) {
   const grouped = useMemo(() => {
     const map = {};
     selectedCourses.forEach((c) => {
@@ -1213,8 +1355,8 @@ function BottomSheet({ open, onClose, selectedCount, totalCredits, optionalCredi
           ) : null}
           <button
             onClick={onNext}
-            disabled={!canSubmit}
-            className="w-full py-3 rounded-2xl text-white text-sm font-bold transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!canSubmit || isSubmitting}
+            className="w-full py-3 rounded-2xl text-white text-sm font-bold transition-opacity disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             style={{
               background: canSubmit
                 ? 'linear-gradient(135deg, #3525cd, #4f46e5)'
@@ -1222,7 +1364,19 @@ function BottomSheet({ open, onClose, selectedCount, totalCredits, optionalCredi
               fontFamily: "'Manrope', sans-serif",
             }}
           >
-            {canSubmit ? '다음 단계 →' : '제출 불가 (규칙 위배)'}
+            {isSubmitting ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                제출중...
+              </>
+            ) : canSubmit ? (
+              '✓ 제출하기'
+            ) : (
+              '제출 불가 (규칙 위배)'
+            )}
           </button>
         </div>
       </div>

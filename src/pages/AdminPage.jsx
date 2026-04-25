@@ -776,6 +776,76 @@ export default function AdminPage() {
                   </div>
                 </Card>
               </div>
+
+              {/* 과목별 누적 신청자 수 (선택 과목 인기도) */}
+              <Card className="mb-6">
+                <SectionTitle>과목별 누적 신청자 수 (학생선택)</SectionTitle>
+                <p className="text-xs text-slate-500 mb-4">학생들이 제출한 신청서에서 과목명별로 집계한 인원수입니다.</p>
+                {(() => {
+                  const counter = {};
+                  responses.forEach(r => {
+                    const raw = r.SelectedCourses || r.selectedCourses || '';
+                    String(raw).split(',').map(s => s.trim()).filter(Boolean).forEach(name => {
+                      counter[name] = (counter[name] || 0) + 1;
+                    });
+                  });
+                  const ranked = Object.entries(counter).sort((a, b) => b[1] - a[1]);
+                  if (ranked.length === 0) {
+                    return <p className="text-sm text-slate-400 py-8 text-center">아직 제출된 신청서가 없습니다.</p>;
+                  }
+                  const max = ranked[0][1];
+                  return (
+                    <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-2">
+                      {ranked.map(([name, count]) => (
+                        <div key={name} className="flex items-center gap-3">
+                          <span className="text-sm text-slate-700 w-44 truncate flex-shrink-0" title={name}>{name}</span>
+                          <div className="flex-1 h-5 rounded-full bg-slate-100 overflow-hidden relative">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${(count / max) * 100}%`, background: 'linear-gradient(90deg, #6366f1, #4f46e5)' }}
+                            />
+                          </div>
+                          <span className="text-xs font-mono font-semibold text-slate-700 w-12 text-right">{count}명</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </Card>
+
+              {/* 공동교육과정 누적 신청 */}
+              <Card className="mb-6">
+                <SectionTitle>공동교육과정 누적 신청자 수</SectionTitle>
+                {(() => {
+                  const counter = {};
+                  responses.forEach(r => {
+                    const raw = r.JointCourses || r.jointCourses || '';
+                    if (Array.isArray(raw)) {
+                      raw.forEach(j => {
+                        const name = j?.subjectName || String(j);
+                        if (name) counter[name] = (counter[name] || 0) + 1;
+                      });
+                    } else {
+                      String(raw).split(',').map(s => s.trim()).filter(Boolean).forEach(name => {
+                        counter[name] = (counter[name] || 0) + 1;
+                      });
+                    }
+                  });
+                  const ranked = Object.entries(counter).sort((a, b) => b[1] - a[1]);
+                  if (ranked.length === 0) {
+                    return <p className="text-sm text-slate-400 py-6 text-center">제출된 공동교육과정 신청이 없습니다.</p>;
+                  }
+                  return (
+                    <div className="flex flex-wrap gap-1.5">
+                      {ranked.map(([name, count]) => (
+                        <span key={name} className="inline-flex items-center gap-1 bg-violet-50 text-violet-700 px-2 py-0.5 rounded-full text-xs">
+                          🏫 {name} <span className="font-mono font-semibold text-violet-600">{count}</span>
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </Card>
               {/* Student table */}
               <Card>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
