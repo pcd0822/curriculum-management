@@ -99,46 +99,46 @@ function SectionTitle({ children }) {
   return <h2 className="text-base font-bold text-slate-800 mb-4" style={{ fontFamily: "'Manrope', sans-serif" }}>{children}</h2>;
 }
 
-/* 입력값과 부분일치하는 과목명 추천 (입력창 바로 아래에 노출) */
-function PrereqSuggestions({ query, all, exclude, onPick }) {
-  const q = String(query || '').replace(/\s+/g, '').toLowerCase();
-  if (!q) return null;
-  const matches = (all || [])
-    .filter((item) => {
-      if (!item || !item.name) return false;
-      if (exclude && item.name === exclude) return false;
-      const n = String(item.name).replace(/\s+/g, '').toLowerCase();
-      return n.includes(q);
-    })
-    .slice(0, 8);
-  // 입력값과 정확히 일치하는 한 항목만 있으면 굳이 노출하지 않음
-  if (matches.length === 0) {
-    return (
-      <p className="mt-1 text-[0.65rem] text-slate-400">
-        일치하는 과목명이 없습니다. (등록되지 않은 이름도 자유롭게 입력 가능)
-      </p>
-    );
-  }
-  if (matches.length === 1 && String(matches[0].name).replace(/\s+/g, '').toLowerCase() === q) {
+/* 입력값과 부분일치하는 과목명 추천 (입력창 바로 아래).
+   매칭/가시성은 부모에서 계산해 props로 전달 — 키보드 활성 인덱스도 부모가 관리. */
+function PrereqSuggestions({ query, matches, visible, activeIdx, onPick }) {
+  if (!query) return null;
+  if (!visible) {
+    if (matches.length === 0) {
+      return (
+        <p className="mt-1 text-[0.65rem] text-slate-400">
+          일치하는 과목명이 없습니다. (등록되지 않은 이름도 자유롭게 입력 가능)
+        </p>
+      );
+    }
     return null;
   }
   return (
     <div className="mt-1 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-sm">
-      {matches.map((item) => (
-        <button
-          key={item.name}
-          type="button"
-          onMouseDown={(e) => { e.preventDefault(); onPick(item.name); }}
-          className="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center justify-between gap-2 border-b border-slate-50 last:border-b-0"
-        >
-          <span className="text-slate-700 truncate">{item.name}</span>
-          {item.semesters && item.semesters.length > 0 && (
-            <span className="text-[0.65rem] text-slate-400 flex-shrink-0">
-              {item.semesters.join(', ')}
-            </span>
-          )}
-        </button>
-      ))}
+      <div className="px-3 py-1 text-[0.6rem] text-slate-400 bg-slate-50 border-b border-slate-100 sticky top-0">
+        ↑↓ 이동 · Enter 선택 — 일치 {matches.length}건
+      </div>
+      {matches.map((item, idx) => {
+        const active = idx === activeIdx;
+        return (
+          <button
+            key={item.name}
+            type="button"
+            onMouseEnter={() => { /* 마우스 이동 시 활성 동기화는 부모가 관리해도 됨 — 여기선 단순화 위해 생략 */ }}
+            onMouseDown={(e) => { e.preventDefault(); onPick(item.name); }}
+            className={`w-full text-left px-3 py-1.5 text-sm flex items-center justify-between gap-2 border-b border-slate-50 last:border-b-0 ${
+              active ? 'bg-indigo-100 text-indigo-700 font-semibold' : 'hover:bg-indigo-50 text-slate-700'
+            }`}
+          >
+            <span className="truncate">{item.name}</span>
+            {item.semesters && item.semesters.length > 0 && (
+              <span className={`text-[0.65rem] flex-shrink-0 ${active ? 'text-indigo-500' : 'text-slate-400'}`}>
+                {item.semesters.join(', ')}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -450,6 +450,10 @@ export default function AdminPage() {
     }
   }, [settings]);
 
+  /* 선이수 매핑 입력 — 키보드 내비게이션 상태 */
+  const [targetActiveIdx, setTargetActiveIdx] = useState(0);
+  const [prereqActiveIdx, setPrereqActiveIdx] = useState(0);
+
   /* 선이수 매핑 편집 헬퍼 */
   function addPrereqMapping() {
     const target = String(prereqInputTarget || '').trim();
@@ -584,9 +588,7 @@ export default function AdminPage() {
     return [...set].sort();
   }, [courses]);
 
-  /* 과목명 단위로 중복 제거된 목록 (선이수 매핑 드롭다운용).
-     같은 이름이 여러 학기에 편제된 경우 하나의 항목으로 표시되며,
-     개설 학기는 보조 정보로만 노출됨. */
+  /* 과목명 단위로 중복 제거된 목록 (선이수 매핑 입력 추천용). */
   const uniqueCourseNames = useMemo(() => {
     const map = new Map();
     courses.forEach((c) => {
@@ -599,12 +601,68 @@ export default function AdminPage() {
       if (semKey) map.get(name).add(semKey);
     });
     return Array.from(map.entries())
-      .map(([name, semSet]) => ({
-        name,
-        semesters: [...semSet].sort(),
-      }))
+      .map(([name, semSet]) => ({ name, semesters: [...semSet].sort() }))
       .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   }, [courses]);
+
+  /* 입력 → 부분일치 매칭 (공백 무시, 대소문자 무시) */
+  function getMatches(query, exclude) {
+    const q = String(query || '').replace(/\s+/g, '').toLowerCase();
+    if (!q) return [];
+    return uniqueCourseNames
+      .filter((item) => {
+        if (!item || !item.name) return false;
+        if (exclude && item.name === exclude) return false;
+        const n = String(item.name).replace(/\s+/g, '').toLowerCase();
+        return n.includes(q);
+      })
+      .slice(0, 8);
+  }
+  function isExactSingleMatch(query, matches) {
+    if (!Array.isArray(matches) || matches.length !== 1) return false;
+    const q = String(query || '').replace(/\s+/g, '').toLowerCase();
+    const m = String(matches[0].name).replace(/\s+/g, '').toLowerCase();
+    return q === m;
+  }
+  const targetMatches = useMemo(
+    () => getMatches(prereqInputTarget),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [prereqInputTarget, uniqueCourseNames]
+  );
+  const prereqMatches = useMemo(
+    () => getMatches(prereqInputPrereq, prereqInputTarget),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [prereqInputPrereq, prereqInputTarget, uniqueCourseNames]
+  );
+  const targetSuggestionsVisible = targetMatches.length > 0 && !isExactSingleMatch(prereqInputTarget, targetMatches);
+  const prereqSuggestionsVisible = prereqMatches.length > 0 && !isExactSingleMatch(prereqInputPrereq, prereqMatches);
+
+  /* 입력값이 변경되면 active idx를 0으로 리셋 */
+  useEffect(() => { setTargetActiveIdx(0); }, [prereqInputTarget]);
+  useEffect(() => { setPrereqActiveIdx(0); }, [prereqInputPrereq, prereqInputTarget]);
+
+  /* 추천 리스트 키보드 처리 헬퍼 */
+  function handleSuggestionKey(e, opts) {
+    const { matches, visible, activeIdx, setActiveIdx, setValue, onSubmit } = opts;
+    if (visible && matches.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveIdx((i) => Math.min(i + 1, matches.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveIdx((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' && activeIdx >= 0 && activeIdx < matches.length) {
+        e.preventDefault();
+        setValue(matches[activeIdx].name);
+        return;
+      }
+    }
+    if (e.key === 'Enter' && onSubmit) onSubmit();
+  }
 
   /* ── Share tab ── */
   const shareUrl = apiUrl ? `${window.location.origin}/login?key=${btoa(apiUrl)}` : '';
@@ -1034,7 +1092,7 @@ export default function AdminPage() {
                   과목 엑셀에 <code className="bg-slate-100 px-1 rounded">선이수과목</code> 컬럼이 비어 있어도 여기서 등록한 매핑이 적용됩니다.
                 </p>
 
-                {/* 추가 폼 — 직접 입력 + 실시간 매칭 추천 */}
+                {/* 추가 폼 — 직접 입력 + 실시간 매칭 추천 (↑↓ Enter 키 지원) */}
                 <div className="bg-slate-50 rounded-xl p-3 mb-4">
                   <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto] items-start gap-2">
                     <div>
@@ -1043,13 +1101,25 @@ export default function AdminPage() {
                         type="text"
                         value={prereqInputTarget}
                         onChange={(e) => setPrereqInputTarget(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && prereqInputTarget.trim() && prereqInputPrereq.trim()) addPrereqMapping(); }}
+                        onKeyDown={(e) => handleSuggestionKey(e, {
+                          matches: targetMatches,
+                          visible: targetSuggestionsVisible,
+                          activeIdx: targetActiveIdx,
+                          setActiveIdx: setTargetActiveIdx,
+                          setValue: setPrereqInputTarget,
+                          onSubmit: () => {
+                            if (prereqInputTarget.trim() && prereqInputPrereq.trim()) addPrereqMapping();
+                          },
+                        })}
                         placeholder="예: 물질과 에너지"
+                        autoComplete="off"
                         className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
                       />
                       <PrereqSuggestions
                         query={prereqInputTarget}
-                        all={uniqueCourseNames}
+                        matches={targetMatches}
+                        visible={targetSuggestionsVisible}
+                        activeIdx={targetActiveIdx}
                         onPick={(name) => setPrereqInputTarget(name)}
                       />
                     </div>
@@ -1060,14 +1130,25 @@ export default function AdminPage() {
                         type="text"
                         value={prereqInputPrereq}
                         onChange={(e) => setPrereqInputPrereq(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && prereqInputTarget.trim() && prereqInputPrereq.trim()) addPrereqMapping(); }}
+                        onKeyDown={(e) => handleSuggestionKey(e, {
+                          matches: prereqMatches,
+                          visible: prereqSuggestionsVisible,
+                          activeIdx: prereqActiveIdx,
+                          setActiveIdx: setPrereqActiveIdx,
+                          setValue: setPrereqInputPrereq,
+                          onSubmit: () => {
+                            if (prereqInputTarget.trim() && prereqInputPrereq.trim()) addPrereqMapping();
+                          },
+                        })}
                         placeholder="예: 화학"
+                        autoComplete="off"
                         className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
                       />
                       <PrereqSuggestions
                         query={prereqInputPrereq}
-                        all={uniqueCourseNames}
-                        exclude={prereqInputTarget}
+                        matches={prereqMatches}
+                        visible={prereqSuggestionsVisible}
+                        activeIdx={prereqActiveIdx}
                         onPick={(name) => setPrereqInputPrereq(name)}
                       />
                     </div>

@@ -341,11 +341,12 @@ export default function CoursesPage() {
     });
   }
 
-  /* 복수편제 차단: 같은 과목명 + 같은 학점 과목이 다른 학기에 동일 편성된 경우,
+  /* 복수편제 차단: 과목명(공백·유니코드 정규화) 또는 영문ID(slug)가 일치하는 과목이
+     다른 학기(다른 학년 동일 학기 포함)에 동일 편성된 경우,
      어느 한 쪽이 선택되면 나머지 학기의 동일 과목은 신청 차단.
      예외: settings.duplicateCourseSlugs 또는 allowMultiSemesterDuplicate=true */
   function normName(s) {
-    return String(s || '').replace(/\s+/g, '').normalize('NFC');
+    return String(s || '').replace(/\s+/g, '').normalize('NFC').toLowerCase();
   }
   function isDuplicateAcrossSemester(course) {
     if (allowMultiSemesterDuplicate) return false;
@@ -354,19 +355,18 @@ export default function CoursesPage() {
     );
     if (allowedDup) return false;
     const myName = normName(course.subjectName);
-    const myCredits = Number(course.credits) || 0;
-    if (!myName) return null;
+    const mySlug = normName(course.slug);
+    if (!myName && !mySlug) return null;
+    const myKey = semKeyOf(course);
     for (const c of courses) {
       if (c.id === course.id) continue;
       if (!selectedIds.has(c.id)) continue;
+      if (semKeyOf(c) === myKey) continue;            // 같은 학기는 제외 — 다른 학기 또는 다른 학년 같은 학기만 검사
       const otherName = normName(c.subjectName);
-      const otherCredits = Number(c.credits) || 0;
-      const sameName = otherName === myName;
-      const sameCredits = otherCredits === myCredits;
-      const differentSemester = semKeyOf(c) !== semKeyOf(course);
-      if (sameName && sameCredits && differentSemester) {
-        return c;
-      }
+      const otherSlug = normName(c.slug);
+      const sameName = myName && otherName && myName === otherName;
+      const sameSlug = mySlug && otherSlug && mySlug === otherSlug;
+      if (sameName || sameSlug) return c;             // 과목명 또는 영문ID 어느 한 쪽이라도 일치하면 차단
     }
     return null;
   }
@@ -382,7 +382,7 @@ export default function CoursesPage() {
       const dup = isDuplicateAcrossSemester(course);
       if (dup) return {
         type: 'duplicate',
-        message: `"${course.subjectName}"(${course.credits}학점)이 ${dup.grade}-${dup.semester}학기에 복수편제되어 이미 신청되었습니다. 같은 과목명·같은 학점이라 다른 학기에서는 추가 신청할 수 없습니다.`,
+        message: `"${course.subjectName}"이(가) ${dup.grade}학년 ${dup.semester}학기에 이미 신청되었습니다. 같은 과목명(또는 영문ID)이 다른 학기에 복수편제된 과목은 한 학기에서만 신청할 수 있습니다. 다른 학기에서 신청하려면 먼저 ${dup.grade}-${dup.semester}학기의 선택을 해제하세요.`,
       };
     }
     const missing = missingPrerequisites(course);
