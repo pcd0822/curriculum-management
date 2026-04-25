@@ -227,6 +227,15 @@ export default function CoursesPage() {
   const maxCourses = courses.length || 1;
   const progress = Math.round((selectedIds.size / maxCourses) * 100);
 
+  /* 학기 이동 */
+  const semIdx = SEMESTERS.findIndex((s) => s.key === activeSemester);
+  const prevSemester = semIdx > 0 ? SEMESTERS[semIdx - 1] : null;
+  const nextSemester = semIdx >= 0 && semIdx < SEMESTERS.length - 1 ? SEMESTERS[semIdx + 1] : null;
+  function gotoSemester(key) {
+    setActiveSemester(key);
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+  }
+
   /* 선택 상태가 바뀔 때마다 sessionStorage에 저장 (탭 이동 시 유지).
      관리자 미리보기는 별도 키로 보관하여 실제 학생 선택을 침해하지 않음. */
   useEffect(() => {
@@ -276,18 +285,35 @@ export default function CoursesPage() {
     return null;
   }
 
-  /* 선이수 검사: 선이수 과목이 같은 학기 또는 이전 학기에 선택되어 있어야 함 */
+  /* 선이수 검사: 선이수 과목이 같은 학기 또는 이전 학기에 선택되어 있어야 함.
+     - 슬러그/과목명 양쪽으로 매칭(공백 제거)
+     - 카리큘럼에 존재하지 않는 선이수 항목(예: 1학년 과목)은 이미 이수한 것으로 간주(통과)
+     - 등록된 과목인데 선택 안 됨 → 미충족 */
   function missingPrerequisites(course) {
     if (!course.prerequisites || course.prerequisites.length === 0) return [];
     const here = semOrder(semKeyOf(course));
+
     const satisfied = new Set();
+    const allKnown = new Set();
     courses.forEach((c) => {
+      const slug = String(c.slug || '').trim();
+      const name = String(c.subjectName || '').trim();
+      if (slug) allKnown.add(slug);
+      if (name) allKnown.add(name);
       if (!selectedIds.has(c.id)) return;
       if (semOrder(semKeyOf(c)) > here) return; // 같은 학기 또는 이전만 인정
-      if (c.slug) satisfied.add(c.slug);
-      if (c.subjectName) satisfied.add(c.subjectName);
+      if (slug) satisfied.add(slug);
+      if (name) satisfied.add(name);
     });
-    return course.prerequisites.filter((p) => !satisfied.has(p));
+
+    return course.prerequisites
+      .map((p) => String(p || '').trim())
+      .filter((p) => {
+        if (!p) return false;
+        if (satisfied.has(p)) return false;       // 이미 이수
+        if (!allKnown.has(p)) return false;       // 카리큘럼에 없는 항목 → 1학년 등으로 간주, 통과
+        return true;                              // 등록되어 있는데 미선택 → 차단
+      });
   }
 
   /* 복수편제 차단: 같은 과목명 + 같은 학점 과목이 다른 학기에 동일 편성된 경우,
@@ -387,16 +413,23 @@ export default function CoursesPage() {
         }
       });
     });
-    /* 선이수 미충족 사후 검증 */
+    /* 선이수 미충족 사후 검증 — 필수·학생선택·공동교육과정 모두 대상 */
+    const reportedPrereq = new Set(); // 같은 위배 메시지 중복 방지
     selectedCourses.forEach((c) => {
-      if (c.required) return;
       const missing = missingPrerequisites(c);
       if (missing.length > 0) {
         const names = missing.map((p) => {
-          const f = courses.find((x) => x.slug === p || x.subjectName === p);
+          const f = courses.find(
+            (x) => String(x.slug || '').trim() === String(p).trim() ||
+                   String(x.subjectName || '').trim() === String(p).trim()
+          );
           return f?.subjectName || p;
         });
-        issues.push(`"${c.subjectName}" 선이수 과목 미이수: ${names.join(', ')}`);
+        const key = `${c.subjectName}|${names.join(',')}`;
+        if (reportedPrereq.has(key)) return;
+        reportedPrereq.add(key);
+        const tag = c.required ? '[필수]' : c.joint ? '[공동]' : '[선택]';
+        issues.push(`${tag} "${c.subjectName}" 선이수 과목 미이수: ${names.join(', ')}`);
       }
     });
     return issues;
@@ -782,43 +815,97 @@ export default function CoursesPage() {
       />
 
       {/* ── Mini status bar (시트가 닫혀 있을 때) ── */}
-      {!sheetOpen && (
-        <div
-          className="fixed left-0 right-0 z-40 px-5 pb-2"
-          style={{ bottom: '64px' }}
-        >
-          <button
-            onClick={() => setSheetOpen(true)}
-            className="w-full max-w-lg mx-auto bg-white border border-slate-200 rounded-2xl px-4 py-3 flex items-center justify-between shadow-md hover:shadow-lg transition-shadow"
+      {!sheetOpen && (() => {
+        /* 현재 학기 선택 규칙이 모두 충족되었는지 */
+        const rules = selectionRules[activeSemester];
+        const isSemesterComplete = Array.isArray(rules) && rules.length > 0 &&
+          rules.every((rule) => {
+            const cur = countSelected(activeSemester, rule.credits, null);
+            return cur >= Number(rule.count);
+          });
+        return (
+          <div
+            className="fixed left-0 right-0 z-40 px-5 pb-2"
+            style={{ bottom: '64px' }}
           >
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 text-xs">↑</span>
-              <div className="flex flex-col items-start">
-                <span className="text-xs font-semibold text-slate-700" style={{ fontFamily: "'Inter', sans-serif" }}>
-                  선택: {selectedIds.size}과목 / 총 {totalCredits}학점
-                </span>
-                <span className="text-[0.65rem] text-slate-400">
-                  학생선택 {optionalCredits}학점
-                  {jointCredits > 0 && ` · 공동교육 ${jointCredits}학점`}
-                  {' · '}{progress}% 달성
-                </span>
-              </div>
+            <div className="w-full max-w-lg mx-auto flex items-stretch gap-2">
+              {/* 이전 학기 */}
+              {prevSemester && (
+                <button
+                  onClick={() => gotoSemester(prevSemester.key)}
+                  className="flex-shrink-0 bg-white border border-slate-200 rounded-2xl px-3 py-3 shadow-md hover:shadow-lg flex flex-col items-center justify-center"
+                  title={`${prevSemester.label}로 이동`}
+                >
+                  <span className="text-base text-slate-500 leading-none">←</span>
+                  <span className="text-[0.6rem] text-slate-500 font-semibold mt-0.5 leading-none">
+                    {prevSemester.label}
+                  </span>
+                </button>
+              )}
+
+              {/* 신청 보기 (메인) */}
+              <button
+                onClick={() => setSheetOpen(true)}
+                className="flex-1 min-w-0 bg-white border border-slate-200 rounded-2xl px-4 py-3 flex items-center justify-between shadow-md hover:shadow-lg transition-shadow"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-slate-400 text-xs">↑</span>
+                  <div className="flex flex-col items-start min-w-0">
+                    <span className="text-xs font-semibold text-slate-700 truncate" style={{ fontFamily: "'Inter', sans-serif" }}>
+                      선택: {selectedIds.size}과목 / 총 {totalCredits}학점
+                    </span>
+                    <span className="text-[0.65rem] text-slate-400 truncate">
+                      학생선택 {optionalCredits}학점
+                      {jointCredits > 0 && ` · 공동 ${jointCredits}`}
+                      {' · '}{progress}%
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="w-12 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(progress, 100)}%`,
+                        background: 'linear-gradient(135deg, #3525cd, #4f46e5)',
+                      }}
+                    />
+                  </div>
+                  <span className="text-[0.65rem] text-indigo-600 font-semibold">신청 보기</span>
+                </div>
+              </button>
+
+              {/* 다음 학기 */}
+              {nextSemester && (
+                <button
+                  onClick={() => gotoSemester(nextSemester.key)}
+                  className={`flex-shrink-0 rounded-2xl px-3 py-3 shadow-md hover:shadow-lg flex flex-col items-center justify-center transition-all relative ${
+                    isSemesterComplete
+                      ? 'text-white border-0'
+                      : 'bg-white border border-slate-200 text-slate-500'
+                  }`}
+                  style={isSemesterComplete ? { background: 'linear-gradient(135deg, #3525cd, #4f46e5)' } : {}}
+                  title={`${nextSemester.label}로 이동`}
+                >
+                  {isSemesterComplete && (
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white" />
+                  )}
+                  <span className={`text-base leading-none ${isSemesterComplete ? 'text-white' : 'text-slate-500'}`}>→</span>
+                  <span className={`text-[0.6rem] font-semibold mt-0.5 leading-none ${isSemesterComplete ? 'text-white' : 'text-slate-500'}`}>
+                    {nextSemester.label}
+                  </span>
+                </button>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${Math.min(progress, 100)}%`,
-                    background: 'linear-gradient(135deg, #3525cd, #4f46e5)',
-                  }}
-                />
-              </div>
-              <span className="text-[0.65rem] text-indigo-600 font-semibold">신청 보기</span>
-            </div>
-          </button>
-        </div>
-      )}
+            {/* 안내 문구 (선택 규칙 충족 시) */}
+            {nextSemester && isSemesterComplete && (
+              <p className="mt-1 text-[0.65rem] text-emerald-600 font-semibold text-center">
+                ✓ 이 학기 선택 규칙을 모두 충족했어요. 다음 학기로 이동해 보세요.
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       <MobileNav />
     </div>
