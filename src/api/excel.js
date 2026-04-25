@@ -34,8 +34,8 @@ export function downloadTemplate() {
 
 export function downloadRegistryTemplate() {
   downloadExcel([
-    { 학번: '20513', 이름: '홍길동', 학생코드: '' },
-    { 학번: '20514', 이름: '이순신', 학생코드: '' },
+    { 학번: '20513', 이름: '홍길동' },
+    { 학번: '20514', 이름: '이순신' },
   ], 'student_registry_template.xlsx', 'Registry');
 }
 

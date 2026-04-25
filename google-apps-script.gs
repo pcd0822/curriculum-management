@@ -375,9 +375,9 @@ function saveRegistry(data) {
     });
   });
   if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length + 1, headers.length).setValues(rows);
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   }
-  
+
   return createJSONOutput({ status: 'success' });
 }
 
@@ -405,7 +405,7 @@ function saveJointCurriculum(data) {
   const headers = Object.keys(data[0]);
   sheet.appendRow(headers);
   const rows = data.map(obj => headers.map(h => obj[h]));
-  if (rows.length > 0) sheet.getRange(2, 1, rows.length + 1, headers.length).setValues(rows);
+  if (rows.length > 0) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   return createJSONOutput({ status: 'success' });
 }
 
