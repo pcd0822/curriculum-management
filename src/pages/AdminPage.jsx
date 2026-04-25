@@ -99,6 +99,50 @@ function SectionTitle({ children }) {
   return <h2 className="text-base font-bold text-slate-800 mb-4" style={{ fontFamily: "'Manrope', sans-serif" }}>{children}</h2>;
 }
 
+/* 입력값과 부분일치하는 과목명 추천 (입력창 바로 아래에 노출) */
+function PrereqSuggestions({ query, all, exclude, onPick }) {
+  const q = String(query || '').replace(/\s+/g, '').toLowerCase();
+  if (!q) return null;
+  const matches = (all || [])
+    .filter((item) => {
+      if (!item || !item.name) return false;
+      if (exclude && item.name === exclude) return false;
+      const n = String(item.name).replace(/\s+/g, '').toLowerCase();
+      return n.includes(q);
+    })
+    .slice(0, 8);
+  // 입력값과 정확히 일치하는 한 항목만 있으면 굳이 노출하지 않음
+  if (matches.length === 0) {
+    return (
+      <p className="mt-1 text-[0.65rem] text-slate-400">
+        일치하는 과목명이 없습니다. (등록되지 않은 이름도 자유롭게 입력 가능)
+      </p>
+    );
+  }
+  if (matches.length === 1 && String(matches[0].name).replace(/\s+/g, '').toLowerCase() === q) {
+    return null;
+  }
+  return (
+    <div className="mt-1 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-sm">
+      {matches.map((item) => (
+        <button
+          key={item.name}
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); onPick(item.name); }}
+          className="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex items-center justify-between gap-2 border-b border-slate-50 last:border-b-0"
+        >
+          <span className="text-slate-700 truncate">{item.name}</span>
+          {item.semesters && item.semesters.length > 0 && (
+            <span className="text-[0.65rem] text-slate-400 flex-shrink-0">
+              {item.semesters.join(', ')}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ═══════════════════════ Export Modal ═══════════════════════ */
 function ExportModal({ open, onClose, registry }) {
   const [dlMode, setDlMode] = useState('individual');
@@ -990,36 +1034,47 @@ export default function AdminPage() {
                   과목 엑셀에 <code className="bg-slate-100 px-1 rounded">선이수과목</code> 컬럼이 비어 있어도 여기서 등록한 매핑이 적용됩니다.
                 </p>
 
-                {/* 추가 폼 — 직접 입력 */}
+                {/* 추가 폼 — 직접 입력 + 실시간 매칭 추천 */}
                 <div className="bg-slate-50 rounded-xl p-3 mb-4">
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto] items-end gap-2">
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto] items-start gap-2">
                     <div>
                       <label className="text-xs font-semibold text-slate-600 mb-1 block">후수 과목 (과목명 직접 입력)</label>
                       <input
                         type="text"
                         value={prereqInputTarget}
                         onChange={(e) => setPrereqInputTarget(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && prereqInputTarget && prereqInputPrereq) addPrereqMapping(); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && prereqInputTarget.trim() && prereqInputPrereq.trim()) addPrereqMapping(); }}
                         placeholder="예: 물질과 에너지"
                         className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
                       />
+                      <PrereqSuggestions
+                        query={prereqInputTarget}
+                        all={uniqueCourseNames}
+                        onPick={(name) => setPrereqInputTarget(name)}
+                      />
                     </div>
-                    <div className="text-center text-slate-400 text-sm pt-5 hidden md:block">←</div>
+                    <div className="text-center text-slate-400 text-sm pt-7 hidden md:block">←</div>
                     <div>
                       <label className="text-xs font-semibold text-slate-600 mb-1 block">선이수 과목 (과목명 직접 입력)</label>
                       <input
                         type="text"
                         value={prereqInputPrereq}
                         onChange={(e) => setPrereqInputPrereq(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && prereqInputTarget && prereqInputPrereq) addPrereqMapping(); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && prereqInputTarget.trim() && prereqInputPrereq.trim()) addPrereqMapping(); }}
                         placeholder="예: 화학"
                         className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                      />
+                      <PrereqSuggestions
+                        query={prereqInputPrereq}
+                        all={uniqueCourseNames}
+                        exclude={prereqInputTarget}
+                        onPick={(name) => setPrereqInputPrereq(name)}
                       />
                     </div>
                     <button
                       onClick={addPrereqMapping}
                       disabled={!prereqInputTarget.trim() || !prereqInputPrereq.trim()}
-                      className="px-3 py-2 rounded-lg text-white text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-3 py-2 rounded-lg text-white text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed mt-5"
                     >
                       + 추가
                     </button>
@@ -1030,34 +1085,8 @@ export default function AdminPage() {
                   </p>
                   <p className="text-[0.7rem] text-amber-600 mt-1 leading-relaxed">
                     ⚠️ 입력한 과목명이 등록된 과목과 정확히 일치해야 학생 화면에서 매칭됩니다.
-                    띄어쓰기·로마자 등 표기를 엑셀과 동일하게 입력하세요.
+                    아래 추천 목록을 활용하면 띄어쓰기·표기 차이를 줄일 수 있습니다.
                   </p>
-                  {/* 등록된 과목명 참고 */}
-                  {uniqueCourseNames.length > 0 && (
-                    <details className="mt-2">
-                      <summary className="text-[0.7rem] text-indigo-600 cursor-pointer hover:underline">
-                        등록된 과목명 보기 ({uniqueCourseNames.length}개)
-                      </summary>
-                      <div className="mt-1.5 max-h-32 overflow-y-auto bg-white border border-slate-200 rounded-lg p-2">
-                        <div className="flex flex-wrap gap-1">
-                          {uniqueCourseNames.map((item) => (
-                            <button
-                              key={item.name}
-                              type="button"
-                              onClick={() => {
-                                if (!prereqInputTarget) setPrereqInputTarget(item.name);
-                                else if (!prereqInputPrereq) setPrereqInputPrereq(item.name);
-                              }}
-                              title={`클릭하여 입력 — 개설학기: ${item.semesters.join(', ') || '미지정'}`}
-                              className="text-[0.65rem] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-indigo-100 hover:text-indigo-700"
-                            >
-                              {item.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </details>
-                  )}
                 </div>
 
                 {/* 등록된 매핑 리스트 */}
