@@ -415,32 +415,51 @@ export default function CoursesPage() {
   function isDifferentSemester(a, b) {
     return Number(a.grade) !== Number(b.grade) || Number(a.semester) !== Number(b.semester);
   }
-  /* 진단 로그 토글 — 콘솔에서 localStorage.setItem('dupDebug','1') 입력 시 활성 */
-  const DUP_DEBUG = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem('dupDebug') === '1');
-  function findDuplicateByName(course, prevSelected) {
-    if (allowMultiSemesterDuplicate) return null;
+  function findDuplicateByName(course, prevSelected, verbose = false) {
+    const log = verbose ? console.warn.bind(console) : () => {};
+    if (allowMultiSemesterDuplicate) {
+      log('[중복편제] allowMultiSemesterDuplicate=true → 통과');
+      return null;
+    }
     const sel = prevSelected || selectedIds;
     const myName = getCourseNameKey(course);
-    if (!myName) return null;
+    log('[중복편제] 검사 시작', {
+      course: course?.subjectName,
+      myName,
+      sem: `${course.grade}-${course.semester}`,
+      selSize: sel?.size,
+      selectedIds: sel ? [...sel] : null,
+      coursesCount: courses?.length,
+    });
+    if (!myName) { log('[중복편제] myName 비어있음 → 통과'); return null; }
     const exempt = duplicateCourseSlugs.some((x) => normName(x) === myName);
-    if (exempt) return null;
-    if (DUP_DEBUG) console.warn('[중복편제] 이름 기반 검사', { course: course?.subjectName, myName, sem: `${course.grade}-${course.semester}`, selectedCount: sel?.size });
+    if (exempt) { log('[중복편제] 예외 목록 → 통과'); return null; }
+    let foundSameName = 0;
     for (const c of courses) {
       if (c.id === course.id) continue;
+      const otherName = getCourseNameKey(c);
+      if (otherName === myName) {
+        foundSameName++;
+        log('[중복편제] 동일 이름 후보', {
+          other: c.subjectName,
+          otherId: c.id,
+          otherSem: `${c.grade}-${c.semester}`,
+          isSelected: sel.has(c.id),
+          isDifferentSemester: isDifferentSemester(c, course),
+        });
+      }
       if (!sel.has(c.id)) continue;
       if (!isDifferentSemester(c, course)) continue;
-      const otherName = getCourseNameKey(c);
-      if (DUP_DEBUG) console.warn('[중복편제] 비교', { other: c.subjectName, otherName, otherSem: `${c.grade}-${c.semester}`, match: otherName === myName });
       if (otherName === myName) {
-        if (DUP_DEBUG) console.warn('[중복편제] ✅ 차단', { 차단대상: course.subjectName, 이미선택: c.subjectName });
+        log('[중복편제] ✅ 차단', c.subjectName);
         return c;
       }
     }
-    if (DUP_DEBUG) console.warn('[중복편제] 매칭 없음 → 통과', course?.subjectName);
+    log('[중복편제] 매칭 없음 → 통과', { foundSameName });
     return null;
   }
-  // 기존 호출 지점 호환을 위한 별칭
-  const isDuplicateAcrossSemester = (course) => findDuplicateByName(course);
+  // 기존 호출 지점 호환을 위한 별칭 (렌더링용 — verbose 끔)
+  const isDuplicateAcrossSemester = (course) => findDuplicateByName(course, null, false);
   // 외부에서 사용할 수 있도록 정규화 식별자 도우미는 그대로 유지(다른 함수에서 참조)
   function collectCourseIds(c) {
     return c ? [getCourseNameKey(c)].filter(Boolean) : [];
@@ -549,6 +568,7 @@ export default function CoursesPage() {
       console.warn('[중복편제] 클릭', { name: course.subjectName, id, sem: `${course.grade}-${course.semester}` });
 
       setSelectedIds((prev) => {
+        console.warn('[중복편제] prev 상태', { prevSize: prev.size, prevIds: [...prev] });
         const next = new Set(prev);
         if (next.has(id)) {
           next.delete(id);
@@ -556,9 +576,9 @@ export default function CoursesPage() {
           return next;
         }
 
-        /* 1) 이름 기반 복수편제 차단 — prev(최신 상태)를 직접 사용 */
+        /* 1) 이름 기반 복수편제 차단 — prev(최신 상태)를 직접 사용. verbose=true */
         if (!course.joint) {
-          const dup = findDuplicateByName(course, prev);
+          const dup = findDuplicateByName(course, prev, true);
           if (dup) {
             setBlockedReason({
               courseName: course.subjectName,
@@ -566,6 +586,8 @@ export default function CoursesPage() {
             });
             return prev;
           }
+        } else {
+          console.warn('[중복편제] joint 과목 → 검사 건너뜀');
         }
 
         /* 2) 그 외 차단 사유 (선이수, 선택규칙 등) */
