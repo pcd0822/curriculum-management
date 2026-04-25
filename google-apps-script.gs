@@ -210,19 +210,36 @@ function getRegistry() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Registry');
   const data = sheet.getDataRange().getValues();
-  
+
   if (data.length <= 1) return createJSONOutput([]);
-  
-  const headers = data[0];
+
+  const idAliases = ['학번', 'studentId', 'student_id', 'StudentId', 'ID', 'id'];
+  const nameAliases = ['이름', 'name', 'Name', '성명'];
+  const codeAliases = ['학생코드', 'StudentCode', 'studentCode', 'student_code'];
+
+  const rawHeaders = data[0].map(h => String(h == null ? '' : h).trim());
+  const findIdx = aliases => {
+    for (let i = 0; i < rawHeaders.length; i++) {
+      if (aliases.indexOf(rawHeaders[i]) !== -1) return i;
+    }
+    return -1;
+  };
+  const idIdx = findIdx(idAliases);
+  const nameIdx = findIdx(nameAliases);
+  const codeIdx = findIdx(codeAliases);
+
   const rows = data.slice(1);
   const result = rows.map(row => {
     const obj = {};
-    headers.forEach((header, index) => {
-      obj[header] = row[index];
+    rawHeaders.forEach((header, index) => {
+      if (header) obj[header] = row[index];
     });
+    if (idIdx !== -1) obj['학번'] = row[idIdx];
+    if (nameIdx !== -1) obj['이름'] = row[nameIdx];
+    if (codeIdx !== -1) obj['학생코드'] = row[codeIdx];
     return obj;
-  });
-  
+  }).filter(r => String(r['학번'] || '').trim() !== '' || String(r['이름'] || '').trim() !== '');
+
   return createJSONOutput(result);
 }
 
@@ -296,89 +313,78 @@ function verifyStudent(data) {
   return createJSONOutput({ status: 'error', message: '학생 코드·학번·이름이 일치하지 않습니다.' });
 }
 
+function pickRegistryField_(obj, keys) {
+  for (var i = 0; i < keys.length; i++) {
+    var v = obj[keys[i]];
+    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+  }
+  return '';
+}
+
 function saveRegistry(data) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Registry');
-  
+
   if (!data || data.length === 0) {
     sheet.clear();
     return createJSONOutput({ status: 'success' });
   }
-  
+
   var oldMap = {};
   if (sheet.getLastRow() > 1) {
     var vals = sheet.getDataRange().getValues();
     var hdr = vals[0];
     var hidx = {};
-    for (var i = 0; i < hdr.length; i++) hidx[hdr[i]] = i;
-    var cidx = hidx['학생코드'] !== undefined ? hidx['학생코드'] : hidx['StudentCode'];
-    for (var rr = 1; rr < vals.length; rr++) {
-      var row = vals[rr];
-      var oid = normalizeStudentId_(row[hidx['학번']]);
-      var oname = normalizeName_(row[hidx['이름']]);
-      var ocode = cidx !== undefined ? normalizeStudentCode_(row[cidx]) : '';
-      if (oid && oname && ocode.length === 10) {
-        oldMap[oid + '|' + oname] = ocode;
+    for (var i = 0; i < hdr.length; i++) hidx[String(hdr[i]).trim()] = i;
+    var idIdx = hidx['학번'];
+    var nameIdx = hidx['이름'];
+    var codeIdx = hidx['학생코드'] !== undefined ? hidx['학생코드'] : hidx['StudentCode'];
+    if (idIdx !== undefined && nameIdx !== undefined && codeIdx !== undefined) {
+      for (var rr = 1; rr < vals.length; rr++) {
+        var row = vals[rr];
+        var oid = normalizeStudentId_(row[idIdx]);
+        var oname = normalizeName_(row[nameIdx]);
+        var ocode = normalizeStudentCode_(row[codeIdx]);
+        if (oid && oname && ocode.length === 10) {
+          oldMap[oid + '|' + oname] = ocode;
+        }
       }
     }
   }
-  
+
+  var idKeys = ['학번', 'studentId', 'student_id', 'StudentId', 'ID', 'id'];
+  var nameKeys = ['이름', 'name', 'Name', '성명'];
+  var codeKeys = ['학생코드', 'StudentCode', 'studentCode', 'student_code', 'code'];
+
   var usedInUpload = {};
   var processed = [];
   for (var k = 0; k < data.length; k++) {
-    var obj = data[k];
-    var row = {};
-    Object.keys(obj).forEach(function (key) { row[key] = obj[key]; });
-    var sid = normalizeStudentId_(row['학번'] !== undefined ? row['학번'] : row.studentId);
-    var sname = normalizeName_(row['이름'] !== undefined ? row['이름'] : row.name);
-    var manual = normalizeStudentCode_(row['학생코드'] !== undefined ? row['학생코드'] : row['StudentCode']);
+    var obj = data[k] || {};
+    var sid = normalizeStudentId_(pickRegistryField_(obj, idKeys));
+    var sname = normalizeName_(pickRegistryField_(obj, nameKeys));
+    if (!sid || !sname) continue;
+    var manual = normalizeStudentCode_(pickRegistryField_(obj, codeKeys));
     var code = '';
     if (manual.length === 10) {
       code = manual;
-    } else if (sid && sname && oldMap[sid + '|' + sname]) {
+    } else if (oldMap[sid + '|' + sname]) {
       code = oldMap[sid + '|' + sname];
     }
-    if (!code || code.length !== 10) {
-      do {
-        code = generateStudentCode_();
-      } while (usedInUpload[code]);
-    } else if (usedInUpload[code]) {
-      do {
-        code = generateStudentCode_();
-      } while (usedInUpload[code]);
+    while (!code || code.length !== 10 || usedInUpload[code]) {
+      code = generateStudentCode_();
     }
     usedInUpload[code] = true;
-    row['학생코드'] = code;
-    processed.push(row);
-  }
-  
-  var headerSet = {};
-  processed.forEach(function (p) {
-    Object.keys(p).forEach(function (key) { headerSet[key] = true; });
-  });
-  var headers = Object.keys(headerSet);
-  var preferred = ['학번', '이름', '학생코드'];
-  headers.sort(function (a, b) {
-    var ia = preferred.indexOf(a);
-    var ib = preferred.indexOf(b);
-    if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
-  
-  sheet.clear();
-  sheet.appendRow(headers);
-  var rows = processed.map(function (obj) {
-    return headers.map(function (h) {
-      return obj[h] !== undefined && obj[h] !== null ? obj[h] : '';
-    });
-  });
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    processed.push([sid, sname, code]);
   }
 
-  return createJSONOutput({ status: 'success' });
+  var headers = ['학번', '이름', '학생코드'];
+  sheet.clear();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  if (processed.length > 0) {
+    sheet.getRange(2, 1, processed.length, headers.length).setValues(processed);
+  }
+
+  return createJSONOutput({ status: 'success', count: processed.length });
 }
 
 function getJointCurriculum() {
