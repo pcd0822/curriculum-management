@@ -285,12 +285,32 @@ export default function CoursesPage() {
     return null;
   }
 
+  /* 후수→선이수 매핑 (관리자 화면에서 등록).
+     {[과목명|slug]: [선이수1, 선이수2, ...]} 형태. */
+  const prerequisitesMap = (settings && typeof settings.prerequisitesMap === 'object' && !Array.isArray(settings.prerequisitesMap))
+    ? settings.prerequisitesMap : {};
+
+  /* 한 과목의 선이수 목록을 모두 수집 — 엑셀 컬럼(course.prerequisites) + 관리자 매핑(prerequisitesMap) */
+  function getCoursePrerequisites(course) {
+    const fromCourse = Array.isArray(course.prerequisites) ? course.prerequisites : [];
+    const lookupKeys = [course.subjectName, course.slug, course.id].map((k) => String(k || '').trim()).filter(Boolean);
+    let fromSettings = [];
+    for (const k of lookupKeys) {
+      if (Array.isArray(prerequisitesMap[k])) {
+        fromSettings = fromSettings.concat(prerequisitesMap[k]);
+      }
+    }
+    const merged = [...fromCourse, ...fromSettings].map((p) => String(p || '').trim()).filter(Boolean);
+    return [...new Set(merged)];
+  }
+
   /* 선이수 검사: 선이수 과목이 같은 학기 또는 이전 학기에 선택되어 있어야 함.
-     - 슬러그/과목명 양쪽으로 매칭(공백 제거)
+     - 슬러그/과목명 양쪽으로 매칭(공백·유니코드 정규화)
      - 카리큘럼에 존재하지 않는 선이수 항목(예: 1학년 과목)은 이미 이수한 것으로 간주(통과)
      - 등록된 과목인데 선택 안 됨 → 미충족 */
   function missingPrerequisites(course) {
-    if (!course.prerequisites || course.prerequisites.length === 0) return [];
+    const prereqs = getCoursePrerequisites(course);
+    if (prereqs.length === 0) return [];
     const here = semOrder(semKeyOf(course));
 
     const satisfied = new Set();
@@ -298,40 +318,48 @@ export default function CoursesPage() {
     courses.forEach((c) => {
       const slug = String(c.slug || '').trim();
       const name = String(c.subjectName || '').trim();
+      const slugN = normName(slug);
+      const nameN = normName(name);
       if (slug) allKnown.add(slug);
       if (name) allKnown.add(name);
+      if (slugN) allKnown.add(slugN);
+      if (nameN) allKnown.add(nameN);
       if (!selectedIds.has(c.id)) return;
-      if (semOrder(semKeyOf(c)) > here) return; // 같은 학기 또는 이전만 인정
+      if (semOrder(semKeyOf(c)) > here) return;
       if (slug) satisfied.add(slug);
       if (name) satisfied.add(name);
+      if (slugN) satisfied.add(slugN);
+      if (nameN) satisfied.add(nameN);
     });
 
-    return course.prerequisites
-      .map((p) => String(p || '').trim())
-      .filter((p) => {
-        if (!p) return false;
-        if (satisfied.has(p)) return false;       // 이미 이수
-        if (!allKnown.has(p)) return false;       // 카리큘럼에 없는 항목 → 1학년 등으로 간주, 통과
-        return true;                              // 등록되어 있는데 미선택 → 차단
-      });
+    return prereqs.filter((p) => {
+      const pN = normName(p);
+      if (!p) return false;
+      if (satisfied.has(p) || satisfied.has(pN)) return false;       // 이미 이수
+      if (!allKnown.has(p) && !allKnown.has(pN)) return false;       // 카리큘럼에 없는 항목 → 통과
+      return true;                                                    // 등록되어 있는데 미선택 → 차단
+    });
   }
 
   /* 복수편제 차단: 같은 과목명 + 같은 학점 과목이 다른 학기에 동일 편성된 경우,
      어느 한 쪽이 선택되면 나머지 학기의 동일 과목은 신청 차단.
      예외: settings.duplicateCourseSlugs 또는 allowMultiSemesterDuplicate=true */
+  function normName(s) {
+    return String(s || '').replace(/\s+/g, '').normalize('NFC');
+  }
   function isDuplicateAcrossSemester(course) {
     if (allowMultiSemesterDuplicate) return false;
     const allowedDup = duplicateCourseSlugs.some(
       (x) => x === course.slug || x === course.subjectName || x === course.id,
     );
     if (allowedDup) return false;
-    const myName = String(course.subjectName || '').trim();
+    const myName = normName(course.subjectName);
     const myCredits = Number(course.credits) || 0;
     if (!myName) return null;
     for (const c of courses) {
       if (c.id === course.id) continue;
       if (!selectedIds.has(c.id)) continue;
-      const otherName = String(c.subjectName || '').trim();
+      const otherName = normName(c.subjectName);
       const otherCredits = Number(c.credits) || 0;
       const sameName = otherName === myName;
       const sameCredits = otherCredits === myCredits;

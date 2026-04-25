@@ -394,11 +394,47 @@ export default function AdminPage() {
   const [ruleInputs, setRuleInputs] = useState({});
   const [minCreditRules, setMinCreditRules] = useState([]); // [{ type:'subCategory'|'category', name:'국어', min:8 }]
   const [requiredTotalInput, setRequiredTotalInput] = useState(180);
+  const [prereqMap, setPrereqMap] = useState({}); // { '수학II': ['수학I'], ... }
+  const [prereqInputTarget, setPrereqInputTarget] = useState('');
+  const [prereqInputPrereq, setPrereqInputPrereq] = useState('');
   useEffect(() => {
     if (settings?.selectionRules) setRuleInputs(settings.selectionRules);
     if (Array.isArray(settings?.minCreditRules)) setMinCreditRules(settings.minCreditRules);
     if (settings?.requiredTotalCredits) setRequiredTotalInput(Number(settings.requiredTotalCredits) || 180);
+    if (settings?.prerequisitesMap && typeof settings.prerequisitesMap === 'object' && !Array.isArray(settings.prerequisitesMap)) {
+      setPrereqMap(settings.prerequisitesMap);
+    }
   }, [settings]);
+
+  /* 선이수 매핑 편집 헬퍼 */
+  function addPrereqMapping() {
+    const target = String(prereqInputTarget || '').trim();
+    const prereq = String(prereqInputPrereq || '').trim();
+    if (!target || !prereq) return;
+    if (target === prereq) { alert('후수 과목과 선이수 과목이 같을 수 없습니다.'); return; }
+    setPrereqMap((prev) => {
+      const list = Array.isArray(prev[target]) ? prev[target] : [];
+      if (list.includes(prereq)) return prev;
+      return { ...prev, [target]: [...list, prereq] };
+    });
+    setPrereqInputPrereq('');
+  }
+  function removePrereqMapping(target, prereq) {
+    setPrereqMap((prev) => {
+      const list = (prev[target] || []).filter((p) => p !== prereq);
+      const next = { ...prev };
+      if (list.length === 0) delete next[target];
+      else next[target] = list;
+      return next;
+    });
+  }
+  function clearAllPrereqsFor(target) {
+    setPrereqMap((prev) => {
+      const next = { ...prev };
+      delete next[target];
+      return next;
+    });
+  }
 
   function updateRule(semKey, idx, field, value) {
     setRuleInputs(prev => {
@@ -459,17 +495,26 @@ export default function AdminPage() {
         const fresh = await DB.fetchSettings();
         if (fresh && typeof fresh === 'object' && !Array.isArray(fresh)) baseSettings = fresh;
       } catch {}
+      /* prereqMap 정리: 빈 항목 제거 */
+      const cleanedPrereqMap = {};
+      Object.entries(prereqMap).forEach(([target, list]) => {
+        const t = String(target || '').trim();
+        const arr = Array.isArray(list) ? list.map((x) => String(x || '').trim()).filter(Boolean) : [];
+        if (t && arr.length > 0) cleanedPrereqMap[t] = [...new Set(arr)];
+      });
       const newSettings = {
         ...baseSettings,
         selectionRules: ruleInputs,
         minCreditRules: cleanedMinRules,
         requiredTotalCredits: totalNum,
+        prerequisitesMap: cleanedPrereqMap,
       };
       await DB.saveSettings(newSettings);
       setSettings(newSettings);
       /* 저장된 값으로 입력 상태도 즉시 동기화 (캐스팅된 숫자) */
       setRequiredTotalInput(totalNum);
-      setSaveRulesMsg(`✅ 저장 완료 — 총 ${totalNum}학점 · 최소학점 규칙 ${cleanedMinRules.length}개 · 학기별 규칙 ${Object.keys(ruleInputs).length}개`);
+      const totalPrereqEntries = Object.values(cleanedPrereqMap).reduce((s, a) => s + a.length, 0);
+      setSaveRulesMsg(`✅ 저장 완료 — 총 ${totalNum}학점 · 최소학점 규칙 ${cleanedMinRules.length}개 · 학기별 규칙 ${Object.keys(ruleInputs).length}개 · 선이수 매핑 ${totalPrereqEntries}건`);
     } catch (e) {
       setSaveRulesMsg('❌ 저장 실패: ' + e.message);
     } finally {
@@ -912,6 +957,113 @@ export default function AdminPage() {
                 <div className="mt-3 px-3 py-2 bg-amber-50 rounded-lg text-xs text-amber-700 leading-relaxed">
                   <span className="font-semibold">참고:</span> "교과군"은 과목 데이터의 <code className="bg-white px-1 rounded">교과군</code>(예: 기초교과, 체육교과) 컬럼,
                   "세부교과"는 <code className="bg-white px-1 rounded">세부교과</code>(예: 국어, 수학, 한국사) 컬럼을 기준으로 합산합니다.
+                </div>
+              </Card>
+
+              {/* 과목 위계 규칙 (선이수 관계 설정) */}
+              <Card className="md:col-span-2">
+                <SectionTitle>과목 위계 규칙 (선이수 관계 설정)</SectionTitle>
+                <p className="text-sm text-slate-500 mb-4">
+                  후수 과목과 그 선이수 과목을 등록하세요. 학생이 선이수 과목을 선택하지 않으면 후수 과목 카드는 자동 비활성화됩니다.
+                  과목 엑셀에 <code className="bg-slate-100 px-1 rounded">선이수과목</code> 컬럼이 비어 있어도 여기서 등록한 매핑이 적용됩니다.
+                </p>
+
+                {/* 추가 폼 */}
+                <div className="bg-slate-50 rounded-xl p-3 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto] items-end gap-2">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block">후수 과목</label>
+                      <select
+                        value={prereqInputTarget}
+                        onChange={(e) => setPrereqInputTarget(e.target.value)}
+                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
+                      >
+                        <option value="">후수 과목을 선택하세요…</option>
+                        {courses.map((c, i) => {
+                          const name = String(c.과목명 || c.subjectName || '').trim();
+                          const g = c.학년 || c.grade;
+                          const s = c.학기 || c.semester;
+                          if (!name) return null;
+                          return <option key={`${name}-${i}`} value={name}>{name} ({g}-{s})</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div className="text-center text-slate-400 text-sm pt-5 hidden md:block">←</div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block">선이수 과목</label>
+                      <select
+                        value={prereqInputPrereq}
+                        onChange={(e) => setPrereqInputPrereq(e.target.value)}
+                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
+                      >
+                        <option value="">선이수 과목을 선택하세요…</option>
+                        {courses.map((c, i) => {
+                          const name = String(c.과목명 || c.subjectName || '').trim();
+                          const g = c.학년 || c.grade;
+                          const s = c.학기 || c.semester;
+                          if (!name || name === prereqInputTarget) return null;
+                          return <option key={`p-${name}-${i}`} value={name}>{name} ({g}-{s})</option>;
+                        })}
+                      </select>
+                    </div>
+                    <button
+                      onClick={addPrereqMapping}
+                      disabled={!prereqInputTarget || !prereqInputPrereq}
+                      className="px-3 py-2 rounded-lg text-white text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      + 추가
+                    </button>
+                  </div>
+                  {courses.length === 0 && (
+                    <p className="text-xs text-amber-600 mt-2">
+                      ⚠️ 과목 데이터를 먼저 업로드하세요.
+                    </p>
+                  )}
+                </div>
+
+                {/* 등록된 매핑 리스트 */}
+                {Object.keys(prereqMap).length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-6">
+                    등록된 선이수 관계가 없습니다. 위에서 추가하세요.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {Object.entries(prereqMap).map(([target, list]) => (
+                      <div key={target} className="flex flex-wrap items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl">
+                        <span className="text-sm font-bold text-slate-800">{target}</span>
+                        <span className="text-xs text-slate-400">←</span>
+                        <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+                          {Array.isArray(list) && list.map((p) => (
+                            <span
+                              key={`${target}-${p}`}
+                              className="inline-flex items-center gap-1 bg-white text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-xs font-medium"
+                            >
+                              {p}
+                              <button
+                                onClick={() => removePrereqMapping(target, p)}
+                                className="text-amber-400 hover:text-rose-600 ml-0.5"
+                                title="매핑 삭제"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => clearAllPrereqsFor(target)}
+                          className="text-rose-500 hover:text-rose-700 text-xs ml-auto"
+                          title="이 후수 과목의 모든 선이수 삭제"
+                        >
+                          전체 삭제
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-3 px-3 py-2 bg-amber-50 rounded-lg text-xs text-amber-700 leading-relaxed">
+                  <span className="font-semibold">예시:</span> "수학II ← 수학I" 로 등록하면 학생이 수학I을 선택하지 않은 상태에서는
+                  수학II 선택 카드가 자동 비활성화되고, 다음 단계 클릭 시 위배 사유에 표시됩니다.
                 </div>
               </Card>
 
