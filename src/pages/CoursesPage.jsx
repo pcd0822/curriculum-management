@@ -90,24 +90,42 @@ export default function CoursesPage() {
   const [activeSemester, setActiveSemester] = useState('2-1');
   const [loading, setLoading] = useState(true);
 
-  /* 학생의 현 학년 (= 코호트) — 학번 첫 자리에서 자동 추출, 사용자가 변경 가능.
-     이 값에 따라 그 코호트의 편제표·규칙만 로드된다. */
-  const [activeGrade, setActiveGrade] = useState(() => {
-    try {
-      const saved = Number(localStorage.getItem('selectedGrade'));
-      if (saved >= 1 && saved <= 3) return saved;
-    } catch {}
+  /* 학생의 현 학년 (= 코호트).
+     - 학생: 학번 첫 자리만이 진실의 원천. 사용자가 변경 불가.
+     - 관리자 미리보기: 어떤 코호트 편제표를 테스트할지 토글로 선택. */
+  function gradeFromVerifiedStudent() {
     try {
       const s = JSON.parse(localStorage.getItem('verifiedStudent') || '{}');
       const sid = String(s.studentId || s.학번 || '').trim();
       const g = Number(sid.charAt(0));
       if (g >= 1 && g <= 3) return g;
     } catch {}
-    return 2;
+    return null;
+  }
+  const [activeGrade, setActiveGrade] = useState(() => {
+    if (isAdminPreview) {
+      try {
+        const saved = Number(localStorage.getItem('previewGrade'));
+        if (saved >= 1 && saved <= 3) return saved;
+      } catch {}
+      return 1;
+    }
+    return gradeFromVerifiedStudent() || 1;
   });
+  /* 학생 모드: 학번이 바뀌면 그 첫 자리로 강제 동기화 (수동 변경 불가) */
   useEffect(() => {
-    try { localStorage.setItem('selectedGrade', String(activeGrade)); } catch {}
-  }, [activeGrade]);
+    if (isAdminPreview) return;
+    const sid = String(student?.studentId || student?.학번 || '').trim();
+    const g = Number(sid.charAt(0));
+    if (g >= 1 && g <= 3 && g !== activeGrade) {
+      setActiveGrade(g);
+    }
+  }, [student, isAdminPreview, activeGrade]);
+  /* 미리보기 모드: 토글로 변경한 값을 localStorage에 별도 키로 저장 */
+  useEffect(() => {
+    if (!isAdminPreview) return;
+    try { localStorage.setItem('previewGrade', String(activeGrade)); } catch {}
+  }, [activeGrade, isAdminPreview]);
 
   /* 등록된 코호트(편제표가 있는 학년) 목록 — 학년 토글 표시 여부 결정 */
   const [registeredCohorts, setRegisteredCohorts] = useState([]);
@@ -285,12 +303,14 @@ export default function CoursesPage() {
   /* 현 학년 코호트 내에서 학생은 1-1~3-2 모든 학기 사이를 이동 가능 */
   const SEMESTERS = ALL_SEMESTERS;
 
-  /* 현재 활성 학년이 등록된 학년에 없으면 자동으로 등록된 학년 중 첫 번째로 전환 */
+  /* 미리보기 모드에서만: 현재 활성 학년이 등록된 학년에 없으면 자동 전환.
+     실제 학생은 학번 첫 자리로 학년이 고정되므로 자동 전환 안 함 (편제표 미등록 시 안내만 표시). */
   useEffect(() => {
+    if (!isAdminPreview) return;
     if (availableGrades.length > 0 && !availableGrades.includes(activeGrade)) {
       setActiveGrade(availableGrades[0]);
     }
-  }, [availableGrades, activeGrade]);
+  }, [availableGrades, activeGrade, isAdminPreview]);
 
   const semesterObj = SEMESTERS.find((s) => s.key === activeSemester) || SEMESTERS[0] || { grade: activeGrade, semester: 1, key: `${activeGrade}-1`, label: `${activeGrade}-1학기` };
 
@@ -892,34 +912,39 @@ export default function CoursesPage() {
         </div>
       </div>
 
-      {/* ── 학년 선택 (등록된 학년이 2개 이상일 때만 노출) ── */}
-      {availableGrades.length > 1 && (
-        <div className="px-5 pt-1 pb-2">
-          <div className="bg-white rounded-xl border border-slate-200 px-3 py-2 flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-600 mr-1">학년</span>
-            {availableGrades.map((g) => {
-              const active = g === activeGrade;
-              return (
-                <button
-                  key={g}
-                  onClick={() => setActiveGrade(g)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                    active ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                  style={active ? { background: 'linear-gradient(135deg, #3525cd, #4f46e5)' } : undefined}
-                >
-                  {g}학년
-                </button>
-              );
-            })}
-            <span className="ml-auto text-[0.65rem] text-slate-400">선택한 학년의 과목·규칙만 표시됩니다.</span>
+      {/* ── 학년 표시 ──
+           학생 모드: 학번 첫 자리에 따라 자동 결정 (변경 불가, 안내만 표시)
+           미리보기 모드: 등록된 코호트를 토글로 선택 가능 */}
+      {isAdminPreview ? (
+        availableGrades.length > 0 && (
+          <div className="px-5 pt-1 pb-2">
+            <div className="bg-white rounded-xl border border-slate-200 px-3 py-2 flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-600 mr-1">미리보기 학년</span>
+              {availableGrades.map((g) => {
+                const active = g === activeGrade;
+                return (
+                  <button
+                    key={g}
+                    onClick={() => setActiveGrade(g)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                      active ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    style={active ? { background: 'linear-gradient(135deg, #3525cd, #4f46e5)' } : undefined}
+                  >
+                    {g}학년
+                  </button>
+                );
+              })}
+              <span className="ml-auto text-[0.65rem] text-slate-400">관리자 테스트용 — 학생은 학번으로 자동 결정됩니다.</span>
+            </div>
           </div>
-        </div>
-      )}
-
-      {availableGrades.length === 1 && availableGrades[0] !== activeGrade && (
+        )
+      ) : (
         <div className="px-5 pt-1 pb-2 text-[0.7rem] text-slate-500">
-          현재 등록된 학년: <span className="font-semibold text-slate-700">{availableGrades[0]}학년</span>
+          현 <span className="font-semibold text-slate-700">{activeGrade}학년</span> 편제표
+          {!availableGrades.includes(activeGrade) && (
+            <span className="ml-2 text-amber-600 font-semibold">⚠️ 아직 등록되지 않음 — 관리자에게 문의하세요</span>
+          )}
         </div>
       )}
 
