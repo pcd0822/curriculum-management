@@ -41,9 +41,8 @@ export default function ProfilePage() {
   }, []);
 
   const schoolName = settings?.schoolName || localStorage.getItem('school_name') || '';
-  const avatarLabel = student.name || student.이름 ? (student.name || student.이름).charAt(0) : '?';
   const studentId = student.studentId || student.학번 || '-';
-  const studentName = student.name || student.이름 || '-';
+  const avatarLabel = studentId !== '-' ? String(studentId).slice(-2) : '?';
   const studentCode = student.studentCode || student.학생코드 || '-';
 
   /* 학교명 표시용 settings만 가볍게 가져옴 */
@@ -73,8 +72,8 @@ export default function ProfilePage() {
               {avatarLabel}
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800" style={{ fontFamily: "'Manrope', sans-serif" }}>{studentName}</h2>
-              <p className="text-sm text-slate-500">학번: {studentId}</p>
+              <h2 className="text-lg font-bold text-slate-800" style={{ fontFamily: "'Manrope', sans-serif" }}>학번 {studentId}</h2>
+              <p className="text-sm text-slate-500">학생코드 인증 완료</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -108,7 +107,7 @@ export default function ProfilePage() {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">
-                        {h.studentName ? `${h.studentName} (${h.studentId})` : '내 신청'}
+                        {h.studentId ? `학번 ${h.studentId}` : '내 신청'}
                         {h.serverSaved && <span className="ml-1.5 text-[0.6rem] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full align-middle">✓ 서버 제출</span>}
                       </p>
                       <p className="text-xs text-slate-400 mt-0.5">{h.dateLabel}</p>

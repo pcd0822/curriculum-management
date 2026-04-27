@@ -10,7 +10,6 @@ export default function LoginPage() {
 
   const [studentId, setStudentId] = useState('');
   const [studentCode, setStudentCode] = useState('');
-  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -31,8 +30,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
 
-    if (!studentId.trim() || !studentCode.trim() || !name.trim()) {
-      setError('모든 항목을 입력해 주세요.');
+    if (!studentId.trim() || !studentCode.trim()) {
+      setError('학번과 인증 코드를 입력해 주세요.');
       return;
     }
 
@@ -41,14 +40,12 @@ export default function LoginPage() {
       const res = await verifyStudent({
         studentCode: studentCode.trim(),
         studentId: studentId.trim(),
-        name: name.trim(),
       });
 
       /* Store verified student info for downstream pages */
       setVerifiedStudent({
         studentCode: studentCode.trim(),
         studentId: studentId.trim(),
-        name: name.trim(),
         ...res,
       });
 
@@ -107,7 +104,7 @@ export default function LoginPage() {
           학업 증명 및 인증
         </h1>
         <p className="text-sm text-slate-500 text-center max-w-xs mb-6 leading-relaxed">
-          본인 확인을 위해 학교에서 발급받은 학번과 인증 코드를 입력해 주세요.
+          본인 확인을 위해 학번과 학교에서 발급받은 인증 코드를 입력해 주세요.
         </p>
 
         {/* ── Card ── */}
@@ -123,26 +120,6 @@ export default function LoginPage() {
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
             <span className="text-sm font-bold text-slate-700">인증 정보 입력</span>
-          </div>
-
-          {/* Name input */}
-          <div className="mb-3">
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">이름</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </span>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="이름을 입력하세요"
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-colors"
-              />
-            </div>
           </div>
 
           {/* Student ID input */}

@@ -50,12 +50,17 @@ function normaliseCourse(raw) {
 }
 
 /* ─── semester helpers ─── */
-const SEMESTERS = [
+const ALL_SEMESTERS = [
+  { key: '1-1', label: '1-1학기', grade: 1, semester: 1 },
+  { key: '1-2', label: '1-2학기', grade: 1, semester: 2 },
   { key: '2-1', label: '2-1학기', grade: 2, semester: 1 },
   { key: '2-2', label: '2-2학기', grade: 2, semester: 2 },
   { key: '3-1', label: '3-1학기', grade: 3, semester: 1 },
   { key: '3-2', label: '3-2학기', grade: 3, semester: 2 },
 ];
+function semestersForGrade(grade) {
+  return ALL_SEMESTERS.filter(s => s.grade === Number(grade));
+}
 
 const semKeyOf = (c) => `${c.grade}-${c.semester}`;
 const semOrder = (k) => {
@@ -84,6 +89,25 @@ export default function CoursesPage() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [activeSemester, setActiveSemester] = useState('2-1');
   const [loading, setLoading] = useState(true);
+
+  /* 학생의 학년 — 학번 첫 자리에서 자동 추출, 사용자가 변경 가능.
+     localStorage에 저장하여 새로고침에도 유지. */
+  const [activeGrade, setActiveGrade] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem('selectedGrade'));
+      if (saved >= 1 && saved <= 3) return saved;
+    } catch {}
+    try {
+      const s = JSON.parse(localStorage.getItem('verifiedStudent') || '{}');
+      const sid = String(s.studentId || s.학번 || '').trim();
+      const g = Number(sid.charAt(0));
+      if (g >= 1 && g <= 3) return g;
+    } catch {}
+    return 2;
+  });
+  useEffect(() => {
+    try { localStorage.setItem('selectedGrade', String(activeGrade)); } catch {}
+  }, [activeGrade]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [blockedReason, setBlockedReason] = useState(null); // {courseName, reason}
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,7 +118,7 @@ export default function CoursesPage() {
      관리자 미리보기 모드에서는 가짜 학생을 사용해 실제 학생 데이터에 영향을 주지 않음. */
   const [student, setStudent] = useState(() => {
     if (isAdminPreview) {
-      return { name: '관리자(테스트)', studentId: 'PREVIEW', studentCode: 'TEST-MODE' };
+      return { studentId: 'PREVIEW', studentCode: 'TEST-MODE' };
     }
     return getVerifiedStudent();
   });
@@ -245,7 +269,34 @@ export default function CoursesPage() {
   }, [navigate]);
 
   /* ── Derived data ── */
-  const semesterObj = SEMESTERS.find((s) => s.key === activeSemester) || SEMESTERS[0];
+  /* 등록된 학년 (Config 기준) */
+  const availableGrades = useMemo(() => {
+    const set = new Set();
+    courses.forEach((c) => {
+      if (c.joint) return;
+      if (c.grade >= 1 && c.grade <= 3) set.add(c.grade);
+    });
+    return [...set].sort();
+  }, [courses]);
+
+  /* 현재 활성 학년의 학기 목록 */
+  const SEMESTERS = useMemo(() => semestersForGrade(activeGrade), [activeGrade]);
+
+  /* 학년이 바뀌었을 때 activeSemester가 새 학년에 속하지 않으면 첫 학기로 리셋 */
+  useEffect(() => {
+    if (!SEMESTERS.find((s) => s.key === activeSemester) && SEMESTERS.length > 0) {
+      setActiveSemester(SEMESTERS[0].key);
+    }
+  }, [SEMESTERS, activeSemester]);
+
+  /* 현재 활성 학년이 등록된 학년에 없으면 자동으로 등록된 학년 중 첫 번째로 전환 */
+  useEffect(() => {
+    if (availableGrades.length > 0 && !availableGrades.includes(activeGrade)) {
+      setActiveGrade(availableGrades[0]);
+    }
+  }, [availableGrades, activeGrade]);
+
+  const semesterObj = SEMESTERS.find((s) => s.key === activeSemester) || SEMESTERS[0] || { grade: activeGrade, semester: 1, key: `${activeGrade}-1`, label: `${activeGrade}-1학기` };
 
   const filteredCourses = useMemo(
     () => courses.filter((c) => c.grade === semesterObj.grade && c.semester === semesterObj.semester),
@@ -668,7 +719,6 @@ export default function CoursesPage() {
     const sidGrade = Number(sidStr.charAt(0)) || 0;
     const sidClass = Number(sidStr.substring(1, 3)) || 0;
     const sidNumber = Number(sidStr.substring(3)) || 0;
-    const studentName = student?.name || student?.이름 || '';
     /* major는 모달에서 받은 값을 우선 사용 */
 
     const optionalNames = snapshot.filter((c) => !c.required && !c.joint).map((c) => c.subjectName);
@@ -689,7 +739,6 @@ export default function CoursesPage() {
       grade: sidGrade,
       classNum: sidClass,
       studentNum: sidNumber,
-      name: studentName,
       major,
       selectedCourses: optionalNames.join(', '),
       jointCourses: jointEntries,
@@ -717,7 +766,6 @@ export default function CoursesPage() {
           timestamp: Date.now(),
           dateLabel: new Date().toLocaleString('ko-KR'),
           studentId: sidStr,
-          studentName,
           major,
           totalCredits,
           optionalCredits,
@@ -824,6 +872,37 @@ export default function CoursesPage() {
           </div>
         </div>
       </div>
+
+      {/* ── 학년 선택 (등록된 학년이 2개 이상일 때만 노출) ── */}
+      {availableGrades.length > 1 && (
+        <div className="px-5 pt-1 pb-2">
+          <div className="bg-white rounded-xl border border-slate-200 px-3 py-2 flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-600 mr-1">학년</span>
+            {availableGrades.map((g) => {
+              const active = g === activeGrade;
+              return (
+                <button
+                  key={g}
+                  onClick={() => setActiveGrade(g)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                    active ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                  style={active ? { background: 'linear-gradient(135deg, #3525cd, #4f46e5)' } : undefined}
+                >
+                  {g}학년
+                </button>
+              );
+            })}
+            <span className="ml-auto text-[0.65rem] text-slate-400">선택한 학년의 과목·규칙만 표시됩니다.</span>
+          </div>
+        </div>
+      )}
+
+      {availableGrades.length === 1 && availableGrades[0] !== activeGrade && (
+        <div className="px-5 pt-1 pb-2 text-[0.7rem] text-slate-500">
+          현재 등록된 학년: <span className="font-semibold text-slate-700">{availableGrades[0]}학년</span>
+        </div>
+      )}
 
       {/* ── Semester tabs ── */}
       <div className="px-5 pb-3">

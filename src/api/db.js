@@ -89,6 +89,10 @@ export function saveConfig(courses) {
   return gasPost('saveConfig', courses);
 }
 
+export function saveConfigByGrade(grade, rows) {
+  return gasPost('saveConfig', { mode: 'replaceGrade', grade: Number(grade), rows: rows || [] });
+}
+
 export function saveSettings(settings) {
   return gasPost('saveSettings', settings);
 }
@@ -109,6 +113,6 @@ export function saveJointCurriculum(data) {
   return gasPost('saveJointCurriculum', data);
 }
 
-export function verifyStudent({ studentCode, studentId, name }) {
-  return gasPost('verifyStudent', { studentCode, studentId, name });
+export function verifyStudent({ studentCode, studentId }) {
+  return gasPost('verifyStudent', { studentCode, studentId });
 }

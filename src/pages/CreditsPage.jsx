@@ -70,7 +70,6 @@ export default function CreditsPage() {
   const student = useMemo(() => getVerifiedStudent(), []);
   const avatarLabel = getStudentAvatarLabel();
   const schoolName = settings?.schoolName || localStorage.getItem('school_name') || '이수현황';
-  const studentName = student.name || student.이름 || '';
   const studentId = student.studentId || student.학번 || '';
 
   /* 학생이 현재 선택한 과목 ID 목록 (sessionStorage) */
@@ -227,7 +226,7 @@ export default function CreditsPage() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-bold text-slate-800" style={{ fontFamily: "'Manrope', sans-serif" }}>
-              {studentName || '학생'} <span className="text-xs text-slate-400 font-normal">{studentId}</span>
+              학번 <span className="font-mono">{studentId || '-'}</span>
             </div>
             <div className="text-xs text-slate-500">나의 수강신청 현황 · {selectedCourses.length}과목 선택</div>
           </div>

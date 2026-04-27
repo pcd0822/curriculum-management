@@ -36,6 +36,7 @@ export function clearVerifiedStudent() {
 
 export function getStudentAvatarLabel() {
   const s = getVerifiedStudent();
-  const name = s.name || s.이름 || '';
-  return name ? String(name).charAt(0) : '?';
+  const sid = String(s.studentId || s.학번 || '').trim();
+  if (sid) return sid.slice(-2);
+  return '?';
 }

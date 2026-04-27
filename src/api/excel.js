@@ -25,17 +25,19 @@ export function downloadExcel(data, fileName, sheetName = 'Sheet1') {
   XLSX.writeFile(wb, fileName);
 }
 
-export function downloadTemplate() {
+export function downloadTemplate(targetGrade) {
+  const grade = Number(targetGrade) || 2;
+  const fileName = targetGrade ? `course_template_grade${grade}.xlsx` : 'course_template_korean.xlsx';
   downloadExcel([{
-    과목명: '예시: 문학', 영문ID: 'munhag', 학년: 2, 학기: 1, 학점: 4,
+    과목명: '예시: 문학', 영문ID: 'munhag', 학년: grade, 학기: 1, 학점: 4,
     교과군: '기초교과', 세부교과: '국어', 필수여부: 'FALSE', 개설여부: 'TRUE', 선이수과목: ''
-  }], 'course_template_korean.xlsx', 'Courses');
+  }], fileName, 'Courses');
 }
 
 export function downloadRegistryTemplate() {
   downloadExcel([
-    { 학번: '20513', 이름: '홍길동' },
-    { 학번: '20514', 이름: '이순신' },
+    { 학번: '20513' },
+    { 학번: '20514' },
   ], 'student_registry_template.xlsx', 'Registry');
 }
 
@@ -53,10 +55,10 @@ export function downloadBulkEnrollmentTemplate(optionalCourses) {
     const name = (c.subjectName || c.과목명 || '').toString().trim();
     return `${name} (${c.grade ?? c.학년 ?? ''}-${c.semester ?? c.학기 ?? ''})`;
   });
-  const headerRow = ['학번', '이름', '희망 진로', ...headers];
+  const headerRow = ['학번', '희망 진로', ...headers];
   const sampleRows = [
-    ['20101', '홍길동', '컴퓨터공학', ...headers.map((_, i) => i < 2 ? 1 : 0)],
-    ['20102', '이순신', '간호사', ...headers.map((_, i) => i >= 1 && i < 3 ? 1 : 0)],
+    ['20101', '컴퓨터공학', ...headers.map((_, i) => i < 2 ? 1 : 0)],
+    ['20102', '간호사', ...headers.map((_, i) => i >= 1 && i < 3 ? 1 : 0)],
   ];
   const ws = XLSX.utils.aoa_to_sheet([headerRow, ...sampleRows]);
   const wb = XLSX.utils.book_new();

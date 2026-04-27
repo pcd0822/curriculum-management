@@ -3,7 +3,9 @@ import Sidebar from '../components/Sidebar';
 import StatCard from '../components/StatCard';
 import GaugeChart from '../components/GaugeChart';
 import * as DB from '../api/db';
+import { saveConfigByGrade } from '../api/db';
 import { readExcel, downloadExcel, downloadTemplate, downloadRegistryTemplate, downloadJointCurriculumTemplate, downloadBulkEnrollmentTemplate } from '../api/excel';
+import AdminLogin, { getAdminSession, clearAdminSession } from '../components/AdminLogin';
 
 /* ── 6자리 학생코드 생성 ── */
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동 문자 제외
@@ -38,7 +40,7 @@ function downloadCSV(csvStr, filename) {
 /* ── Canvas 기반 PNG/PDF 생성 ── */
 function buildCodeCanvas(students, title) {
   const rowH = 32, headerH = 50, padX = 24, padY = 16;
-  const w = 480, h = headerH + padY * 2 + students.length * rowH + 10;
+  const w = 420, h = headerH + padY * 2 + students.length * rowH + 10;
   const canvas = document.createElement('canvas'); canvas.width = w * 2; canvas.height = h * 2;
   const ctx = canvas.getContext('2d'); ctx.scale(2, 2);
   // bg
@@ -53,17 +55,15 @@ function buildCodeCanvas(students, title) {
   ctx.fillStyle = '#f1f5f9'; ctx.fillRect(padX, tableY, w - padX * 2, rowH);
   ctx.fillStyle = '#64748b'; ctx.font = 'bold 11px Inter, sans-serif';
   ctx.fillText('학번', padX + 12, tableY + 20);
-  ctx.fillText('이름', padX + 120, tableY + 20);
-  ctx.fillText('학생코드', padX + 260, tableY + 20);
+  ctx.fillText('학생코드', padX + 180, tableY + 20);
   // rows
   students.forEach((s, i) => {
     const y = tableY + rowH * (i + 1);
     if (i % 2 === 1) { ctx.fillStyle = '#f8fafc'; ctx.fillRect(padX, y, w - padX * 2, rowH); }
     ctx.fillStyle = '#334155'; ctx.font = '12px "Noto Sans KR", sans-serif';
     ctx.fillText(s.학번 || s.studentId || '', padX + 12, y + 20);
-    ctx.fillText(s.이름 || s.name || '', padX + 120, y + 20);
     ctx.fillStyle = '#4f46e5'; ctx.font = 'bold 13px monospace';
-    ctx.fillText(s.학생코드 || s.studentCode || '', padX + 260, y + 20);
+    ctx.fillText(s.학생코드 || s.studentCode || '', padX + 180, y + 20);
   });
   return canvas;
 }
@@ -166,8 +166,8 @@ function ExportModal({ open, onClose, registry }) {
   function handleDownload() {
     const students = getTargetStudents();
     if (!students.length) { alert('해당 학생이 없습니다.'); return; }
-    const cols = ['학번', '이름', '학생코드'];
-    const mapped = students.map(r => ({ 학번: r.학번 || r.studentId || '', 이름: r.이름 || r.name || '', 학생코드: r.학생코드 || r.studentCode || '' }));
+    const cols = ['학번', '학생코드'];
+    const mapped = students.map(r => ({ 학번: r.학번 || r.studentId || '', 학생코드: r.학생코드 || r.studentCode || '' }));
     const label = dlMode === 'individual' ? (dlInput.trim() || '전체개별') : dlMode === 'class' ? `학급_${dlInput}` : '전체';
     const fname = `학생코드_${label}_${new Date().toISOString().slice(0, 10)}`;
     if (dlFormat === 'csv') { downloadCSV(toCSV(mapped, cols), fname + '.csv'); }
@@ -248,7 +248,7 @@ function ShareTab({ apiUrl, shareUrl, registry, setRegistry, loadData }) {
     <div className="max-w-3xl space-y-6">
       <Card>
         <SectionTitle>학생용 접속 링크</SectionTitle>
-        <p className="text-sm text-slate-500 mb-4">아래 링크를 학생들에게 공유하세요. 학생은 6자리 학생코드와 학번·이름으로 본인 확인 후 수강신청합니다.</p>
+        <p className="text-sm text-slate-500 mb-4">아래 링크를 학생들에게 공유하세요. 학생은 학번과 6자리 학생코드로 본인 확인 후 수강신청합니다.</p>
         {!apiUrl ? (
           <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm">시스템 설정에서 API URL을 먼저 설정해주세요.</div>
         ) : (
@@ -291,13 +291,11 @@ function ShareTab({ apiUrl, shareUrl, registry, setRegistry, loadData }) {
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white"><tr className="border-b border-slate-100">
                 <th className="text-left py-2 px-3 text-slate-500 text-xs">학번</th>
-                <th className="text-left py-2 px-3 text-slate-500 text-xs">이름</th>
                 <th className="text-left py-2 px-3 text-slate-500 text-xs">학생코드</th>
               </tr></thead>
               <tbody>{registry.map((r, i) => (
                 <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/60">
                   <td className="py-2 px-3 font-mono text-xs">{r.학번 || r.studentId || '-'}</td>
-                  <td className="py-2 px-3 font-medium">{r.이름 || r.name || '-'}</td>
                   <td className="py-2 px-3 font-mono text-sm tracking-widest text-indigo-600 font-bold">{r.학생코드 || r.studentCode || <span className="text-slate-300 font-normal">미발급</span>}</td>
                 </tr>
               ))}</tbody>
@@ -314,6 +312,16 @@ function ShareTab({ apiUrl, shareUrl, registry, setRegistry, loadData }) {
 export default function AdminPage() {
   const [tab, setTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
+
+  /* ── Admin auth gate ── */
+  const [adminSession, setAdminSessionState] = useState(() => getAdminSession());
+  function handleAdminAuth(email) {
+    setAdminSessionState({ email, expiresAt: Date.now() + 24 * 60 * 60 * 1000 });
+  }
+  function handleAdminLogout() {
+    clearAdminSession();
+    setAdminSessionState(null);
+  }
 
   // Data
   const [responses, setResponses] = useState([]);
@@ -431,6 +439,34 @@ export default function AdminPage() {
       loadData();
     } catch (e) {
       setUploadMsg(m => ({ ...m, [action]: '❌ 오류: ' + e.message }));
+    }
+  }
+
+  /* 학년별 교육과정 업로드: 해당 학년 행만 교체 */
+  async function handleUploadCoursesByGrade(fileInputId, grade) {
+    const key = `saveConfig_g${grade}`;
+    const input = document.getElementById(fileInputId);
+    const file = input?.files?.[0];
+    if (!file) { setUploadMsg(m => ({ ...m, [key]: '❌ 파일을 선택해주세요.' })); return; }
+    if (!DB.isConfigured()) { setUploadMsg(m => ({ ...m, [key]: '❌ API URL을 먼저 설정하세요.' })); return; }
+    setUploadMsg(m => ({ ...m, [key]: '⏳ 업로드 중...' }));
+    try {
+      const data = await readExcel(file);
+      if (!data.length) throw new Error('데이터가 비어 있습니다.');
+      // 학년 컬럼 검증/보정 — 업로드된 행에 학년이 비어있으면 선택 학년으로 강제 지정
+      const rows = data.map(r => {
+        const g = Number(r.학년 || r.grade);
+        if (g !== grade) {
+          if (!g) return { ...r, 학년: grade };
+          throw new Error(`학년 ${grade} 업로드인데 학년 컬럼에 ${g}가 포함되어 있습니다. 행: ${JSON.stringify(r).slice(0,80)}`);
+        }
+        return r;
+      });
+      await saveConfigByGrade(grade, rows);
+      setUploadMsg(m => ({ ...m, [key]: `✅ ${grade}학년 ${rows.length}건 저장 완료! (다른 학년 데이터는 보존)` }));
+      loadData();
+    } catch (e) {
+      setUploadMsg(m => ({ ...m, [key]: '❌ 오류: ' + e.message }));
     }
   }
 
@@ -696,14 +732,13 @@ export default function AdminPage() {
   /* ── Table data ── */
   const tableRows = responses.map(r => ({
     id: r.Grade ? `${r.Grade}${String(r.Class).padStart(2,'0')}${String(r.Number).padStart(2,'0')}` : '-',
-    name: r.Name || r.name || '-',
     courses: r.SelectedCourses || r.selectedCourses || '-',
     credits: r.TotalCredits || r.totalCredits || '-',
     status: (r.ValidationResult || r.validationResult || '').includes('통과') || (r.ValidationResult || r.validationResult || '').includes('충족') ? '통과' : '미달',
   }));
   const filtered = tableRows
     .filter(r => filter === 'all' || r.status === (filter === 'pass' ? '통과' : '미달'))
-    .filter(r => !search.trim() || r.name.includes(search) || r.id.includes(search));
+    .filter(r => !search.trim() || r.id.includes(search));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   useEffect(() => { setPage(1); }, [filter, search]);
@@ -718,9 +753,107 @@ export default function AdminPage() {
     coursesBySemester[key].push(c);
   });
   const semesterKeys = Object.keys(coursesBySemester).sort();
-  const allSemesters = ['2-1', '2-2', '3-1', '3-2'];
+  const allSemesters = ['1-1', '1-2', '2-1', '2-2', '3-1', '3-2'];
+
+  /* 등록된 학년 목록 (Config 데이터 기반) */
+  const registeredGrades = useMemo(() => {
+    const set = new Set();
+    courses.forEach(c => {
+      const g = Number(c.학년 || c.grade);
+      if (g) set.add(g);
+    });
+    return [...set].sort();
+  }, [courses]);
+
+  /* 학년별 등록 과목 수 */
+  const courseCountByGrade = useMemo(() => {
+    const m = { 1: 0, 2: 0, 3: 0 };
+    courses.forEach(c => {
+      const g = Number(c.학년 || c.grade);
+      if (m[g] !== undefined) m[g] += 1;
+    });
+    return m;
+  }, [courses]);
 
   const statusMsg = (key) => uploadMsg[key] ? <p className="mt-3 text-sm">{uploadMsg[key]}</p> : null;
+
+  /* ── 관리자 보안 설정 ── */
+  const googleClientId = String(settings?.googleClientId || '').trim();
+  const adminEmails = Array.isArray(settings?.adminEmails) ? settings.adminEmails : [];
+
+  /* 화이트리스트가 비어있을 때 첫 로그인을 자동 등록하는 부트스트랩 */
+  async function handleAdminBootstrap(email) {
+    if (!DB.isConfigured()) return; // API 미설정 — 세션만 로컬에서 유지
+    try {
+      let baseSettings = settings || {};
+      try {
+        const fresh = await DB.fetchSettings();
+        if (fresh && typeof fresh === 'object' && !Array.isArray(fresh)) baseSettings = fresh;
+      } catch {}
+      const list = Array.isArray(baseSettings.adminEmails) ? baseSettings.adminEmails : [];
+      if (list.length === 0) {
+        const next = { ...baseSettings, adminEmails: [email] };
+        await DB.saveSettings(next);
+        setSettings(next);
+      }
+    } catch (e) {
+      console.warn('admin bootstrap failed', e);
+    }
+  }
+
+  /* 관리자 보안 설정 저장 */
+  const [adminSecurityMsg, setAdminSecurityMsg] = useState('');
+  const [clientIdInput, setClientIdInput] = useState('');
+  const [emailInput, setEmailInput] = useState('');
+  useEffect(() => {
+    if (settings?.googleClientId) setClientIdInput(settings.googleClientId);
+  }, [settings]);
+
+  async function saveSecuritySettings(next) {
+    if (!DB.isConfigured()) {
+      setAdminSecurityMsg('❌ API URL을 먼저 설정하세요.');
+      return;
+    }
+    try {
+      let baseSettings = settings || {};
+      try {
+        const fresh = await DB.fetchSettings();
+        if (fresh && typeof fresh === 'object' && !Array.isArray(fresh)) baseSettings = fresh;
+      } catch {}
+      const merged = { ...baseSettings, ...next };
+      await DB.saveSettings(merged);
+      setSettings(merged);
+      setAdminSecurityMsg('✅ 저장 완료');
+    } catch (e) {
+      setAdminSecurityMsg('❌ 저장 실패: ' + e.message);
+    }
+  }
+
+  function addAdminEmail() {
+    const v = String(emailInput || '').trim().toLowerCase();
+    if (!v || !v.includes('@')) return;
+    if (adminEmails.includes(v)) { setEmailInput(''); return; }
+    saveSecuritySettings({ adminEmails: [...adminEmails, v] });
+    setEmailInput('');
+  }
+  function removeAdminEmail(email) {
+    if (adminEmails.length <= 1) {
+      if (!window.confirm('마지막 관리자 이메일을 제거하면 다음 로그인 시 누구나 첫 관리자로 등록될 수 있습니다. 계속하시겠습니까?')) return;
+    }
+    saveSecuritySettings({ adminEmails: adminEmails.filter(e => e !== email) });
+  }
+
+  /* ── 인증 게이트 ── */
+  if (!adminSession) {
+    return (
+      <AdminLogin
+        clientId={googleClientId}
+        adminEmails={adminEmails}
+        onAuth={handleAdminAuth}
+        onBootstrap={handleAdminBootstrap}
+      />
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -728,6 +861,20 @@ export default function AdminPage() {
 
       <main className="flex-1 ml-0 lg:ml-[240px]">
         <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6">
+          {/* ── 관리자 세션 표시 + 로그아웃 ── */}
+          <div className="flex items-center justify-end mb-2 gap-2 text-xs">
+            <span className="text-slate-500">로그인:</span>
+            <span className="font-mono text-slate-700">{adminSession.email}</span>
+            <button
+              onClick={() => {
+                if (window.confirm('로그아웃하시겠습니까?')) handleAdminLogout();
+              }}
+              className="ml-2 px-3 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+            >
+              로그아웃
+            </button>
+          </div>
+
           {/* ── Tab navigation ── */}
           <div className="flex gap-1 overflow-x-auto pb-4 mb-6 border-b border-slate-100">
             {TABS.map(t => (
@@ -869,7 +1016,6 @@ export default function AdminPage() {
                       <table className="w-full text-sm">
                         <thead><tr className="border-b border-slate-100">
                           <th className="text-left py-3 px-3 text-slate-500 font-medium text-xs">학번</th>
-                          <th className="text-left py-3 px-3 text-slate-500 font-medium text-xs">이름</th>
                           <th className="text-left py-3 px-3 text-slate-500 font-medium text-xs">선택과목</th>
                           <th className="text-right py-3 px-3 text-slate-500 font-medium text-xs">학점</th>
                           <th className="text-center py-3 px-3 text-slate-500 font-medium text-xs">상태</th>
@@ -877,14 +1023,13 @@ export default function AdminPage() {
                         <tbody>{paged.map((r, i) => (
                           <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/60">
                             <td className="py-3 px-3 font-mono text-xs text-slate-600">{r.id}</td>
-                            <td className="py-3 px-3 font-medium text-slate-800">{r.name}</td>
                             <td className="py-3 px-3 text-slate-600 max-w-xs truncate">{r.courses}</td>
                             <td className="py-3 px-3 text-right font-semibold">{r.credits}</td>
                             <td className="py-3 px-3 text-center">
                               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${r.status === '통과' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{r.status}</span>
                             </td>
                           </tr>
-                        ))}{paged.length === 0 && <tr><td colSpan="5" className="py-12 text-center text-slate-400">데이터 없음</td></tr>}</tbody>
+                        ))}{paged.length === 0 && <tr><td colSpan="4" className="py-12 text-center text-slate-400">데이터 없음</td></tr>}</tbody>
                       </table>
                     </div>
                     <div className="flex justify-center gap-2 mt-4">
@@ -932,6 +1077,79 @@ export default function AdminPage() {
                 {DB.isConfigured() && !connStatus && <p className="mt-3 text-xs text-emerald-600">✅ API URL이 이미 설정되어 있습니다.</p>}
                 {connStatus && <p className="mt-4 text-sm">{connStatus}</p>}
               </Card>
+              {/* 관리자 보안 (Google 로그인) */}
+              <Card>
+                <SectionTitle>관리자 보안 — Google 계정 로그인</SectionTitle>
+                <p className="text-sm text-slate-500 mb-4">
+                  관리자 대시보드 접근을 Google 계정으로 제한합니다. Google Cloud Console에서 OAuth 2.0 클라이언트 ID를 발급받아 등록하세요.
+                  <br />
+                  허용 도메인(승인된 자바스크립트 원본)에 <code className="bg-slate-100 px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}</code>를 추가해야 합니다.
+                </p>
+
+                {/* Client ID */}
+                <div className="mb-4">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Google OAuth 2.0 Client ID</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={clientIdInput}
+                      onChange={(e) => setClientIdInput(e.target.value)}
+                      placeholder="000000000000-xxxxxxxxxxxx.apps.googleusercontent.com"
+                      className="flex-1 p-2.5 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    />
+                    <button
+                      onClick={() => saveSecuritySettings({ googleClientId: clientIdInput.trim() })}
+                      className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 whitespace-nowrap"
+                    >
+                      저장
+                    </button>
+                  </div>
+                </div>
+
+                {/* 허용 이메일 화이트리스트 */}
+                <div className="mb-3">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">관리자 허용 이메일 ({adminEmails.length}명)</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAdminEmail(); } }}
+                      placeholder="admin@school.kr"
+                      className="flex-1 p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    />
+                    <button
+                      onClick={addAdminEmail}
+                      className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 whitespace-nowrap"
+                    >
+                      + 추가
+                    </button>
+                  </div>
+                  {adminEmails.length === 0 ? (
+                    <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      ⚠️ 화이트리스트가 비어있습니다. 다음에 로그인하는 Google 계정이 첫 관리자로 자동 등록됩니다.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {adminEmails.map(em => (
+                        <span key={em} className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full text-xs font-medium border border-indigo-200">
+                          {em}
+                          <button
+                            onClick={() => removeAdminEmail(em)}
+                            className="text-indigo-400 hover:text-rose-600 font-bold"
+                            title="제거"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {adminSecurityMsg && <p className="mt-2 text-xs">{adminSecurityMsg}</p>}
+              </Card>
+
               <Card>
                 <SectionTitle>진로 추천 · 커리어넷 (Netlify)</SectionTitle>
                 <p className="text-sm text-slate-500 mb-3">AI + 커리어넷 추천은 Netlify Functions로 동작합니다. 환경변수 <code className="text-xs bg-slate-100 px-1 rounded">OPENAI_API_KEY</code>를 설정하세요.</p>
@@ -946,25 +1164,48 @@ export default function AdminPage() {
           {/* ======================== COURSES TAB ======================== */}
           {tab === 'courses' && (
             <div className="grid md:grid-cols-2 gap-6">
-              {/* 과목 업로드 */}
-              <Card>
-                <SectionTitle>교육과정 편제표 업로드</SectionTitle>
-                <p className="text-sm text-slate-500 mb-4">'편제표' 시트가 포함된 엑셀 파일을 업로드하세요. 기존 데이터는 덮어씌워집니다.</p>
-                <div className="space-y-3">
-                  <button onClick={downloadTemplate} className="text-indigo-600 hover:underline text-sm flex items-center gap-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    과목 템플릿 양식 다운로드
-                  </button>
-                  <input type="file" id="course-file" accept=".xlsx,.xls" className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
-                  <button onClick={() => handleUpload('course-file', 'saveConfig', '과목')} className="w-full bg-emerald-600 text-white py-2.5 rounded-xl hover:bg-emerald-700 text-sm font-semibold">과목 데이터 업로드 및 저장</button>
+              {/* 학년별 교육과정 업로드 */}
+              <Card className="md:col-span-2">
+                <SectionTitle>학년별 교육과정 편제표 업로드</SectionTitle>
+                <p className="text-sm text-slate-500 mb-4">
+                  학년별로 따로 업로드합니다. 한 학년을 업로드해도 다른 학년의 데이터는 보존됩니다.
+                  엑셀 파일의 <code className="bg-slate-100 px-1 rounded">학년</code> 컬럼은 해당 학년 값과 일치해야 합니다 (비어있으면 자동 보정).
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[1, 2, 3].map(g => {
+                    const key = `saveConfig_g${g}`;
+                    const fileId = `course-file-g${g}`;
+                    const count = courseCountByGrade[g] || 0;
+                    return (
+                      <div key={g} className="border border-slate-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-bold text-sm text-slate-700">{g}학년</h4>
+                          <span className={`text-xs font-mono ${count > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                            {count > 0 ? `${count}과목 등록됨` : '미등록'}
+                          </span>
+                        </div>
+                        <button onClick={() => downloadTemplate(g)} className="text-indigo-600 hover:underline text-xs mb-2 flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                          {g}학년용 템플릿
+                        </button>
+                        <input type="file" id={fileId} accept=".xlsx,.xls" className="block w-full text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 mb-2" />
+                        <button onClick={() => handleUploadCoursesByGrade(fileId, g)} className="w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 text-xs font-semibold">
+                          {g}학년 업로드
+                        </button>
+                        {uploadMsg[key] && <p className="mt-2 text-xs">{uploadMsg[key]}</p>}
+                      </div>
+                    );
+                  })}
                 </div>
-                {statusMsg('saveConfig')}
+                <div className="mt-4 px-3 py-2 bg-amber-50 rounded-lg text-xs text-amber-700">
+                  💡 두 학년 이상 업로드된 경우 학생 화면에서 학년 선택을 통해 해당 학년 과목만 보입니다. 선택 규칙도 학년별로 따로 설정 가능합니다.
+                </div>
               </Card>
 
               {/* 학적 업로드 */}
               <Card>
                 <SectionTitle>학적 정보 업로드</SectionTitle>
-                <p className="text-sm text-slate-500 mb-4">학번(5자리)과 이름이 포함된 엑셀 파일을 업로드하세요. 학생코드는 자동 발급됩니다.</p>
+                <p className="text-sm text-slate-500 mb-4">학번(5자리)이 포함된 엑셀 파일을 업로드하세요. 학생코드는 자동 발급됩니다. (개인정보 보호를 위해 이름은 수집하지 않습니다.)</p>
                 <div className="space-y-3">
                   <button onClick={downloadRegistryTemplate} className="text-indigo-600 hover:underline text-sm flex items-center gap-1">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
@@ -1314,33 +1555,54 @@ export default function AdminPage() {
 
               <Card>
                 <SectionTitle>학년-학기별 선택 규칙 설정</SectionTitle>
-                <p className="text-sm text-slate-500 mb-4">각 학기별로 학점 단위 선택 규칙을 추가하세요. (예: 4학점 과목 3개 선택)</p>
+                <p className="text-sm text-slate-500 mb-4">
+                  각 학기별로 학점 단위 선택 규칙을 추가하세요. (예: 4학점 과목 3개 선택)
+                  학년별로 별도 규칙을 둘 수 있습니다 — 등록된 학년 카드만 펼쳐집니다.
+                </p>
                 <div className="space-y-6">
-                  {allSemesters.map(sem => {
-                    const rules = ruleInputs[sem] || [];
+                  {[1, 2, 3].map(grade => {
+                    const semsOfGrade = allSemesters.filter(s => s.startsWith(`${grade}-`));
+                    const hasGradeData = courseCountByGrade[grade] > 0;
+                    const ruleCountInGrade = semsOfGrade.reduce((s, sem) => s + (ruleInputs[sem]?.length || 0), 0);
                     return (
-                      <div key={sem} className="border border-slate-100 rounded-xl p-4">
+                      <div key={grade} className={`border rounded-xl p-3 ${hasGradeData ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-100 bg-slate-50/30'}`}>
                         <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-semibold text-slate-800 text-sm">{sem.replace('-', '학년 ')}학기</h3>
-                          <button onClick={() => addRule(sem)} className="text-xs text-indigo-600 hover:underline">+ 규칙 추가</button>
+                          <h3 className="font-bold text-slate-800 text-sm">
+                            {grade}학년
+                            {!hasGradeData && <span className="ml-2 text-[0.65rem] text-slate-400 font-normal">교육과정 미등록</span>}
+                            {hasGradeData && <span className="ml-2 text-[0.65rem] text-indigo-600 font-medium">규칙 {ruleCountInGrade}건</span>}
+                          </h3>
                         </div>
-                        {rules.length === 0 && <p className="text-xs text-slate-400">설정된 규칙 없음</p>}
-                        {rules.map((rule, idx) => (
-                          <div key={idx} className="flex items-center gap-2 mb-2">
-                            <select value={rule.credits || 'all'} onChange={e => updateRule(sem, idx, 'credits', e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                              className="px-2 py-1.5 border border-slate-200 rounded-lg text-sm">
-                              <option value="all">모든 학점</option>
-                              <option value="2">2학점</option>
-                              <option value="3">3학점</option>
-                              <option value="4">4학점</option>
-                            </select>
-                            <span className="text-sm text-slate-500">과목</span>
-                            <input type="number" value={rule.count || ''} onChange={e => updateRule(sem, idx, 'count', Number(e.target.value))}
-                              className="w-16 px-2 py-1.5 border border-slate-200 rounded-lg text-sm text-center" min="0" />
-                            <span className="text-sm text-slate-500">개</span>
-                            <button onClick={() => removeRule(sem, idx)} className="text-red-400 hover:text-red-600 text-sm ml-auto">삭제</button>
-                          </div>
-                        ))}
+                        <div className="space-y-3">
+                          {semsOfGrade.map(sem => {
+                            const rules = ruleInputs[sem] || [];
+                            return (
+                              <div key={sem} className="border border-slate-100 bg-white rounded-lg p-3">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="font-semibold text-slate-700 text-xs">{sem.replace('-', '학년 ')}학기</h4>
+                                  <button onClick={() => addRule(sem)} className="text-[0.7rem] text-indigo-600 hover:underline">+ 규칙 추가</button>
+                                </div>
+                                {rules.length === 0 && <p className="text-[0.7rem] text-slate-400">설정된 규칙 없음</p>}
+                                {rules.map((rule, idx) => (
+                                  <div key={idx} className="flex items-center gap-2 mb-1.5">
+                                    <select value={rule.credits || 'all'} onChange={e => updateRule(sem, idx, 'credits', e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                      className="px-2 py-1 border border-slate-200 rounded text-xs">
+                                      <option value="all">모든 학점</option>
+                                      <option value="2">2학점</option>
+                                      <option value="3">3학점</option>
+                                      <option value="4">4학점</option>
+                                    </select>
+                                    <span className="text-xs text-slate-500">과목</span>
+                                    <input type="number" value={rule.count || ''} onChange={e => updateRule(sem, idx, 'count', Number(e.target.value))}
+                                      className="w-14 px-2 py-1 border border-slate-200 rounded text-xs text-center" min="0" />
+                                    <span className="text-xs text-slate-500">개</span>
+                                    <button onClick={() => removeRule(sem, idx)} className="text-red-400 hover:text-red-600 text-xs ml-auto">삭제</button>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   })}
@@ -1410,7 +1672,6 @@ export default function AdminPage() {
                     <table className="w-full text-sm">
                       <thead><tr className="border-b border-slate-100">
                         <th className="text-left py-2 px-2 text-slate-500 text-xs">학번</th>
-                        <th className="text-left py-2 px-2 text-slate-500 text-xs">이름</th>
                         <th className="text-left py-2 px-2 text-slate-500 text-xs">희망 진로</th>
                         <th className="text-left py-2 px-2 text-slate-500 text-xs">선택 과목</th>
                         <th className="text-center py-2 px-2 text-slate-500 text-xs">학점</th>
@@ -1423,7 +1684,6 @@ export default function AdminPage() {
                         return (
                           <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/60">
                             <td className="py-2 px-2 font-mono text-xs">{sid}</td>
-                            <td className="py-2 px-2 font-medium">{r.Name || r.name || '-'}</td>
                             <td className="py-2 px-2 text-slate-600">{r.Major || r.major || '-'}</td>
                             <td className="py-2 px-2 text-slate-600 max-w-xs truncate">{r.SelectedCourses || '-'}</td>
                             <td className="py-2 px-2 text-center font-semibold">{r.TotalCredits || '-'}</td>
