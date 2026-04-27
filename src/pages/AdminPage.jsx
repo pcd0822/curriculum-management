@@ -92,6 +92,28 @@ const TABS = [
 
 const PER_PAGE = 8;
 
+/* "다른 학년에서 복사" 드롭다운 — 활성 학년 외 다른 학년 옵션 노출 */
+function CopyFromCohort({ activeCohort, onCopy }) {
+  const others = [1, 2, 3].filter(c => c !== activeCohort);
+  return (
+    <select
+      defaultValue=""
+      onChange={(e) => {
+        const val = Number(e.target.value);
+        if (val) onCopy(val);
+        e.target.value = '';
+      }}
+      className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-600 hover:bg-slate-50 cursor-pointer"
+      title="다른 학년의 설정을 현재 학년으로 복사"
+    >
+      <option value="">📋 다른 학년에서 복사</option>
+      {others.map(c => (
+        <option key={c} value={c}>{c}학년에서 복사</option>
+      ))}
+    </select>
+  );
+}
+
 /* ── Stable sub-components (정의를 함수 외부에 두어 re-render 시 재생성 방지) ── */
 function Card({ children, className = '' }) {
   return <div className={`bg-white rounded-2xl shadow-sm p-6 ${className}`}>{children}</div>;
@@ -605,12 +627,11 @@ export default function AdminPage() {
   }
 
   /* ── Rules tab ──
-     ruleInputsByCohort: { 1: { "1-1":[...], ..., "3-2":[...] }, 2: {...}, 3: {...} }
-     코호트마다 6학기 학기별 규칙을 따로 관리. */
+     모든 규칙은 학년별로 분리되어 있다. 활성 학년(activeCohort) 값에 따라 표시·편집 대상이 바뀐다. */
   const [ruleInputsByCohort, setRuleInputsByCohort] = useState({ 1: {}, 2: {}, 3: {} });
   const [minCreditRulesByCohort, setMinCreditRulesByCohort] = useState({ 1: [], 2: [], 3: [] });
   const [requiredTotalByCohort, setRequiredTotalByCohort] = useState({ 1: 180, 2: 180, 3: 180 });
-  const [prereqMap, setPrereqMap] = useState({}); // { '수학II': ['수학I'], ... } — 전 코호트 공통
+  const [prereqMapByCohort, setPrereqMapByCohort] = useState({ 1: {}, 2: {}, 3: {} }); // { 1: {'수학II': ['수학I']}, ... }
   const [prereqInputTarget, setPrereqInputTarget] = useState('');
   const [prereqInputPrereq, setPrereqInputPrereq] = useState('');
   useEffect(() => {
@@ -651,17 +672,48 @@ export default function AdminPage() {
       setRequiredTotalByCohort({ 1: n, 2: n, 3: n });
     }
 
-    if (settings.prerequisitesMap && typeof settings.prerequisitesMap === 'object' && !Array.isArray(settings.prerequisitesMap)) {
-      setPrereqMap(settings.prerequisitesMap);
+    /* 선이수 매핑 — 학년별 신모델 우선, 없으면 단일 prerequisitesMap을 cohort 1로 폴백 */
+    const pmbc = settings.prerequisitesMapByCohort;
+    if (pmbc && typeof pmbc === 'object' && !Array.isArray(pmbc)) {
+      setPrereqMapByCohort({
+        1: (pmbc[1] || pmbc['1'] || {}),
+        2: (pmbc[2] || pmbc['2'] || {}),
+        3: (pmbc[3] || pmbc['3'] || {}),
+      });
+    } else if (settings.prerequisitesMap && typeof settings.prerequisitesMap === 'object' && !Array.isArray(settings.prerequisitesMap)) {
+      setPrereqMapByCohort(prev => ({ ...prev, 1: settings.prerequisitesMap }));
     }
   }, [settings]);
 
-  /* 활성 코호트의 규칙 — 위에 정의된 activeCohort 사용 */
+  /* 활성 학년의 규칙 — 위에 정의된 activeCohort 사용 */
   const ruleInputs = ruleInputsByCohort[activeCohort] || {};
   const minCreditRules = minCreditRulesByCohort[activeCohort] || [];
+  const prereqMap = prereqMapByCohort[activeCohort] || {};
   const requiredTotalInput = requiredTotalByCohort[activeCohort] || 180;
   function setRequiredTotalInput(v) {
     setRequiredTotalByCohort(prev => ({ ...prev, [activeCohort]: v }));
+  }
+  /* 활성 학년의 prereqMap 갱신 헬퍼 — 함수형 또는 값 직접 전달 모두 지원 */
+  function setPrereqMap(updater) {
+    setPrereqMapByCohort(prev => {
+      const cur = prev[activeCohort] || {};
+      const next = typeof updater === 'function' ? updater(cur) : updater;
+      return { ...prev, [activeCohort]: next };
+    });
+  }
+
+  /* 다른 학년의 규칙을 활성 학년으로 복사 (덮어쓰기). type: 'selection' | 'minCredit' | 'prereq' */
+  function copyRulesFromCohort(sourceCohort, type) {
+    if (!sourceCohort || sourceCohort === activeCohort) return;
+    const labels = { selection: '학기별 선택 규칙', minCredit: '교과별 최소 이수학점', prereq: '과목 위계 규칙' };
+    if (!window.confirm(`${sourceCohort}학년의 ${labels[type]}을(를) ${activeCohort}학년으로 복사합니다. 현재 ${activeCohort}학년의 설정은 덮어씌워집니다. 계속하시겠습니까?`)) return;
+    if (type === 'selection') {
+      setRuleInputsByCohort(prev => ({ ...prev, [activeCohort]: JSON.parse(JSON.stringify(prev[sourceCohort] || {})) }));
+    } else if (type === 'minCredit') {
+      setMinCreditRulesByCohort(prev => ({ ...prev, [activeCohort]: JSON.parse(JSON.stringify(prev[sourceCohort] || [])) }));
+    } else if (type === 'prereq') {
+      setPrereqMapByCohort(prev => ({ ...prev, [activeCohort]: JSON.parse(JSON.stringify(prev[sourceCohort] || {})) }));
+    }
   }
 
   /* 선이수 매핑 입력 — 키보드 내비게이션 상태 */
@@ -789,34 +841,40 @@ export default function AdminPage() {
         const fresh = await DB.fetchSettings();
         if (fresh && typeof fresh === 'object' && !Array.isArray(fresh)) baseSettings = fresh;
       } catch {}
-      /* prereqMap 정리: 빈 항목 제거 (전 코호트 공통) */
-      const cleanedPrereqMap = {};
-      Object.entries(prereqMap).forEach(([target, list]) => {
-        const t = String(target || '').trim();
-        const arr = Array.isArray(list) ? list.map((x) => String(x || '').trim()).filter(Boolean) : [];
-        if (t && arr.length > 0) cleanedPrereqMap[t] = [...new Set(arr)];
+      /* 선이수 매핑 — 학년별 정리 (빈 항목 제거) */
+      const cleanedPrereqByCohort = { 1: {}, 2: {}, 3: {} };
+      [1, 2, 3].forEach(c => {
+        const map = prereqMapByCohort[c] || {};
+        Object.entries(map).forEach(([target, list]) => {
+          const t = String(target || '').trim();
+          const arr = Array.isArray(list) ? list.map((x) => String(x || '').trim()).filter(Boolean) : [];
+          if (t && arr.length > 0) cleanedPrereqByCohort[c][t] = [...new Set(arr)];
+        });
       });
       const newSettings = {
         ...baseSettings,
-        /* 신규 모델 */
+        /* 신규 모델 — 모두 학년별 */
         selectionRulesByCohort: rulesByCohort,
         minCreditRulesByCohort: cleanedMinByCohort,
         requiredTotalCreditsByCohort: totalByCohort,
-        prerequisitesMap: cleanedPrereqMap,
+        prerequisitesMapByCohort: cleanedPrereqByCohort,
       };
       /* 구버전 단일 필드는 제거 (혼선 방지) */
       delete newSettings.selectionRules;
       delete newSettings.minCreditRules;
       delete newSettings.requiredTotalCredits;
+      delete newSettings.prerequisitesMap;
       await DB.saveSettings(newSettings);
       setSettings(newSettings);
-      const totalPrereqEntries = Object.values(cleanedPrereqMap).reduce((s, a) => s + a.length, 0);
+      const totalPrereqEntries = [1, 2, 3].reduce((s, c) =>
+        s + Object.values(cleanedPrereqByCohort[c]).reduce((a, b) => a + b.length, 0), 0);
       const summary = [1, 2, 3].map(c => {
         const semCount = Object.keys(rulesByCohort[c]).length;
         const minCount = cleanedMinByCohort[c].length;
-        return `${c}학년: 학기규칙 ${semCount}건/최소학점 ${minCount}건/총 ${totalByCohort[c]}학점`;
+        const preCount = Object.keys(cleanedPrereqByCohort[c]).length;
+        return `${c}학년: 학기규칙 ${semCount}건/최소학점 ${minCount}건/선이수 ${preCount}건`;
       }).join(' · ');
-      setSaveRulesMsg(`✅ 저장 완료 — ${summary} · 선이수 매핑 ${totalPrereqEntries}건`);
+      setSaveRulesMsg(`✅ 저장 완료 — ${summary} · 총 선이수 ${totalPrereqEntries}건`);
     } catch (e) {
       setSaveRulesMsg('❌ 저장 실패: ' + e.message);
     } finally {
@@ -1530,12 +1588,12 @@ export default function AdminPage() {
           {/* ======================== RULES TAB ======================== */}
           {tab === 'rules' && (
             <div className="grid md:grid-cols-2 gap-6">
-              {/* 코호트(현 학년) 탭 — 어떤 학년 편제표의 규칙을 편집하는지 */}
+              {/* 학년 선택 — 어떤 학년의 규칙을 편집하는지 */}
               <Card className="md:col-span-2">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
-                    <SectionTitle>편집 대상 — 현 학년 코호트</SectionTitle>
-                    <p className="text-xs text-slate-500">아래의 모든 규칙은 선택한 코호트(현 학년 편제표)에만 적용됩니다.</p>
+                    <SectionTitle>학년별 선택 규칙</SectionTitle>
+                    <p className="text-xs text-slate-500">아래의 모든 규칙은 선택한 학년에만 적용됩니다.</p>
                   </div>
                   <div className="flex gap-2">
                     {[1, 2, 3].map(c => {
@@ -1550,7 +1608,7 @@ export default function AdminPage() {
                           }`}
                           style={active ? { background: 'linear-gradient(135deg, #3525cd, #4f46e5)' } : undefined}
                         >
-                          현 {c}학년
+                          {c}학년
                           <span className={`ml-1.5 text-[0.65rem] ${active ? 'text-white/80' : 'text-slate-400'}`}>({count}건)</span>
                         </button>
                       );
@@ -1561,7 +1619,7 @@ export default function AdminPage() {
 
               {/* 졸업 요건: 총 이수학점 */}
               <Card className="md:col-span-2">
-                <SectionTitle>졸업 요건 — 총 이수학점 (현 {activeCohort}학년)</SectionTitle>
+                <SectionTitle>졸업 요건 — 총 이수학점 ({activeCohort}학년)</SectionTitle>
                 <p className="text-sm text-slate-500 mb-3">
                   학생이 충족해야 할 총 이수학점입니다. 이 값의 50%가 기초교과(국·영·수·한국사1·2) 한도로 자동 적용됩니다.
                 </p>
@@ -1582,7 +1640,10 @@ export default function AdminPage() {
 
               {/* 교과별 최소 이수학점 */}
               <Card className="md:col-span-2">
-                <SectionTitle>교과별 최소 이수학점 설정 — 현 {activeCohort}학년</SectionTitle>
+                <div className="flex items-start justify-between flex-wrap gap-2 mb-1">
+                  <SectionTitle>교과별 최소 이수학점 설정 — {activeCohort}학년</SectionTitle>
+                  <CopyFromCohort activeCohort={activeCohort} onCopy={(src) => copyRulesFromCohort(src, 'minCredit')} />
+                </div>
                 <p className="text-sm text-slate-500 mb-4">
                   교과군(예: 체육교과) 또는 세부교과(예: 국어, 수학) 단위로 최소 이수학점을 설정하세요.
                   학생의 신청 학점이 이 값을 충족하지 못하면 최종 제출이 차단됩니다.
@@ -1675,7 +1736,10 @@ export default function AdminPage() {
 
               {/* 과목 위계 규칙 (선이수 관계 설정) */}
               <Card className="md:col-span-2">
-                <SectionTitle>과목 위계 규칙 (선이수 관계 설정)</SectionTitle>
+                <div className="flex items-start justify-between flex-wrap gap-2 mb-1">
+                  <SectionTitle>과목 위계 규칙 (선이수 관계 설정) — {activeCohort}학년</SectionTitle>
+                  <CopyFromCohort activeCohort={activeCohort} onCopy={(src) => copyRulesFromCohort(src, 'prereq')} />
+                </div>
                 <p className="text-sm text-slate-500 mb-4">
                   후수 과목과 그 선이수 과목을 등록하세요. 학생이 선이수 과목을 선택하지 않으면 후수 과목 카드는 자동 비활성화됩니다.
                   과목 엑셀에 <code className="bg-slate-100 px-1 rounded">선이수과목</code> 컬럼이 비어 있어도 여기서 등록한 매핑이 적용됩니다.
@@ -1818,9 +1882,12 @@ export default function AdminPage() {
               </Card>
 
               <Card>
-                <SectionTitle>학기별 선택 규칙 — 현 {activeCohort}학년</SectionTitle>
+                <div className="flex items-start justify-between flex-wrap gap-2 mb-1">
+                  <SectionTitle>학기별 선택 규칙 — {activeCohort}학년</SectionTitle>
+                  <CopyFromCohort activeCohort={activeCohort} onCopy={(src) => copyRulesFromCohort(src, 'selection')} />
+                </div>
                 <p className="text-sm text-slate-500 mb-4">
-                  각 학기별로 학점 단위 선택 규칙을 추가하세요. (예: 4학점 과목 3개 선택) 한 코호트(현 학년) 학생이 졸업까지 거치는 6학기 모두 설정 가능합니다.
+                  각 학기별로 학점 단위 선택 규칙을 추가하세요. (예: 4학점 과목 3개 선택) 한 학년 학생이 졸업까지 거치는 6학기 모두 설정 가능합니다.
                 </p>
                 <div className="space-y-3">
                   {allSemesters.map(sem => {
@@ -1877,8 +1944,8 @@ export default function AdminPage() {
               </Card>
 
               <Card>
-                <SectionTitle>과목 편제 확인 — 현 {activeCohort}학년</SectionTitle>
-                <p className="text-sm text-slate-500 mb-4">선택된 코호트(편제표)의 과목이 학년-학기별로 올바르게 분류되었는지 확인하세요.</p>
+                <SectionTitle>과목 편제 확인 — {activeCohort}학년</SectionTitle>
+                <p className="text-sm text-slate-500 mb-4">선택된 학년 편제표의 과목이 학년-학기별로 올바르게 분류되었는지 확인하세요.</p>
                 <div className="space-y-4 max-h-[500px] overflow-y-auto">
                   {semesterKeys.length === 0 && <p className="text-sm text-slate-400 text-center py-8">과목 데이터를 먼저 업로드하세요.</p>}
                   {semesterKeys.map(k => (

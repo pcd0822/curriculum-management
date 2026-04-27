@@ -445,10 +445,19 @@ export default function CoursesPage() {
     return null;
   }
 
-  /* 후수→선이수 매핑 (관리자 화면에서 등록).
-     {[과목명|slug]: [선이수1, 선이수2, ...]} 형태. */
-  const prerequisitesMap = (settings && typeof settings.prerequisitesMap === 'object' && !Array.isArray(settings.prerequisitesMap))
-    ? settings.prerequisitesMap : {};
+  /* 후수→선이수 매핑 (관리자 화면에서 학년별로 등록).
+     학생의 현 학년(activeGrade)에 해당하는 매핑만 적용. 구 단일 prerequisitesMap은 폴백. */
+  const prerequisitesMap = useMemo(() => {
+    const byCohort = settings?.prerequisitesMapByCohort;
+    if (byCohort && typeof byCohort === 'object' && !Array.isArray(byCohort)) {
+      const v = byCohort[activeGrade] || byCohort[String(activeGrade)];
+      if (v && typeof v === 'object' && !Array.isArray(v)) return v;
+    }
+    if (settings?.prerequisitesMap && typeof settings.prerequisitesMap === 'object' && !Array.isArray(settings.prerequisitesMap)) {
+      return settings.prerequisitesMap;
+    }
+    return {};
+  }, [settings, activeGrade]);
 
   /* 한 과목의 선이수 목록을 모두 수집 — 엑셀 컬럼(course.prerequisites) + 관리자 매핑(prerequisitesMap) */
   function getCoursePrerequisites(course) {
