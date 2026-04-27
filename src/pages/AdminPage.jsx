@@ -777,8 +777,10 @@ export default function AdminPage() {
 
   const statusMsg = (key) => uploadMsg[key] ? <p className="mt-3 text-sm">{uploadMsg[key]}</p> : null;
 
-  /* ── 관리자 보안 설정 ── */
-  const googleClientId = String(settings?.googleClientId || '').trim();
+  /* ── 관리자 보안 설정 ──
+     Client ID는 빌드 시 Netlify 환경변수(VITE_GOOGLE_CLIENT_ID)로 주입.
+     이메일 화이트리스트는 학교별로 다르므로 GAS Settings에 보관. */
+  const googleClientId = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
   const adminEmails = Array.isArray(settings?.adminEmails) ? settings.adminEmails : [];
 
   /* 화이트리스트가 비어있을 때 첫 로그인을 자동 등록하는 부트스트랩 */
@@ -803,11 +805,7 @@ export default function AdminPage() {
 
   /* 관리자 보안 설정 저장 */
   const [adminSecurityMsg, setAdminSecurityMsg] = useState('');
-  const [clientIdInput, setClientIdInput] = useState('');
   const [emailInput, setEmailInput] = useState('');
-  useEffect(() => {
-    if (settings?.googleClientId) setClientIdInput(settings.googleClientId);
-  }, [settings]);
 
   async function saveSecuritySettings(next) {
     if (!DB.isConfigured()) {
@@ -1081,29 +1079,31 @@ export default function AdminPage() {
               <Card>
                 <SectionTitle>관리자 보안 — Google 계정 로그인</SectionTitle>
                 <p className="text-sm text-slate-500 mb-4">
-                  관리자 대시보드 접근을 Google 계정으로 제한합니다. Google Cloud Console에서 OAuth 2.0 클라이언트 ID를 발급받아 등록하세요.
-                  <br />
-                  허용 도메인(승인된 자바스크립트 원본)에 <code className="bg-slate-100 px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}</code>를 추가해야 합니다.
+                  관리자 대시보드 접근을 Google 계정으로 제한합니다. Client ID는 사이트 운영자가 Netlify 환경변수
+                  <code className="bg-slate-100 px-1 rounded mx-1">VITE_GOOGLE_CLIENT_ID</code>로 주입한 값을 사용합니다.
                 </p>
 
-                {/* Client ID */}
+                {/* Client ID 상태 표시 (읽기 전용) */}
                 <div className="mb-4">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Google OAuth 2.0 Client ID</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={clientIdInput}
-                      onChange={(e) => setClientIdInput(e.target.value)}
-                      placeholder="000000000000-xxxxxxxxxxxx.apps.googleusercontent.com"
-                      className="flex-1 p-2.5 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                    />
-                    <button
-                      onClick={() => saveSecuritySettings({ googleClientId: clientIdInput.trim() })}
-                      className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 whitespace-nowrap"
-                    >
-                      저장
-                    </button>
-                  </div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Google OAuth 2.0 Client ID (환경변수)</label>
+                  {googleClientId ? (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5 text-xs">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-emerald-700 font-semibold">✓ 환경변수에서 로드됨</span>
+                      </div>
+                      <code className="block font-mono text-slate-600 break-all">
+                        {googleClientId.length > 60 ? googleClientId.slice(0, 30) + '…' + googleClientId.slice(-20) : googleClientId}
+                      </code>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800 leading-relaxed">
+                      <p className="font-semibold mb-1">⚠️ 환경변수 미설정</p>
+                      <p>Netlify 사이트 설정 → Environment variables 에서
+                      <code className="bg-white px-1 rounded mx-1">VITE_GOOGLE_CLIENT_ID</code>를 추가하고 재배포하세요.
+                      Google Cloud Console의 OAuth 2.0 클라이언트 ID(승인된 자바스크립트 원본에
+                      <code className="bg-white px-1 rounded mx-1">{typeof window !== 'undefined' ? window.location.origin : ''}</code> 포함)를 사용합니다.</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* 허용 이메일 화이트리스트 */}
