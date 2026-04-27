@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { isConfigured, fetchConfig, fetchSettings, fetchJointCurriculum, submitResponse } from '../api/db.js';
+import { isConfigured, fetchConfig, fetchRegisteredCohorts, fetchSettings, fetchJointCurriculum, submitResponse } from '../api/db.js';
 import { getVerifiedStudent, setVerifiedStudent, getStudentAvatarLabel } from '../api/student.js';
 import Header from '../components/Header';
 import MobileNav from '../components/MobileNav';
@@ -90,8 +90,8 @@ export default function CoursesPage() {
   const [activeSemester, setActiveSemester] = useState('2-1');
   const [loading, setLoading] = useState(true);
 
-  /* 학생의 학년 — 학번 첫 자리에서 자동 추출, 사용자가 변경 가능.
-     localStorage에 저장하여 새로고침에도 유지. */
+  /* 학생의 현 학년 (= 코호트) — 학번 첫 자리에서 자동 추출, 사용자가 변경 가능.
+     이 값에 따라 그 코호트의 편제표·규칙만 로드된다. */
   const [activeGrade, setActiveGrade] = useState(() => {
     try {
       const saved = Number(localStorage.getItem('selectedGrade'));
@@ -108,6 +108,9 @@ export default function CoursesPage() {
   useEffect(() => {
     try { localStorage.setItem('selectedGrade', String(activeGrade)); } catch {}
   }, [activeGrade]);
+
+  /* 등록된 코호트(편제표가 있는 학년) 목록 — 학년 토글 표시 여부 결정 */
+  const [registeredCohorts, setRegisteredCohorts] = useState([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [blockedReason, setBlockedReason] = useState(null); // {courseName, reason}
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,13 +138,18 @@ export default function CoursesPage() {
 
     async function load() {
       try {
-        const [configRes, settingsRes, jointRes] = await Promise.all([
-          fetchConfig(),
+        /* 학생의 현 학년(코호트)에 해당하는 편제표만 로드 */
+        const [configRes, settingsRes, jointRes, cohortsRes] = await Promise.all([
+          fetchConfig(activeGrade),
           fetchSettings(),
           fetchJointCurriculum().catch(() => []),
+          fetchRegisteredCohorts().catch(() => []),
         ]);
 
         if (cancelled) return;
+
+        const cohortList = Array.isArray(cohortsRes) ? cohortsRes : (cohortsRes?.data || []);
+        setRegisteredCohorts(cohortList.filter(c => c.count > 0).map(c => c.cohort));
 
         const rawCourses = Array.isArray(configRes)
           ? configRes
@@ -266,28 +274,16 @@ export default function CoursesPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [navigate]);
+  }, [navigate, activeGrade]);
 
   /* ── Derived data ── */
-  /* 등록된 학년 (Config 기준) */
+  /* 등록된 코호트 (편제표가 있는 학년) — 학생 화면 학년 토글에 사용 */
   const availableGrades = useMemo(() => {
-    const set = new Set();
-    courses.forEach((c) => {
-      if (c.joint) return;
-      if (c.grade >= 1 && c.grade <= 3) set.add(c.grade);
-    });
-    return [...set].sort();
-  }, [courses]);
+    return [...registeredCohorts].sort();
+  }, [registeredCohorts]);
 
-  /* 현재 활성 학년의 학기 목록 */
-  const SEMESTERS = useMemo(() => semestersForGrade(activeGrade), [activeGrade]);
-
-  /* 학년이 바뀌었을 때 activeSemester가 새 학년에 속하지 않으면 첫 학기로 리셋 */
-  useEffect(() => {
-    if (!SEMESTERS.find((s) => s.key === activeSemester) && SEMESTERS.length > 0) {
-      setActiveSemester(SEMESTERS[0].key);
-    }
-  }, [SEMESTERS, activeSemester]);
+  /* 현 학년 코호트 내에서 학생은 1-1~3-2 모든 학기 사이를 이동 가능 */
+  const SEMESTERS = ALL_SEMESTERS;
 
   /* 현재 활성 학년이 등록된 학년에 없으면 자동으로 등록된 학년 중 첫 번째로 전환 */
   useEffect(() => {
@@ -365,17 +361,40 @@ export default function CoursesPage() {
     } catch {}
   }, [selectedIds, loading, isAdminPreview]);
 
-  /* ── Settings ── */
-  const selectionRules = settings?.selectionRules || {};
+  /* ── Settings — 학생의 현 학년(코호트) 단위 ── */
+  const selectionRules = useMemo(() => {
+    const byCohort = settings?.selectionRulesByCohort;
+    if (byCohort && typeof byCohort === 'object') {
+      return byCohort[activeGrade] || byCohort[String(activeGrade)] || {};
+    }
+    return settings?.selectionRules || {}; // 구버전 폴백
+  }, [settings, activeGrade]);
+
   /* 학기간 동명 과목 중복 신청은 항상 차단 (정책 고정).
      예외는 settings.duplicateCourseSlugs 에 등록된 과목명/슬러그에 한해서만 허용. */
   const allowMultiSemesterDuplicate = false;
   const duplicateCourseSlugs = Array.isArray(settings?.duplicateCourseSlugs)
     ? settings.duplicateCourseSlugs
     : [];
-  const requiredTotalCredits = Number(settings?.requiredTotalCredits) || 180;
+
+  const requiredTotalCredits = useMemo(() => {
+    const byCohort = settings?.requiredTotalCreditsByCohort;
+    if (byCohort && typeof byCohort === 'object') {
+      const v = Number(byCohort[activeGrade] ?? byCohort[String(activeGrade)]);
+      if (v > 0) return v;
+    }
+    return Number(settings?.requiredTotalCredits) || 180;
+  }, [settings, activeGrade]);
   const foundationCap = Math.floor(requiredTotalCredits * 0.5);
-  const minCreditRules = Array.isArray(settings?.minCreditRules) ? settings.minCreditRules : [];
+
+  const minCreditRules = useMemo(() => {
+    const byCohort = settings?.minCreditRulesByCohort;
+    if (byCohort && typeof byCohort === 'object') {
+      const list = byCohort[activeGrade] || byCohort[String(activeGrade)];
+      if (Array.isArray(list)) return list;
+    }
+    return Array.isArray(settings?.minCreditRules) ? settings.minCreditRules : [];
+  }, [settings, activeGrade]);
 
   /* 학기별 학점·과목수 규칙 검사 (정규 교과 한정 — 공동교육과정은 추가 이수이므로 미포함) */
   function countSelected(semKey, creditFilter, excludeId) {

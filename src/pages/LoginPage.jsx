@@ -13,13 +13,15 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  /* If ?key= is present, decode it and initialise the API URL */
+  /* If ?key= is present, decode it and initialise the API URL.
+     학생 흐름이므로 ownerEmail: null을 명시하여 활성 관리자 세션이 있어도
+     이메일 키가 아닌 학생용 키에만 저장한다. */
   useEffect(() => {
     const key = searchParams.get('key');
     if (key) {
       try {
         const url = atob(key);
-        init(url);
+        init(url, { ownerEmail: null });
       } catch {
         /* ignore malformed base-64 */
       }

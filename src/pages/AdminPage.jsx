@@ -3,7 +3,7 @@ import Sidebar from '../components/Sidebar';
 import StatCard from '../components/StatCard';
 import GaugeChart from '../components/GaugeChart';
 import * as DB from '../api/db';
-import { saveConfigByGrade } from '../api/db';
+import { saveConfigByCohort, fetchRegisteredCohorts } from '../api/db';
 import { readExcel, downloadExcel, downloadTemplate, downloadRegistryTemplate, downloadJointCurriculumTemplate, downloadBulkEnrollmentTemplate } from '../api/excel';
 import AdminLogin, { getAdminSession, clearAdminSession, getValidIdToken } from '../components/AdminLogin';
 import { fetchMyMapping, registerMyMapping, isRouterConfigured } from '../api/router';
@@ -327,55 +327,113 @@ export default function AdminPage() {
 
   // Data
   const [responses, setResponses] = useState([]);
-  const [courses, setCourses] = useState([]);
+  /* 코호트별 편제표 — 1, 2, 3학년 각각 별도 배열. AdminPage 전반에서 'courses' 대신 사용 */
+  const [coursesByCohort, setCoursesByCohort] = useState({ 1: [], 2: [], 3: [] });
   const [registry, setRegistry] = useState([]);
   const [settings, setSettings] = useState(null);
   const [jointCurriculum, setJointCurriculum] = useState([]);
 
-  // System
+  /* 모든 코호트 합친 배열 — 기존 로직(통계, 카테고리 추출 등) 호환용 */
+  const courses = useMemo(() => {
+    return [
+      ...(coursesByCohort[1] || []).map(c => ({ ...c, _cohort: 1 })),
+      ...(coursesByCohort[2] || []).map(c => ({ ...c, _cohort: 2 })),
+      ...(coursesByCohort[3] || []).map(c => ({ ...c, _cohort: 3 })),
+    ];
+  }, [coursesByCohort]);
+
+  /* 어떤 코호트 시트를 보고 있는지 — 미리보기/규칙 편집 시 활용 */
+  const [activeCohort, setActiveCohort] = useState(1);
+
+  // System — 활성 관리자 이메일에 매핑된 키만 읽음 (다른 계정 시트로 누출 차단)
   const [apiUrl, setApiUrl] = useState(() => {
-    try { return localStorage.getItem('gas_api_url') || ''; } catch { return ''; }
+    try {
+      const sess = JSON.parse(localStorage.getItem('adminSession') || 'null');
+      const email = sess?.email && (!sess.expiresAt || Date.now() < Number(sess.expiresAt))
+        ? String(sess.email).toLowerCase() : null;
+      if (email) return localStorage.getItem(`gas_api_url:${email}`) || '';
+      return ''; // 인증 전엔 학생 키도 읽지 않음
+    } catch { return ''; }
   });
   const [schoolName, setSchoolName] = useState(() => {
-    try { return localStorage.getItem('school_name') || ''; } catch { return ''; }
+    try {
+      const sess = JSON.parse(localStorage.getItem('adminSession') || 'null');
+      const email = sess?.email && (!sess.expiresAt || Date.now() < Number(sess.expiresAt))
+        ? String(sess.email).toLowerCase() : null;
+      if (email) return localStorage.getItem(`school_name:${email}`) || '';
+      return '';
+    } catch { return ''; }
   });
   const [connStatus, setConnStatus] = useState('');
 
-  // API URL 자동 복원: 이미 localStorage에 있으면 init 호출
+  /* 인증 상태에 따라 API URL을 격리 관리.
+     - 미인증: db 글로벌 상태 reset (이전 계정 시트 누출 차단)
+     - 인증됨: 그 이메일 키의 캐시 → 라우터 조회 → init */
   useEffect(() => {
-    if (apiUrl && !DB.isConfigured()) {
-      DB.init(apiUrl);
+    if (!adminSession?.email) {
+      DB.reset();
+      setApiUrl('');
+      setSchoolName('');
+      setResponses([]);
+      setCoursesByCohort({ 1: [], 2: [], 3: [] });
+      setRegistry([]);
+      setSettings(null);
+      setJointCurriculum([]);
+      setRouterStatus('');
+      return;
     }
-  }, [apiUrl]);
 
-  /* 관리자 로그인 직후 라우터에서 본인 매핑 조회 → API URL 자동 로드.
-     이미 localStorage에 동일 URL이 있으면 스킵. */
-  useEffect(() => {
-    if (!adminSession?.email) return;
-    if (!isRouterConfigured()) return;
+    const email = String(adminSession.email).toLowerCase();
     let cancelled = false;
+
+    // 1) 로컬 캐시(이메일 키)
+    let cachedUrl = '';
+    let cachedSchool = '';
+    try {
+      cachedUrl = localStorage.getItem(`gas_api_url:${email}`) || '';
+      cachedSchool = localStorage.getItem(`school_name:${email}`) || '';
+    } catch {}
+
+    if (cachedUrl) {
+      DB.init(cachedUrl, { ownerEmail: email });
+      setApiUrl(cachedUrl);
+      if (cachedSchool) setSchoolName(cachedSchool);
+      loadData();
+    } else {
+      // 캐시 없음 — 글로벌 상태 정리, 라우터 조회 결과를 기다림
+      DB.reset();
+      setApiUrl('');
+      setSchoolName('');
+    }
+
+    // 2) 라우터 조회 (있으면 캐시보다 우선)
+    if (!isRouterConfigured()) {
+      if (!cachedUrl) setRouterStatus('💡 라우터 미설정 — 시스템 설정에서 시트 URL을 직접 입력하세요.');
+      return () => { cancelled = true; };
+    }
+
+    setRouterStatus('⏳ 계정에 매핑된 학교 시트 조회 중...');
     (async () => {
-      setRouterStatus('⏳ 계정에 매핑된 학교 시트 조회 중...');
       try {
-        const m = await fetchMyMapping(adminSession.email);
+        const m = await fetchMyMapping(email);
         if (cancelled) return;
         if (m && m.apiUrl) {
-          if (m.apiUrl !== apiUrl) {
+          if (m.apiUrl !== cachedUrl) {
+            DB.init(m.apiUrl, { ownerEmail: email });
             setApiUrl(m.apiUrl);
-            try { localStorage.setItem('gas_api_url', m.apiUrl); } catch {}
-            DB.init(m.apiUrl);
-            if (m.schoolName && m.schoolName !== schoolName) {
+            if (m.schoolName) {
               setSchoolName(m.schoolName);
-              try { localStorage.setItem('school_name', m.schoolName); } catch {}
+              try { localStorage.setItem(`school_name:${email}`, m.schoolName); } catch {}
             }
             setRouterStatus(`✅ 자동 로드: ${m.schoolName || m.apiUrl.slice(0, 60) + '…'}`);
-            // 데이터 다시 가져오기
             setTimeout(() => loadData(), 0);
           } else {
             setRouterStatus('✅ 매핑 동기화됨');
           }
         } else {
-          setRouterStatus('💡 등록된 매핑 없음 — 시스템 설정에서 시트 URL을 입력하세요.');
+          setRouterStatus(cachedUrl
+            ? '💡 라우터에 등록된 매핑 없음 — 현재는 로컬 캐시 사용 중입니다.'
+            : '💡 등록된 매핑 없음 — 시스템 설정에서 시트 URL을 입력하세요.');
         }
       } catch (e) {
         if (!cancelled) setRouterStatus('⚠️ 라우터 조회 실패: ' + e.message);
@@ -397,15 +455,21 @@ export default function AdminPage() {
     if (!DB.isConfigured()) return;
     setLoading(true);
     try {
-      const [res, cfg, stg, reg, jc] = await Promise.all([
+      const [res, cfg1, cfg2, cfg3, stg, reg, jc] = await Promise.all([
         DB.fetchResponses().catch(() => []),
-        DB.fetchConfig().catch(() => []),
+        DB.fetchConfig(1).catch(() => []),
+        DB.fetchConfig(2).catch(() => []),
+        DB.fetchConfig(3).catch(() => []),
         DB.fetchSettings().catch(() => null),
         DB.fetchRegistry().catch(() => []),
         DB.fetchJointCurriculum().catch(() => []),
       ]);
       setResponses(Array.isArray(res) ? res : res?.data || []);
-      setCourses(Array.isArray(cfg) ? cfg : cfg?.data || []);
+      setCoursesByCohort({
+        1: Array.isArray(cfg1) ? cfg1 : (cfg1?.data || []),
+        2: Array.isArray(cfg2) ? cfg2 : (cfg2?.data || []),
+        3: Array.isArray(cfg3) ? cfg3 : (cfg3?.data || []),
+      });
       setSettings(stg);
       setRegistry(Array.isArray(reg) ? reg : reg?.data || []);
       setJointCurriculum(Array.isArray(jc) ? jc : jc?.data || []);
@@ -413,18 +477,22 @@ export default function AdminPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  /* loadData는 인증 변경 useEffect에서 명시적으로 호출하므로 자동 호출 안 함 */
 
   /* ── System tab ── */
   async function saveApiUrl() {
     const url = apiUrl.trim();
     if (!url) return;
-    localStorage.setItem('gas_api_url', url);
-    DB.init(url);
+    if (!adminSession?.email) {
+      setConnStatus('❌ 로그인 후에 시트 URL을 저장할 수 있습니다.');
+      return;
+    }
+    const email = String(adminSession.email).toLowerCase();
+    DB.init(url, { ownerEmail: email });
     setConnStatus('✅ API URL이 저장되었습니다.');
 
     /* 라우터에 본인 매핑 등록 — 다른 컴퓨터에서도 자동 로드되게 */
-    if (isRouterConfigured() && adminSession?.email) {
+    if (isRouterConfigured()) {
       const idToken = getValidIdToken();
       if (!idToken) {
         setConnStatus('✅ 로컬 저장 완료. (라우터 자동 등록 실패: 토큰 만료 — 다시 로그인 후 재저장 필요)');
@@ -443,7 +511,12 @@ export default function AdminPage() {
   async function saveSchoolName() {
     const name = schoolName.trim();
     if (!name) return;
-    localStorage.setItem('school_name', name);
+    if (!adminSession?.email) {
+      alert('로그인 후 학교 이름을 저장할 수 있습니다.');
+      return;
+    }
+    const email = String(adminSession.email).toLowerCase();
+    try { localStorage.setItem(`school_name:${email}`, name); } catch {}
     if (DB.isConfigured()) {
       try {
         // 기존 settings를 먼저 최신으로 가져온 뒤 병합
@@ -467,15 +540,18 @@ export default function AdminPage() {
       alert('학교 이름이 로컬에 저장되었습니다. (API 연결 시 서버에도 저장됩니다)');
     }
   }
-  // Settings에서 학교 이름 복원 (최초 1회만)
+  // Settings에서 학교 이름 복원 (최초 1회만) — 활성 이메일 키에 캐시
   const schoolNameLoaded = useRef(false);
   useEffect(() => {
     if (settings?.schoolName && !schoolNameLoaded.current) {
       schoolNameLoaded.current = true;
       setSchoolName(settings.schoolName);
-      try { localStorage.setItem('school_name', settings.schoolName); } catch {}
+      const email = adminSession?.email ? String(adminSession.email).toLowerCase() : null;
+      if (email) {
+        try { localStorage.setItem(`school_name:${email}`, settings.schoolName); } catch {}
+      }
     }
-  }, [settings]);
+  }, [settings, adminSession?.email]);
   async function testConnection() {
     if (!DB.isConfigured()) { setConnStatus('❌ API URL을 먼저 저장하세요.'); return; }
     setConnStatus('🔄 연결 테스트 중...');
@@ -507,49 +583,86 @@ export default function AdminPage() {
     }
   }
 
-  /* 학년별 교육과정 업로드: 해당 학년 행만 교체 */
-  async function handleUploadCoursesByGrade(fileInputId, grade) {
-    const key = `saveConfig_g${grade}`;
+  /* 코호트(현 학년) 단위 편제표 업로드: 해당 코호트 시트 전체 교체.
+     1학년 편제표는 현 1학년 학생용, 2학년 편제표는 현 2학년 학생용, 3학년은 현 3학년 학생용.
+     업로드 파일에는 6학기(1-1 ~ 3-2) 모든 과목이 들어 있을 수 있다 — 학년 컬럼은 과목의 편성 학기 정보. */
+  async function handleUploadCohortConfig(fileInputId, cohort) {
+    const key = `saveConfig_g${cohort}`;
     const input = document.getElementById(fileInputId);
     const file = input?.files?.[0];
     if (!file) { setUploadMsg(m => ({ ...m, [key]: '❌ 파일을 선택해주세요.' })); return; }
     if (!DB.isConfigured()) { setUploadMsg(m => ({ ...m, [key]: '❌ API URL을 먼저 설정하세요.' })); return; }
     setUploadMsg(m => ({ ...m, [key]: '⏳ 업로드 중...' }));
     try {
-      const data = await readExcel(file);
-      if (!data.length) throw new Error('데이터가 비어 있습니다.');
-      // 학년 컬럼 검증/보정 — 업로드된 행에 학년이 비어있으면 선택 학년으로 강제 지정
-      const rows = data.map(r => {
-        const g = Number(r.학년 || r.grade);
-        if (g !== grade) {
-          if (!g) return { ...r, 학년: grade };
-          throw new Error(`학년 ${grade} 업로드인데 학년 컬럼에 ${g}가 포함되어 있습니다. 행: ${JSON.stringify(r).slice(0,80)}`);
-        }
-        return r;
-      });
-      await saveConfigByGrade(grade, rows);
-      setUploadMsg(m => ({ ...m, [key]: `✅ ${grade}학년 ${rows.length}건 저장 완료! (다른 학년 데이터는 보존)` }));
+      const rows = await readExcel(file);
+      if (!rows.length) throw new Error('데이터가 비어 있습니다.');
+      await saveConfigByCohort(cohort, rows);
+      setUploadMsg(m => ({ ...m, [key]: `✅ ${cohort}학년 편제표 ${rows.length}건 저장 완료! (다른 학년 편제표는 보존)` }));
       loadData();
     } catch (e) {
       setUploadMsg(m => ({ ...m, [key]: '❌ 오류: ' + e.message }));
     }
   }
 
-  /* ── Rules tab ── */
-  const [ruleInputs, setRuleInputs] = useState({});
-  const [minCreditRules, setMinCreditRules] = useState([]); // [{ type:'subCategory'|'category', name:'국어', min:8 }]
-  const [requiredTotalInput, setRequiredTotalInput] = useState(180);
-  const [prereqMap, setPrereqMap] = useState({}); // { '수학II': ['수학I'], ... }
+  /* ── Rules tab ──
+     ruleInputsByCohort: { 1: { "1-1":[...], ..., "3-2":[...] }, 2: {...}, 3: {...} }
+     코호트마다 6학기 학기별 규칙을 따로 관리. */
+  const [ruleInputsByCohort, setRuleInputsByCohort] = useState({ 1: {}, 2: {}, 3: {} });
+  const [minCreditRulesByCohort, setMinCreditRulesByCohort] = useState({ 1: [], 2: [], 3: [] });
+  const [requiredTotalByCohort, setRequiredTotalByCohort] = useState({ 1: 180, 2: 180, 3: 180 });
+  const [prereqMap, setPrereqMap] = useState({}); // { '수학II': ['수학I'], ... } — 전 코호트 공통
   const [prereqInputTarget, setPrereqInputTarget] = useState('');
   const [prereqInputPrereq, setPrereqInputPrereq] = useState('');
   useEffect(() => {
-    if (settings?.selectionRules) setRuleInputs(settings.selectionRules);
-    if (Array.isArray(settings?.minCreditRules)) setMinCreditRules(settings.minCreditRules);
-    if (settings?.requiredTotalCredits) setRequiredTotalInput(Number(settings.requiredTotalCredits) || 180);
-    if (settings?.prerequisitesMap && typeof settings.prerequisitesMap === 'object' && !Array.isArray(settings.prerequisitesMap)) {
+    if (!settings) return;
+    /* 코호트별 새 모델 우선, 없으면 기존 단일 모델을 cohort 1로 폴백 */
+    const rbc = settings.selectionRulesByCohort;
+    if (rbc && typeof rbc === 'object') {
+      setRuleInputsByCohort({
+        1: rbc[1] || rbc['1'] || {},
+        2: rbc[2] || rbc['2'] || {},
+        3: rbc[3] || rbc['3'] || {},
+      });
+    } else if (settings.selectionRules) {
+      // 호환: 기존 단일 selectionRules는 활성 cohort에만 적용
+      setRuleInputsByCohort(prev => ({ ...prev, 1: settings.selectionRules }));
+    }
+
+    const mcbc = settings.minCreditRulesByCohort;
+    if (mcbc && typeof mcbc === 'object') {
+      setMinCreditRulesByCohort({
+        1: Array.isArray(mcbc[1] || mcbc['1']) ? (mcbc[1] || mcbc['1']) : [],
+        2: Array.isArray(mcbc[2] || mcbc['2']) ? (mcbc[2] || mcbc['2']) : [],
+        3: Array.isArray(mcbc[3] || mcbc['3']) ? (mcbc[3] || mcbc['3']) : [],
+      });
+    } else if (Array.isArray(settings.minCreditRules)) {
+      setMinCreditRulesByCohort(prev => ({ ...prev, 1: settings.minCreditRules }));
+    }
+
+    const rtbc = settings.requiredTotalCreditsByCohort;
+    if (rtbc && typeof rtbc === 'object') {
+      setRequiredTotalByCohort({
+        1: Number(rtbc[1] || rtbc['1']) || 180,
+        2: Number(rtbc[2] || rtbc['2']) || 180,
+        3: Number(rtbc[3] || rtbc['3']) || 180,
+      });
+    } else if (settings.requiredTotalCredits) {
+      const n = Number(settings.requiredTotalCredits) || 180;
+      setRequiredTotalByCohort({ 1: n, 2: n, 3: n });
+    }
+
+    if (settings.prerequisitesMap && typeof settings.prerequisitesMap === 'object' && !Array.isArray(settings.prerequisitesMap)) {
       setPrereqMap(settings.prerequisitesMap);
     }
   }, [settings]);
+
+  /* 활성 코호트의 규칙 — 위에 정의된 activeCohort 사용 */
+  const ruleInputs = ruleInputsByCohort[activeCohort] || {};
+  const minCreditRules = minCreditRulesByCohort[activeCohort] || [];
+  const requiredTotalInput = requiredTotalByCohort[activeCohort] || 180;
+  function setRequiredTotalInput(v) {
+    setRequiredTotalByCohort(prev => ({ ...prev, [activeCohort]: v }));
+  }
 
   /* 선이수 매핑 입력 — 키보드 내비게이션 상태 */
   const [targetActiveIdx, setTargetActiveIdx] = useState(0);
@@ -587,6 +700,14 @@ export default function AdminPage() {
     });
   }
 
+  /* 활성 코호트의 규칙 갱신 헬퍼 */
+  function setRuleInputs(updater) {
+    setRuleInputsByCohort(prev => {
+      const cohortRules = prev[activeCohort] || {};
+      const next = typeof updater === 'function' ? updater(cohortRules) : updater;
+      return { ...prev, [activeCohort]: next };
+    });
+  }
   function updateRule(semKey, idx, field, value) {
     setRuleInputs(prev => {
       const next = { ...prev };
@@ -614,6 +735,13 @@ export default function AdminPage() {
   }
 
   /* ── 교과별 최소 이수학점 ── */
+  function setMinCreditRules(updater) {
+    setMinCreditRulesByCohort(prev => {
+      const list = prev[activeCohort] || [];
+      const next = typeof updater === 'function' ? updater(list) : updater;
+      return { ...prev, [activeCohort]: next };
+    });
+  }
   function addMinRule(type, name) {
     if (!name) return;
     setMinCreditRules(prev => {
@@ -636,17 +764,32 @@ export default function AdminPage() {
     setSavingRules(true);
     setSaveRulesMsg('');
     try {
-      const cleanedMinRules = minCreditRules
-        .filter(r => r.name && Number(r.min) >= 0)
-        .map(r => ({ type: r.type, name: String(r.name).trim(), min: Number(r.min) || 0 }));
-      const totalNum = Number(requiredTotalInput) || 180;
+      /* 코호트별 정리 */
+      const cleanedMinByCohort = {};
+      [1, 2, 3].forEach(c => {
+        const list = minCreditRulesByCohort[c] || [];
+        cleanedMinByCohort[c] = list
+          .filter(r => r.name && Number(r.min) >= 0)
+          .map(r => ({ type: r.type, name: String(r.name).trim(), min: Number(r.min) || 0 }));
+      });
+      const totalByCohort = {
+        1: Number(requiredTotalByCohort[1]) || 180,
+        2: Number(requiredTotalByCohort[2]) || 180,
+        3: Number(requiredTotalByCohort[3]) || 180,
+      };
+      const rulesByCohort = {
+        1: ruleInputsByCohort[1] || {},
+        2: ruleInputsByCohort[2] || {},
+        3: ruleInputsByCohort[3] || {},
+      };
+
       /* settings는 가장 최신 서버값을 한 번 더 받아 병합 — 다른 탭에서 수정 시 충돌 방지 */
       let baseSettings = settings || {};
       try {
         const fresh = await DB.fetchSettings();
         if (fresh && typeof fresh === 'object' && !Array.isArray(fresh)) baseSettings = fresh;
       } catch {}
-      /* prereqMap 정리: 빈 항목 제거 */
+      /* prereqMap 정리: 빈 항목 제거 (전 코호트 공통) */
       const cleanedPrereqMap = {};
       Object.entries(prereqMap).forEach(([target, list]) => {
         const t = String(target || '').trim();
@@ -655,17 +798,25 @@ export default function AdminPage() {
       });
       const newSettings = {
         ...baseSettings,
-        selectionRules: ruleInputs,
-        minCreditRules: cleanedMinRules,
-        requiredTotalCredits: totalNum,
+        /* 신규 모델 */
+        selectionRulesByCohort: rulesByCohort,
+        minCreditRulesByCohort: cleanedMinByCohort,
+        requiredTotalCreditsByCohort: totalByCohort,
         prerequisitesMap: cleanedPrereqMap,
       };
+      /* 구버전 단일 필드는 제거 (혼선 방지) */
+      delete newSettings.selectionRules;
+      delete newSettings.minCreditRules;
+      delete newSettings.requiredTotalCredits;
       await DB.saveSettings(newSettings);
       setSettings(newSettings);
-      /* 저장된 값으로 입력 상태도 즉시 동기화 (캐스팅된 숫자) */
-      setRequiredTotalInput(totalNum);
       const totalPrereqEntries = Object.values(cleanedPrereqMap).reduce((s, a) => s + a.length, 0);
-      setSaveRulesMsg(`✅ 저장 완료 — 총 ${totalNum}학점 · 최소학점 규칙 ${cleanedMinRules.length}개 · 학기별 규칙 ${Object.keys(ruleInputs).length}개 · 선이수 매핑 ${totalPrereqEntries}건`);
+      const summary = [1, 2, 3].map(c => {
+        const semCount = Object.keys(rulesByCohort[c]).length;
+        const minCount = cleanedMinByCohort[c].length;
+        return `${c}학년: 학기규칙 ${semCount}건/최소학점 ${minCount}건/총 ${totalByCohort[c]}학점`;
+      }).join(' · ');
+      setSaveRulesMsg(`✅ 저장 완료 — ${summary} · 선이수 매핑 ${totalPrereqEntries}건`);
     } catch (e) {
       setSaveRulesMsg('❌ 저장 실패: ' + e.message);
     } finally {
@@ -673,23 +824,24 @@ export default function AdminPage() {
     }
   }
 
-  /* ── 과목 데이터에서 교과군/세부교과 자동 추출 ── */
+  /* ── 활성 코호트 편제표에서 교과군/세부교과 자동 추출 ── */
+  const activeCohortCourses = coursesByCohort[activeCohort] || [];
   const availableCategories = useMemo(() => {
     const set = new Set();
-    courses.forEach(c => {
+    activeCohortCourses.forEach(c => {
       const v = c.교과군 || c.category;
       if (v) set.add(String(v).trim());
     });
     return [...set].sort();
-  }, [courses]);
+  }, [activeCohortCourses]);
   const availableSubCategories = useMemo(() => {
     const set = new Set();
-    courses.forEach(c => {
+    activeCohortCourses.forEach(c => {
       const v = c.세부교과 || c.subCategory || c['교과(군)'];
       if (v) set.add(String(v).trim());
     });
     return [...set].sort();
-  }, [courses]);
+  }, [activeCohortCourses]);
 
   /* 과목명 단위로 중복 제거된 목록 (선이수 매핑 입력 추천용). */
   const uniqueCourseNames = useMemo(() => {
@@ -808,9 +960,9 @@ export default function AdminPage() {
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   useEffect(() => { setPage(1); }, [filter, search]);
 
-  /* ── Semester course groups ── */
+  /* ── 활성 코호트 편제표의 학년-학기별 과목 그룹 ── */
   const coursesBySemester = {};
-  courses.forEach(c => {
+  activeCohortCourses.forEach(c => {
     const g = c.학년 || c.grade; const s = c.학기 || c.semester;
     if (!g || !s) return;
     const key = `${g}-${s}`;
@@ -820,25 +972,17 @@ export default function AdminPage() {
   const semesterKeys = Object.keys(coursesBySemester).sort();
   const allSemesters = ['1-1', '1-2', '2-1', '2-2', '3-1', '3-2'];
 
-  /* 등록된 학년 목록 (Config 데이터 기반) */
-  const registeredGrades = useMemo(() => {
-    const set = new Set();
-    courses.forEach(c => {
-      const g = Number(c.학년 || c.grade);
-      if (g) set.add(g);
-    });
-    return [...set].sort();
-  }, [courses]);
+  /* 등록된 코호트 (편제표가 비어있지 않은) */
+  const registeredCohorts = useMemo(() => {
+    return [1, 2, 3].filter(c => (coursesByCohort[c] || []).length > 0);
+  }, [coursesByCohort]);
 
-  /* 학년별 등록 과목 수 */
-  const courseCountByGrade = useMemo(() => {
-    const m = { 1: 0, 2: 0, 3: 0 };
-    courses.forEach(c => {
-      const g = Number(c.학년 || c.grade);
-      if (m[g] !== undefined) m[g] += 1;
-    });
-    return m;
-  }, [courses]);
+  /* 코호트별 등록 행 수 */
+  const courseCountByCohort = useMemo(() => ({
+    1: (coursesByCohort[1] || []).length,
+    2: (coursesByCohort[2] || []).length,
+    3: (coursesByCohort[3] || []).length,
+  }), [coursesByCohort]);
 
   const statusMsg = (key) => uploadMsg[key] ? <p className="mt-3 text-sm">{uploadMsg[key]}</p> : null;
 
@@ -1244,33 +1388,40 @@ export default function AdminPage() {
           {/* ======================== COURSES TAB ======================== */}
           {tab === 'courses' && (
             <div className="grid md:grid-cols-2 gap-6">
-              {/* 학년별 교육과정 업로드 */}
+              {/* 코호트(현 학년) 단위 편제표 업로드 */}
               <Card className="md:col-span-2">
-                <SectionTitle>학년별 교육과정 편제표 업로드</SectionTitle>
+                <SectionTitle>현 학년별 편제표 업로드</SectionTitle>
                 <p className="text-sm text-slate-500 mb-4">
-                  학년별로 따로 업로드합니다. 한 학년을 업로드해도 다른 학년의 데이터는 보존됩니다.
-                  엑셀 파일의 <code className="bg-slate-100 px-1 rounded">학년</code> 컬럼은 해당 학년 값과 일치해야 합니다 (비어있으면 자동 보정).
+                  편제표는 <strong>현재 학생 학년 단위</strong>로 따로 등록합니다. 한 편제표 안에 1~3학년 모든 학기 과목을 함께 넣을 수 있습니다.
+                  <br />
+                  · <strong>1학년 편제표</strong>: 현 1학년 학생용 — 앞으로 2~3학년에서 선택할 과목까지 포함
+                  <br />
+                  · <strong>2학년 편제표</strong>: 현 2학년 학생용 — 1학년 때 선택한 과목 + 3학년 선택 과목
+                  <br />
+                  · <strong>3학년 편제표</strong>: 현 3학년 학생용 — 모든 학기 회고 + 3학년 잔여 선택 과목
+                  <br />
+                  파일을 업로드하면 <strong>해당 학년 편제표 전체가 교체</strong>됩니다 (다른 학년 편제표는 그대로).
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[1, 2, 3].map(g => {
                     const key = `saveConfig_g${g}`;
                     const fileId = `course-file-g${g}`;
-                    const count = courseCountByGrade[g] || 0;
+                    const count = courseCountByCohort[g] || 0;
                     return (
                       <div key={g} className="border border-slate-200 rounded-xl p-4">
                         <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-bold text-sm text-slate-700">{g}학년</h4>
+                          <h4 className="font-bold text-sm text-slate-700">현 {g}학년 편제표</h4>
                           <span className={`text-xs font-mono ${count > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                            {count > 0 ? `${count}과목 등록됨` : '미등록'}
+                            {count > 0 ? `${count}건 등록됨` : '미등록'}
                           </span>
                         </div>
                         <button onClick={() => downloadTemplate(g)} className="text-indigo-600 hover:underline text-xs mb-2 flex items-center gap-1">
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                          {g}학년용 템플릿
+                          편제표 템플릿
                         </button>
                         <input type="file" id={fileId} accept=".xlsx,.xls" className="block w-full text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 mb-2" />
-                        <button onClick={() => handleUploadCoursesByGrade(fileId, g)} className="w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 text-xs font-semibold">
-                          {g}학년 업로드
+                        <button onClick={() => handleUploadCohortConfig(fileId, g)} className="w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 text-xs font-semibold">
+                          현 {g}학년 편제표 업로드
                         </button>
                         {uploadMsg[key] && <p className="mt-2 text-xs">{uploadMsg[key]}</p>}
                       </div>
@@ -1278,7 +1429,7 @@ export default function AdminPage() {
                   })}
                 </div>
                 <div className="mt-4 px-3 py-2 bg-amber-50 rounded-lg text-xs text-amber-700">
-                  💡 두 학년 이상 업로드된 경우 학생 화면에서 학년 선택을 통해 해당 학년 과목만 보입니다. 선택 규칙도 학년별로 따로 설정 가능합니다.
+                  💡 학생은 자기 현 학년 편제표를 자동으로 조회합니다. 학년 코호트별로 과목·선택 규칙이 다를 수 있으며, 매년 학년이 올라갈 때 새 학년 편제표를 다시 업로드합니다.
                 </div>
               </Card>
 
@@ -1332,15 +1483,16 @@ export default function AdminPage() {
                 <button onClick={loadData} className="mt-4 text-sm text-indigo-600 hover:underline w-full text-center">새로고침</button>
               </Card>
 
-              {/* 과목 미리보기 테이블 */}
+              {/* 과목 미리보기 테이블 — 모든 코호트 통합 */}
               <Card className="md:col-span-2">
-                <SectionTitle>등록된 과목 미리보기</SectionTitle>
+                <SectionTitle>등록된 과목 미리보기 (모든 코호트 통합)</SectionTitle>
                 {courses.length === 0 ? (
-                  <p className="text-sm text-slate-400 py-8 text-center">등록된 과목이 없습니다. 엑셀 파일을 업로드해주세요.</p>
+                  <p className="text-sm text-slate-400 py-8 text-center">등록된 과목이 없습니다. 위에서 학년별 편제표를 업로드하세요.</p>
                 ) : (
                   <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                     <table className="w-full text-sm">
                       <thead className="sticky top-0 bg-white"><tr className="border-b border-slate-100">
+                        <th className="text-center py-2 px-2 text-slate-500 text-xs">편제표</th>
                         <th className="text-left py-2 px-2 text-slate-500 text-xs">과목명</th>
                         <th className="text-center py-2 px-2 text-slate-500 text-xs">학년</th>
                         <th className="text-center py-2 px-2 text-slate-500 text-xs">학기</th>
@@ -1349,11 +1501,14 @@ export default function AdminPage() {
                         <th className="text-center py-2 px-2 text-slate-500 text-xs">필수</th>
                         <th className="text-left py-2 px-2 text-slate-500 text-xs">선이수과목</th>
                       </tr></thead>
-                      <tbody>{courses.slice(0, 50).map((c, i) => {
+                      <tbody>{courses.slice(0, 80).map((c, i) => {
                         const prereq = c.선이수과목 || c.선수과목 || c.prerequisites || '';
                         const prereqStr = Array.isArray(prereq) ? prereq.join(', ') : String(prereq);
                         return (
                         <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/60">
+                          <td className="py-2 px-2 text-center">
+                            <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[0.65rem] font-bold">현{c._cohort}학년</span>
+                          </td>
                           <td className="py-2 px-2 font-medium text-slate-800">{c.과목명 || c.subjectName || '-'}</td>
                           <td className="py-2 px-2 text-center text-slate-600">{c.학년 || c.grade || '-'}</td>
                           <td className="py-2 px-2 text-center text-slate-600">{c.학기 || c.semester || '-'}</td>
@@ -1365,7 +1520,7 @@ export default function AdminPage() {
                         );
                       })}</tbody>
                     </table>
-                    {courses.length > 50 && <p className="text-xs text-slate-400 text-center py-2">...외 {courses.length - 50}개 과목</p>}
+                    {courses.length > 80 && <p className="text-xs text-slate-400 text-center py-2">...외 {courses.length - 80}개 과목</p>}
                   </div>
                 )}
               </Card>
@@ -1375,9 +1530,38 @@ export default function AdminPage() {
           {/* ======================== RULES TAB ======================== */}
           {tab === 'rules' && (
             <div className="grid md:grid-cols-2 gap-6">
+              {/* 코호트(현 학년) 탭 — 어떤 학년 편제표의 규칙을 편집하는지 */}
+              <Card className="md:col-span-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <SectionTitle>편집 대상 — 현 학년 코호트</SectionTitle>
+                    <p className="text-xs text-slate-500">아래의 모든 규칙은 선택한 코호트(현 학년 편제표)에만 적용됩니다.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    {[1, 2, 3].map(c => {
+                      const active = c === activeCohort;
+                      const count = courseCountByCohort[c];
+                      return (
+                        <button
+                          key={c}
+                          onClick={() => setActiveCohort(c)}
+                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                            active ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                          style={active ? { background: 'linear-gradient(135deg, #3525cd, #4f46e5)' } : undefined}
+                        >
+                          현 {c}학년
+                          <span className={`ml-1.5 text-[0.65rem] ${active ? 'text-white/80' : 'text-slate-400'}`}>({count}건)</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Card>
+
               {/* 졸업 요건: 총 이수학점 */}
               <Card className="md:col-span-2">
-                <SectionTitle>졸업 요건 — 총 이수학점</SectionTitle>
+                <SectionTitle>졸업 요건 — 총 이수학점 (현 {activeCohort}학년)</SectionTitle>
                 <p className="text-sm text-slate-500 mb-3">
                   학생이 충족해야 할 총 이수학점입니다. 이 값의 50%가 기초교과(국·영·수·한국사1·2) 한도로 자동 적용됩니다.
                 </p>
@@ -1398,7 +1582,7 @@ export default function AdminPage() {
 
               {/* 교과별 최소 이수학점 */}
               <Card className="md:col-span-2">
-                <SectionTitle>교과별 최소 이수학점 설정</SectionTitle>
+                <SectionTitle>교과별 최소 이수학점 설정 — 현 {activeCohort}학년</SectionTitle>
                 <p className="text-sm text-slate-500 mb-4">
                   교과군(예: 체육교과) 또는 세부교과(예: 국어, 수학) 단위로 최소 이수학점을 설정하세요.
                   학생의 신청 학점이 이 값을 충족하지 못하면 최종 제출이 차단됩니다.
@@ -1634,55 +1818,36 @@ export default function AdminPage() {
               </Card>
 
               <Card>
-                <SectionTitle>학년-학기별 선택 규칙 설정</SectionTitle>
+                <SectionTitle>학기별 선택 규칙 — 현 {activeCohort}학년</SectionTitle>
                 <p className="text-sm text-slate-500 mb-4">
-                  각 학기별로 학점 단위 선택 규칙을 추가하세요. (예: 4학점 과목 3개 선택)
-                  학년별로 별도 규칙을 둘 수 있습니다 — 등록된 학년 카드만 펼쳐집니다.
+                  각 학기별로 학점 단위 선택 규칙을 추가하세요. (예: 4학점 과목 3개 선택) 한 코호트(현 학년) 학생이 졸업까지 거치는 6학기 모두 설정 가능합니다.
                 </p>
-                <div className="space-y-6">
-                  {[1, 2, 3].map(grade => {
-                    const semsOfGrade = allSemesters.filter(s => s.startsWith(`${grade}-`));
-                    const hasGradeData = courseCountByGrade[grade] > 0;
-                    const ruleCountInGrade = semsOfGrade.reduce((s, sem) => s + (ruleInputs[sem]?.length || 0), 0);
+                <div className="space-y-3">
+                  {allSemesters.map(sem => {
+                    const rules = ruleInputs[sem] || [];
                     return (
-                      <div key={grade} className={`border rounded-xl p-3 ${hasGradeData ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-100 bg-slate-50/30'}`}>
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-bold text-slate-800 text-sm">
-                            {grade}학년
-                            {!hasGradeData && <span className="ml-2 text-[0.65rem] text-slate-400 font-normal">교육과정 미등록</span>}
-                            {hasGradeData && <span className="ml-2 text-[0.65rem] text-indigo-600 font-medium">규칙 {ruleCountInGrade}건</span>}
-                          </h3>
+                      <div key={sem} className="border border-slate-100 bg-white rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-slate-700 text-xs">{sem.replace('-', '학년 ')}학기</h4>
+                          <button onClick={() => addRule(sem)} className="text-[0.7rem] text-indigo-600 hover:underline">+ 규칙 추가</button>
                         </div>
-                        <div className="space-y-3">
-                          {semsOfGrade.map(sem => {
-                            const rules = ruleInputs[sem] || [];
-                            return (
-                              <div key={sem} className="border border-slate-100 bg-white rounded-lg p-3">
-                                <div className="flex items-center justify-between mb-2">
-                                  <h4 className="font-semibold text-slate-700 text-xs">{sem.replace('-', '학년 ')}학기</h4>
-                                  <button onClick={() => addRule(sem)} className="text-[0.7rem] text-indigo-600 hover:underline">+ 규칙 추가</button>
-                                </div>
-                                {rules.length === 0 && <p className="text-[0.7rem] text-slate-400">설정된 규칙 없음</p>}
-                                {rules.map((rule, idx) => (
-                                  <div key={idx} className="flex items-center gap-2 mb-1.5">
-                                    <select value={rule.credits || 'all'} onChange={e => updateRule(sem, idx, 'credits', e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                                      className="px-2 py-1 border border-slate-200 rounded text-xs">
-                                      <option value="all">모든 학점</option>
-                                      <option value="2">2학점</option>
-                                      <option value="3">3학점</option>
-                                      <option value="4">4학점</option>
-                                    </select>
-                                    <span className="text-xs text-slate-500">과목</span>
-                                    <input type="number" value={rule.count || ''} onChange={e => updateRule(sem, idx, 'count', Number(e.target.value))}
-                                      className="w-14 px-2 py-1 border border-slate-200 rounded text-xs text-center" min="0" />
-                                    <span className="text-xs text-slate-500">개</span>
-                                    <button onClick={() => removeRule(sem, idx)} className="text-red-400 hover:text-red-600 text-xs ml-auto">삭제</button>
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })}
-                        </div>
+                        {rules.length === 0 && <p className="text-[0.7rem] text-slate-400">설정된 규칙 없음</p>}
+                        {rules.map((rule, idx) => (
+                          <div key={idx} className="flex items-center gap-2 mb-1.5">
+                            <select value={rule.credits || 'all'} onChange={e => updateRule(sem, idx, 'credits', e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                              className="px-2 py-1 border border-slate-200 rounded text-xs">
+                              <option value="all">모든 학점</option>
+                              <option value="2">2학점</option>
+                              <option value="3">3학점</option>
+                              <option value="4">4학점</option>
+                            </select>
+                            <span className="text-xs text-slate-500">과목</span>
+                            <input type="number" value={rule.count || ''} onChange={e => updateRule(sem, idx, 'count', Number(e.target.value))}
+                              className="w-14 px-2 py-1 border border-slate-200 rounded text-xs text-center" min="0" />
+                            <span className="text-xs text-slate-500">개</span>
+                            <button onClick={() => removeRule(sem, idx)} className="text-red-400 hover:text-red-600 text-xs ml-auto">삭제</button>
+                          </div>
+                        ))}
                       </div>
                     );
                   })}
@@ -1712,8 +1877,8 @@ export default function AdminPage() {
               </Card>
 
               <Card>
-                <SectionTitle>과목 편제 확인</SectionTitle>
-                <p className="text-sm text-slate-500 mb-4">등록된 과목이 학년-학기별로 올바르게 분류되었는지 확인하세요.</p>
+                <SectionTitle>과목 편제 확인 — 현 {activeCohort}학년</SectionTitle>
+                <p className="text-sm text-slate-500 mb-4">선택된 코호트(편제표)의 과목이 학년-학기별로 올바르게 분류되었는지 확인하세요.</p>
                 <div className="space-y-4 max-h-[500px] overflow-y-auto">
                   {semesterKeys.length === 0 && <p className="text-sm text-slate-400 text-center py-8">과목 데이터를 먼저 업로드하세요.</p>}
                   {semesterKeys.map(k => (

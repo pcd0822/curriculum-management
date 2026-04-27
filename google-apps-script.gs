@@ -16,6 +16,12 @@
 
 function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  /* 코호트별 편제표 시트 — Config_G1, Config_G2, Config_G3
+     각 시트에는 그 코호트(현 학년) 학생용 6학기 전체 과목이 들어감 */
+  if (!ss.getSheetByName('Config_G1')) ss.insertSheet('Config_G1');
+  if (!ss.getSheetByName('Config_G2')) ss.insertSheet('Config_G2');
+  if (!ss.getSheetByName('Config_G3')) ss.insertSheet('Config_G3');
+  /* 기존 단일 Config 시트는 호환을 위해 유지 */
   if (!ss.getSheetByName('Config')) ss.insertSheet('Config');
   if (!ss.getSheetByName('Settings')) ss.insertSheet('Settings');
   if (!ss.getSheetByName('Responses')) ss.insertSheet('Responses');
@@ -24,11 +30,17 @@ function setup() {
   if (ss.getSheetByName('Sheet1')) ss.deleteSheet(ss.getSheetByName('Sheet1'));
 }
 
+function cohortSheetName_(cohort) {
+  var c = Number(cohort);
+  if (c >= 1 && c <= 3) return 'Config_G' + c;
+  return null;
+}
+
 function doGet(e) {
   const action = e.parameter.action;
-  
+
   if (action === 'getConfig') {
-    return getConfig();
+    return getConfig(e.parameter.cohort);
   } else if (action === 'getJointCurriculum') {
     return getJointCurriculum();
   } else if (action === 'getResponses') {
@@ -37,8 +49,10 @@ function doGet(e) {
     return getSettings();
   } else if (action === 'getRegistry') {
     return getRegistry();
+  } else if (action === 'getRegisteredCohorts') {
+    return getRegisteredCohorts();
   }
-  
+
   return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Invalid action' }))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -69,13 +83,20 @@ function doPost(e) {
   }
 }
 
-function getConfig() {
+/**
+ * getConfig(cohort)
+ *   - cohort = 1|2|3 → 해당 Config_GN 시트
+ *   - cohort = undefined → 기존 단일 Config 시트 (구버전 호환)
+ */
+function getConfig(cohort) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('Config');
+  var sheetName = cohortSheetName_(cohort) || 'Config';
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return createJSONOutput([]);
   const data = sheet.getDataRange().getValues();
-  
+
   if (data.length <= 1) return createJSONOutput([]);
-  
+
   const headers = data[0];
   const rows = data.slice(1);
   const result = rows.map(row => {
@@ -85,62 +106,57 @@ function getConfig() {
     });
     return obj;
   });
-  
+
   return createJSONOutput(result);
 }
 
 /**
+ * 등록된 코호트(편제표가 비어있지 않은) 목록 + 행 수 반환.
+ * 학생 페이지에서 어떤 학년 편제표가 등록되어 있는지 알기 위해 사용.
+ */
+function getRegisteredCohorts() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  var out = [];
+  [1, 2, 3].forEach(function(c) {
+    var sh = ss.getSheetByName('Config_G' + c);
+    var rows = (sh && sh.getLastRow() > 1) ? (sh.getLastRow() - 1) : 0;
+    out.push({ cohort: c, count: rows });
+  });
+  return createJSONOutput(out);
+}
+
+/**
  * Config 저장.
- * data 가 배열이면 기존 동작(전체 교체).
- * data 가 { mode:'replaceGrade', grade:N, rows:[...] } 이면 해당 학년만 교체.
+ *
+ * 신규 모델 (코호트별 편제표):
+ *   data = { cohort: 1|2|3, rows: [...] } → Config_GN 시트 전체 교체
+ *
+ * 기존 모델 (호환용 — 단일 Config 시트):
+ *   data 가 배열이면 Config 시트 전체 교체
  */
 function saveConfig(data) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('Config');
 
-  // 학년별 부분 교체 모드
-  if (data && !Array.isArray(data) && data.mode === 'replaceGrade') {
-    const targetGrade = Number(data.grade);
-    const incoming = Array.isArray(data.rows) ? data.rows : [];
-    if (!targetGrade) {
-      return createJSONOutput({ status: 'error', message: '학년이 지정되지 않았습니다.' });
+  // 코호트별 시트 교체 모드
+  if (data && !Array.isArray(data) && data.cohort) {
+    var sheetName = cohortSheetName_(data.cohort);
+    if (!sheetName) {
+      return createJSONOutput({ status: 'error', message: 'cohort는 1, 2, 3 중 하나여야 합니다.' });
     }
-
-    // 기존 데이터 읽기
-    const existingValues = sheet.getLastRow() > 0 ? sheet.getDataRange().getValues() : [];
-    const existingHeaders = existingValues.length > 0 ? existingValues[0].map(h => String(h || '').trim()) : [];
-    const existingRows = existingValues.length > 1 ? existingValues.slice(1) : [];
-    const gradeIdx = existingHeaders.indexOf('학년') !== -1 ? existingHeaders.indexOf('학년') : existingHeaders.indexOf('grade');
-
-    // 다른 학년 행은 보존
-    const keptObjs = [];
-    if (gradeIdx !== -1) {
-      existingRows.forEach(row => {
-        const g = Number(row[gradeIdx]);
-        if (g !== targetGrade) {
-          const obj = {};
-          existingHeaders.forEach((h, i) => { if (h) obj[h] = row[i]; });
-          keptObjs.push(obj);
-        }
-      });
-    }
-
-    const merged = keptObjs.concat(incoming);
-    sheet.clear();
-    if (merged.length === 0) return createJSONOutput({ status: 'success', count: 0 });
-
-    // 헤더 재구성: 기존 + 새 데이터의 모든 키 합집합 (학년 컬럼은 반드시 포함)
-    const headerSet = new Set();
-    merged.forEach(obj => Object.keys(obj || {}).forEach(k => headerSet.add(k)));
-    if (!headerSet.has('학년')) headerSet.add('학년');
-    const headers = [...headerSet];
-    sheet.appendRow(headers);
-    const out = merged.map(obj => headers.map(h => obj[h] !== undefined ? obj[h] : ''));
-    sheet.getRange(2, 1, out.length, headers.length).setValues(out);
-    return createJSONOutput({ status: 'success', count: incoming.length, totalRows: merged.length });
+    var cohortSheet = ss.getSheetByName(sheetName);
+    if (!cohortSheet) cohortSheet = ss.insertSheet(sheetName);
+    cohortSheet.clear();
+    var cohortRows = Array.isArray(data.rows) ? data.rows : [];
+    if (cohortRows.length === 0) return createJSONOutput({ status: 'success', count: 0 });
+    var cohortHeaders = Object.keys(cohortRows[0]);
+    cohortSheet.appendRow(cohortHeaders);
+    var cohortOut = cohortRows.map(function(obj) { return cohortHeaders.map(function(h) { return obj[h]; }); });
+    cohortSheet.getRange(2, 1, cohortOut.length, cohortHeaders.length).setValues(cohortOut);
+    return createJSONOutput({ status: 'success', count: cohortRows.length, sheet: sheetName });
   }
 
-  // 전체 교체 (기존 동작)
+  // 단일 Config 시트 전체 교체 (구버전 호환)
+  const sheet = ss.getSheetByName('Config');
   sheet.clear();
 
   if (!data || (Array.isArray(data) && data.length === 0)) return createJSONOutput({ status: 'success' });
