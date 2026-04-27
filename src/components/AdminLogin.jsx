@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 /* ── Session helpers ── */
 const SESSION_KEY = 'adminSession';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+/* Google ID 토큰 (1시간 만료). 라우터 매핑 등록·삭제 시 사용 */
+const ID_TOKEN_KEY = 'adminIdToken';
+const ID_TOKEN_TTL_MS = 55 * 60 * 1000; // 안전 마진
 
 export function getAdminSession() {
   try {
@@ -22,12 +25,40 @@ export function getAdminSession() {
 
 export function clearAdminSession() {
   try { localStorage.removeItem(SESSION_KEY); } catch {}
+  try { localStorage.removeItem(ID_TOKEN_KEY); } catch {}
+}
+
+/* 유효한 (만료되지 않은) ID 토큰 반환. 없으면 null. */
+export function getValidIdToken() {
+  try {
+    const raw = localStorage.getItem(ID_TOKEN_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || !s.token || !s.expiresAt) return null;
+    if (Date.now() > Number(s.expiresAt)) {
+      localStorage.removeItem(ID_TOKEN_KEY);
+      return null;
+    }
+    return s.token;
+  } catch {
+    return null;
+  }
 }
 
 function setAdminSession(email) {
   const s = { email, expiresAt: Date.now() + SESSION_TTL_MS };
   try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch {}
   return s;
+}
+
+function setIdToken(token) {
+  if (!token) return;
+  try {
+    localStorage.setItem(ID_TOKEN_KEY, JSON.stringify({
+      token,
+      expiresAt: Date.now() + ID_TOKEN_TTL_MS,
+    }));
+  } catch {}
 }
 
 /* ID 토큰(JWT)에서 payload 디코드 — 서명 검증은 GIS 라이브러리가 클라이언트 측에서 nonce/aud로 처리 */
@@ -84,7 +115,8 @@ export default function AdminLogin({ clientId, adminEmails, onAuth, onBootstrap 
       window.google.accounts.id.initialize({
         client_id: clientId,
         callback: (response) => {
-          const payload = decodeIdToken(response.credential);
+          const idToken = response.credential;
+          const payload = decodeIdToken(idToken);
           if (!payload || !payload.email) {
             setError('이메일 정보를 가져올 수 없습니다.');
             return;
@@ -95,14 +127,16 @@ export default function AdminLogin({ clientId, adminEmails, onAuth, onBootstrap 
           if (list.length === 0) {
             // 부트스트랩: 화이트리스트가 비어있으면 이 사용자를 첫 관리자로 등록
             setAdminSession(email);
-            if (onBootstrap) onBootstrap(email);
-            onAuth(email);
+            setIdToken(idToken);
+            if (onBootstrap) onBootstrap(email, idToken);
+            onAuth(email, idToken);
             return;
           }
 
           if (list.includes(email)) {
             setAdminSession(email);
-            onAuth(email);
+            setIdToken(idToken);
+            onAuth(email, idToken);
           } else {
             setError(`접근 권한이 없습니다. (${email}) — 관리자에게 등록 요청하세요.`);
           }
@@ -175,12 +209,13 @@ export default function AdminLogin({ clientId, adminEmails, onAuth, onBootstrap 
           </div>
         )}
 
-        {/* Client ID 미설정 시 — 임시 우회: 이메일 직접 입력 (단일 기기에서 부트스트랩용) */}
+        {/* Client ID 미설정 시 — 임시 우회: 이메일 직접 입력 (단일 기기에서 부트스트랩용)
+            ID 토큰이 없으므로 라우터 매핑 등록은 불가, 로컬 운영만 가능 */}
         {!clientId && (
           <BootstrapByEmail onSubmit={(email) => {
             setAdminSession(email);
-            if (onBootstrap) onBootstrap(email);
-            onAuth(email);
+            if (onBootstrap) onBootstrap(email, null);
+            onAuth(email, null);
           }} />
         )}
       </div>

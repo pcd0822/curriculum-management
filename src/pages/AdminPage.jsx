@@ -5,7 +5,8 @@ import GaugeChart from '../components/GaugeChart';
 import * as DB from '../api/db';
 import { saveConfigByGrade } from '../api/db';
 import { readExcel, downloadExcel, downloadTemplate, downloadRegistryTemplate, downloadJointCurriculumTemplate, downloadBulkEnrollmentTemplate } from '../api/excel';
-import AdminLogin, { getAdminSession, clearAdminSession } from '../components/AdminLogin';
+import AdminLogin, { getAdminSession, clearAdminSession, getValidIdToken } from '../components/AdminLogin';
+import { fetchMyMapping, registerMyMapping, isRouterConfigured } from '../api/router';
 
 /* ── 6자리 학생코드 생성 ── */
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동 문자 제외
@@ -315,7 +316,8 @@ export default function AdminPage() {
 
   /* ── Admin auth gate ── */
   const [adminSession, setAdminSessionState] = useState(() => getAdminSession());
-  function handleAdminAuth(email) {
+  const [routerStatus, setRouterStatus] = useState(''); // '⏳ 시트 자동 로드 중...' 등
+  function handleAdminAuth(email /*, idToken */) {
     setAdminSessionState({ email, expiresAt: Date.now() + 24 * 60 * 60 * 1000 });
   }
   function handleAdminLogout() {
@@ -345,6 +347,42 @@ export default function AdminPage() {
       DB.init(apiUrl);
     }
   }, [apiUrl]);
+
+  /* 관리자 로그인 직후 라우터에서 본인 매핑 조회 → API URL 자동 로드.
+     이미 localStorage에 동일 URL이 있으면 스킵. */
+  useEffect(() => {
+    if (!adminSession?.email) return;
+    if (!isRouterConfigured()) return;
+    let cancelled = false;
+    (async () => {
+      setRouterStatus('⏳ 계정에 매핑된 학교 시트 조회 중...');
+      try {
+        const m = await fetchMyMapping(adminSession.email);
+        if (cancelled) return;
+        if (m && m.apiUrl) {
+          if (m.apiUrl !== apiUrl) {
+            setApiUrl(m.apiUrl);
+            try { localStorage.setItem('gas_api_url', m.apiUrl); } catch {}
+            DB.init(m.apiUrl);
+            if (m.schoolName && m.schoolName !== schoolName) {
+              setSchoolName(m.schoolName);
+              try { localStorage.setItem('school_name', m.schoolName); } catch {}
+            }
+            setRouterStatus(`✅ 자동 로드: ${m.schoolName || m.apiUrl.slice(0, 60) + '…'}`);
+            // 데이터 다시 가져오기
+            setTimeout(() => loadData(), 0);
+          } else {
+            setRouterStatus('✅ 매핑 동기화됨');
+          }
+        } else {
+          setRouterStatus('💡 등록된 매핑 없음 — 시스템 설정에서 시트 URL을 입력하세요.');
+        }
+      } catch (e) {
+        if (!cancelled) setRouterStatus('⚠️ 라우터 조회 실패: ' + e.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [adminSession?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Table
   const [filter, setFilter] = useState('all');
@@ -378,24 +416,51 @@ export default function AdminPage() {
   useEffect(() => { loadData(); }, [loadData]);
 
   /* ── System tab ── */
-  function saveApiUrl() {
-    if (!apiUrl.trim()) return;
-    localStorage.setItem('gas_api_url', apiUrl.trim());
-    DB.init(apiUrl.trim());
+  async function saveApiUrl() {
+    const url = apiUrl.trim();
+    if (!url) return;
+    localStorage.setItem('gas_api_url', url);
+    DB.init(url);
     setConnStatus('✅ API URL이 저장되었습니다.');
+
+    /* 라우터에 본인 매핑 등록 — 다른 컴퓨터에서도 자동 로드되게 */
+    if (isRouterConfigured() && adminSession?.email) {
+      const idToken = getValidIdToken();
+      if (!idToken) {
+        setConnStatus('✅ 로컬 저장 완료. (라우터 자동 등록 실패: 토큰 만료 — 다시 로그인 후 재저장 필요)');
+      } else {
+        try {
+          await registerMyMapping({ idToken, apiUrl: url, schoolName: (schoolName || '').trim() });
+          setConnStatus('✅ 저장 완료. 다른 기기에서도 동일 계정으로 로그인하면 자동 로드됩니다.');
+        } catch (e) {
+          setConnStatus('⚠️ 로컬 저장됨, 라우터 등록 실패: ' + e.message);
+        }
+      }
+    }
+
     loadData();
   }
   async function saveSchoolName() {
-    if (!schoolName.trim()) return;
-    localStorage.setItem('school_name', schoolName.trim());
+    const name = schoolName.trim();
+    if (!name) return;
+    localStorage.setItem('school_name', name);
     if (DB.isConfigured()) {
       try {
         // 기존 settings를 먼저 최신으로 가져온 뒤 병합
         let current = settings || {};
         try { const fresh = await DB.fetchSettings(); if (fresh && typeof fresh === 'object') current = fresh; } catch {}
-        const newSettings = { ...current, schoolName: schoolName.trim() };
+        const newSettings = { ...current, schoolName: name };
         await DB.saveSettings(newSettings);
         setSettings(newSettings);
+
+        /* 라우터의 schoolName도 갱신 (이미 매핑이 있을 때만 의미 있음) */
+        if (isRouterConfigured() && adminSession?.email && apiUrl.trim()) {
+          const idToken = getValidIdToken();
+          if (idToken) {
+            try { await registerMyMapping({ idToken, apiUrl: apiUrl.trim(), schoolName: name }); } catch {}
+          }
+        }
+
         alert('학교 이름이 저장되었습니다!');
       } catch (e) { alert('서버 저장 실패: ' + e.message); }
     } else {
@@ -1061,7 +1126,9 @@ export default function AdminPage() {
               {/* API URL */}
               <Card>
                 <SectionTitle>Google Apps Script API 설정</SectionTitle>
-                <p className="text-sm text-slate-500 mb-4">배포된 Google Apps Script 웹 앱 URL을 입력하세요. 한 번 저장하면 이후 자동으로 연결됩니다.</p>
+                <p className="text-sm text-slate-500 mb-4">
+                  배포된 Google Apps Script 웹 앱 URL을 입력하세요. 한 번 저장하면 다른 기기에서 동일 Google 계정으로 로그인 시 자동 로드됩니다.
+                </p>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-slate-700 mb-1">API URL</label>
                   <input type="text" value={apiUrl} onChange={e => setApiUrl(e.target.value)}
@@ -1074,6 +1141,19 @@ export default function AdminPage() {
                 </div>
                 {DB.isConfigured() && !connStatus && <p className="mt-3 text-xs text-emerald-600">✅ API URL이 이미 설정되어 있습니다.</p>}
                 {connStatus && <p className="mt-4 text-sm">{connStatus}</p>}
+
+                {/* 라우터 자동 로드 상태 */}
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <p className="text-xs font-semibold text-slate-600 mb-1.5">계정 동기화 상태</p>
+                  {isRouterConfigured() ? (
+                    <p className="text-xs text-slate-500 leading-relaxed">{routerStatus || '대기 중'}</p>
+                  ) : (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+                      ⚠️ 라우터가 설정되어 있지 않습니다 — 사이트 운영자에게 <code className="bg-white px-1 rounded">VITE_GAS_ROUTER_URL</code> 환경변수 등록을 요청하세요.
+                      현재 시트 URL은 이 브라우저에만 저장되어 다른 기기에서는 다시 입력해야 합니다.
+                    </p>
+                  )}
+                </div>
               </Card>
               {/* 관리자 보안 (Google 로그인) */}
               <Card>
