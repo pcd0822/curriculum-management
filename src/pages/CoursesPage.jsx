@@ -90,45 +90,6 @@ export default function CoursesPage() {
   const [activeSemester, setActiveSemester] = useState('2-1');
   const [loading, setLoading] = useState(true);
 
-  /* 학생의 현 학년 (= 코호트).
-     - 학생: 학번 첫 자리만이 진실의 원천. 사용자가 변경 불가.
-     - 관리자 미리보기: 어떤 코호트 편제표를 테스트할지 토글로 선택. */
-  function gradeFromVerifiedStudent() {
-    try {
-      const s = JSON.parse(localStorage.getItem('verifiedStudent') || '{}');
-      const sid = String(s.studentId || s.학번 || '').trim();
-      const g = Number(sid.charAt(0));
-      if (g >= 1 && g <= 3) return g;
-    } catch {}
-    return null;
-  }
-  const [activeGrade, setActiveGrade] = useState(() => {
-    if (isAdminPreview) {
-      try {
-        const saved = Number(localStorage.getItem('previewGrade'));
-        if (saved >= 1 && saved <= 3) return saved;
-      } catch {}
-      return 1;
-    }
-    return gradeFromVerifiedStudent() || 1;
-  });
-  /* 학생 모드: 학번이 바뀌면 그 첫 자리로 강제 동기화 (수동 변경 불가) */
-  useEffect(() => {
-    if (isAdminPreview) return;
-    const sid = String(student?.studentId || student?.학번 || '').trim();
-    const g = Number(sid.charAt(0));
-    if (g >= 1 && g <= 3 && g !== activeGrade) {
-      setActiveGrade(g);
-    }
-  }, [student, isAdminPreview, activeGrade]);
-  /* 미리보기 모드: 토글로 변경한 값을 localStorage에 별도 키로 저장 */
-  useEffect(() => {
-    if (!isAdminPreview) return;
-    try { localStorage.setItem('previewGrade', String(activeGrade)); } catch {}
-  }, [activeGrade, isAdminPreview]);
-
-  /* 등록된 코호트(편제표가 있는 학년) 목록 — 학년 토글 표시 여부 결정 */
-  const [registeredCohorts, setRegisteredCohorts] = useState([]);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [blockedReason, setBlockedReason] = useState(null); // {courseName, reason}
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -143,6 +104,39 @@ export default function CoursesPage() {
     }
     return getVerifiedStudent();
   });
+
+  /* 학생의 현 학년 (= 코호트).
+     - 학생: 학번 첫 자리만이 진실의 원천. 사용자가 변경 불가.
+     - 관리자 미리보기: 어떤 코호트 편제표를 테스트할지 토글로 선택. */
+  function gradeFromStudent(s) {
+    const sid = String(s?.studentId || s?.학번 || '').trim();
+    const g = Number(sid.charAt(0));
+    return (g >= 1 && g <= 3) ? g : null;
+  }
+  const [activeGrade, setActiveGrade] = useState(() => {
+    if (isAdminPreview) {
+      try {
+        const saved = Number(localStorage.getItem('previewGrade'));
+        if (saved >= 1 && saved <= 3) return saved;
+      } catch {}
+      return 1;
+    }
+    return gradeFromStudent(student) || 1;
+  });
+  /* 학생 모드: 학번이 바뀌면 그 첫 자리로 강제 동기화 (수동 변경 불가) */
+  useEffect(() => {
+    if (isAdminPreview) return;
+    const g = gradeFromStudent(student);
+    if (g && g !== activeGrade) setActiveGrade(g);
+  }, [student, isAdminPreview, activeGrade]);
+  /* 미리보기 모드: 토글로 변경한 값을 localStorage에 별도 키로 저장 */
+  useEffect(() => {
+    if (!isAdminPreview) return;
+    try { localStorage.setItem('previewGrade', String(activeGrade)); } catch {}
+  }, [activeGrade, isAdminPreview]);
+
+  /* 등록된 코호트(편제표가 있는 학년) 목록 — 학년 토글 표시 여부 결정 */
+  const [registeredCohorts, setRegisteredCohorts] = useState([]);
   const avatarLabel = isAdminPreview ? '관' : getStudentAvatarLabel();
   const schoolName = settings?.schoolName || localStorage.getItem('school_name') || 'OO고등학교';
 
