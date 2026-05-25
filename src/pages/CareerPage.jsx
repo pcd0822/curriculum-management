@@ -6,6 +6,9 @@ import {
   submitReport,
   getMajorList,
   getMajorDetail,
+  getProfessorInterview,
+  getMajorCurriculum,
+  getCurriculumCourseDetail,
 } from '../api/careernet';
 import { getStudentAvatarLabel } from '../api/student';
 
@@ -404,9 +407,52 @@ function TestsView() {
   );
 }
 
-/* ───────── View 3 : 학과탐색 (Majors) ───────── */
+/* ───────── View 3 : 학과탐색 (Majors) ─────────
+ * 상위 탭 '학과탐색' 안에 3개 하위 탭:
+ *   - info: 학과정보탐색 (기존 MajorsView 그대로)
+ *   - professor: 학과 교수님 인터뷰
+ *   - curriculum: 학과 커리큘럼(강의계획서)
+ */
+
+const MAJOR_SUB_TABS = [
+  { key: 'info', label: '학과정보탐색' },
+  { key: 'professor', label: '교수님 인터뷰' },
+  { key: 'curriculum', label: '학과 커리큘럼' },
+];
+
+function MajorsSubTabBar({ value, onChange }) {
+  return (
+    <div className="flex gap-1.5 overflow-x-auto px-5 pt-3 pb-1 scrollbar-hide">
+      {MAJOR_SUB_TABS.map((t) => (
+        <button
+          key={t.key}
+          onClick={() => onChange(t.key)}
+          className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            value === t.key
+              ? 'bg-indigo-600 text-white shadow'
+              : 'bg-white text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function MajorsView() {
+  const [subView, setSubView] = useState('info');
+  return (
+    <div>
+      <MajorsSubTabBar value={subView} onChange={setSubView} />
+      {subView === 'info' && <MajorInfoView />}
+      {subView === 'professor' && <ProfessorInterviewView />}
+      {subView === 'curriculum' && <CurriculumView />}
+    </div>
+  );
+}
+
+function MajorInfoView() {
   const [activeSubject, setActiveSubject] = useState('100394');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -723,6 +769,507 @@ function MajorsView() {
             {Math.min(currentPage * perPage, totalCount)}
           </p>
         </>
+      )}
+    </div>
+  );
+}
+
+/* ───────── View 3-B : 학과 교수님 인터뷰 ───────── */
+
+function ProfessorInterviewView() {
+  const [searchInput, setSearchInput] = useState('');
+  const [data, setData] = useState(null); // { major, interviews: [{ professor, qas: [] }] }
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [profIdx, setProfIdx] = useState(0); // 인터뷰한 교수가 여러 명일 때 선택
+  const [qIdx, setQIdx] = useState(0);
+
+  const loadInterview = async (name) => {
+    const trimmed = (name || '').trim();
+    if (!trimmed) {
+      setError('학과명을 입력하세요.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setProfIdx(0);
+    setQIdx(0);
+    try {
+      const result = await getProfessorInterview(trimmed);
+      setData(result);
+    } catch (e) {
+      setError(e.message || '불러오기 실패');
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const interview = data?.interviews?.[profIdx];
+  const qas = interview?.qas || [];
+  const total = qas.length;
+  const current = qas[qIdx];
+
+  const prev = useCallback(() => setQIdx((i) => Math.max(0, i - 1)), []);
+  const next = useCallback(() => setQIdx((i) => Math.min(total - 1, i + 1)), [total]);
+
+  // 키보드 좌우 화살표로 카드 넘기기
+  useEffect(() => {
+    if (!total) return;
+    const onKey = (e) => {
+      if (e.key === 'ArrowLeft') prev();
+      else if (e.key === 'ArrowRight') next();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [prev, next, total]);
+
+  return (
+    <div className="px-5 pb-6">
+      <h2 className="text-slate-800 font-bold text-lg mt-5 mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
+        학과 교수님 인터뷰
+      </h2>
+      <p className="text-slate-500 text-sm mb-4">학과를 입력하면 교수님과의 Q&A 카드를 한 장씩 넘겨볼 수 있어요.</p>
+
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && loadInterview(searchInput)}
+          placeholder="예) 컴퓨터공학과"
+          className="flex-1 bg-white rounded-xl px-4 py-2.5 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        />
+        <button
+          onClick={() => loadInterview(searchInput)}
+          className="bg-indigo-600 text-white px-4 rounded-xl text-sm font-semibold shadow-sm hover:bg-indigo-700 transition"
+        >
+          조회
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3 mb-4">{error}</div>
+      )}
+
+      {loading ? <Spinner /> : !data ? (
+        <div className="text-center py-12 text-slate-400 text-sm">
+          관심 학과를 입력해 교수님 인터뷰를 찾아보세요.
+        </div>
+      ) : !interview ? (
+        <div className="text-center py-12 text-slate-400 text-sm">등록된 인터뷰가 없습니다.</div>
+      ) : (
+        <>
+          {/* 학과/교수 헤더 + 인터뷰 선택 (여러 건일 때) */}
+          <div className="bg-white rounded-2xl p-4 shadow-sm mb-3">
+            <p className="text-indigo-600 font-bold text-xs">{interview.major || data.major}</p>
+            <p className="text-slate-800 font-bold text-base mt-0.5">
+              {interview.professor}
+              {data.interviews.length > 1 && <span className="text-slate-400 font-normal text-sm ml-1">#{profIdx + 1}</span>}
+            </p>
+            {data.interviews.length > 1 && (
+              <div className="flex gap-1.5 mt-3 overflow-x-auto scrollbar-hide">
+                {data.interviews.map((iv, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setProfIdx(i); setQIdx(0); }}
+                    className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition ${
+                      i === profIdx ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}
+                    title={iv.major}
+                  >
+                    {iv.major || iv.professor} #{i + 1}
+                  </button>
+                ))}
+              </div>
+            )}
+            {data.matchCount > 0 && (
+              <p className="text-slate-400 text-[0.7rem] mt-2">총 {data.matchCount}건 매칭</p>
+            )}
+          </div>
+
+          {total === 0 ? (
+            <div className="text-center py-8 text-slate-400 text-sm">등록된 질의응답이 없습니다.</div>
+          ) : (
+            <>
+              {/* Q&A 카드 */}
+              <div className="bg-white rounded-2xl p-5 shadow-sm min-h-[260px]">
+                <div className="flex items-start gap-2 mb-3">
+                  <span className="bg-indigo-100 text-indigo-700 font-bold text-xs rounded-md px-2 py-0.5 flex-shrink-0 mt-0.5">Q</span>
+                  <p className="text-slate-800 font-bold text-sm leading-relaxed">{current.question}</p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="bg-emerald-100 text-emerald-700 font-bold text-xs rounded-md px-2 py-0.5 flex-shrink-0 mt-0.5">A</span>
+                  <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">{current.answer}</p>
+                </div>
+              </div>
+
+              {/* 컨트롤 + 인디케이터 */}
+              <div className="flex items-center justify-between mt-4">
+                <button
+                  onClick={prev}
+                  disabled={qIdx === 0}
+                  className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-500 disabled:opacity-30 hover:text-indigo-600 transition"
+                  aria-label="이전 질문"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <div className="flex items-center gap-1.5">
+                  {qas.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`h-1.5 rounded-full transition-all ${i === qIdx ? 'w-5 bg-indigo-600' : 'w-1.5 bg-slate-300'}`}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={next}
+                  disabled={qIdx === total - 1}
+                  className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-500 disabled:opacity-30 hover:text-indigo-600 transition"
+                  aria-label="다음 질문"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              </div>
+              <p className="text-center text-xs text-slate-400 mt-2">{qIdx + 1} / {total}</p>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ───────── View 3-C : 학과 커리큘럼(강의계획서) ───────── */
+
+function CurriculumView() {
+  const [searchInput, setSearchInput] = useState('');
+  const [majorName, setMajorName] = useState(''); // 확정된 학과명
+  const [stage, setStage] = useState('idle'); // idle | universities | courses
+  const [universities, setUniversities] = useState([]); // [{ university, college, major, courseCount }]
+  const [pickedUniversity, setPickedUniversity] = useState('');
+  const [curriculum, setCurriculum] = useState(null); // { courses, college, matchedMajor, truncated, ... }
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState(''); // 보조 안내(잘린 결과 등)
+
+  const [selected, setSelected] = useState(null); // 모달용 — 행 데이터 그대로 사용
+
+  /* 1단계: 학과명으로 매칭 대학 목록 조회 */
+  const loadUniversities = async (name) => {
+    const trimmed = (name || '').trim();
+    if (!trimmed) {
+      setError('학과명을 입력하세요.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setInfo('');
+    setPickedUniversity('');
+    setCurriculum(null);
+    try {
+      const res = await getMajorCurriculum(trimmed);
+      setMajorName(trimmed);
+      setUniversities(Array.isArray(res.universities) ? res.universities : []);
+      setStage('universities');
+      if (res.truncated) {
+        setInfo(`총 ${res.matchCount}건 중 첫 ${res.universities?.reduce((s, u) => s + (u.courseCount || 0), 0) || 0}건으로 추린 결과입니다. 학과명을 더 구체적으로 입력하면 정확해져요.`);
+      }
+    } catch (e) {
+      setError(e.message || '불러오기 실패');
+      setStage('idle');
+      setUniversities([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* 2단계: 학과 + 대학으로 커리큘럼 상세 조회 */
+  const loadCurriculum = async (univ) => {
+    if (!majorName || !univ) return;
+    setLoading(true);
+    setError('');
+    setInfo('');
+    setPickedUniversity(univ);
+    try {
+      const res = await getMajorCurriculum(majorName, univ);
+      setCurriculum(res);
+      setStage('courses');
+      if (res.truncated) {
+        setInfo('데이터가 많아 일부만 표시됩니다. 학과명·대학명을 더 구체적으로 입력해보세요.');
+      }
+    } catch (e) {
+      setError(e.message || '불러오기 실패');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const goBackToUniversities = () => {
+    setStage('universities');
+    setPickedUniversity('');
+    setCurriculum(null);
+    setInfo('');
+  };
+
+  const closeModal = () => setSelected(null);
+
+  // ESC로 모달 닫기
+  useEffect(() => {
+    if (!selected) return;
+    const onKey = (e) => { if (e.key === 'Escape') closeModal(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected]);
+
+  /* 학년별로 묶기 (정렬은 서버에서 처리됨) */
+  const coursesByYear = curriculum?.courses
+    ? curriculum.courses.reduce((acc, c) => {
+        const y = c.year || 0;
+        if (!acc[y]) acc[y] = [];
+        acc[y].push(c);
+        return acc;
+      }, {})
+    : {};
+
+  return (
+    <div className="px-5 pb-6">
+      <h2 className="text-slate-800 font-bold text-lg mt-5 mb-1" style={{ fontFamily: "'Manrope', sans-serif" }}>
+        학과 커리큘럼
+      </h2>
+      <p className="text-slate-500 text-sm mb-4">학과를 입력해 매칭된 대학을 선택하면 4년 강의계획서를 확인할 수 있어요.</p>
+
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && loadUniversities(searchInput)}
+          placeholder="예) 컴퓨터공학과"
+          className="flex-1 bg-white rounded-xl px-4 py-2.5 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        />
+        <button
+          onClick={() => loadUniversities(searchInput)}
+          className="bg-indigo-600 text-white px-4 rounded-xl text-sm font-semibold shadow-sm hover:bg-indigo-700 transition"
+        >
+          조회
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3 mb-4">{error}</div>
+      )}
+      {info && (
+        <div className="bg-amber-50 text-amber-700 text-xs rounded-xl px-4 py-2.5 mb-4">{info}</div>
+      )}
+
+      {loading ? <Spinner /> : stage === 'idle' ? (
+        <div className="text-center py-12 text-slate-400 text-sm">
+          관심 학과를 입력해 커리큘럼을 확인해보세요.
+        </div>
+      ) : stage === 'universities' ? (
+        /* ── 1단계: 매칭된 대학 목록 ── */
+        universities.length === 0 ? (
+          <div className="text-center py-12 text-slate-400 text-sm">매칭된 학과가 없습니다.</div>
+        ) : (
+          <>
+            <div className="bg-white rounded-2xl p-4 shadow-sm mb-3">
+              <p className="text-indigo-600 font-bold text-xs">"{majorName}"</p>
+              <p className="text-slate-500 text-xs mt-1">매칭된 대학을 선택하세요. ({universities.length}개)</p>
+            </div>
+            <div className="space-y-2">
+              {universities.map((u, i) => (
+                <button
+                  key={`${u.university}-${i}`}
+                  onClick={() => loadCurriculum(u.university)}
+                  className="w-full bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3 text-left hover:ring-2 hover:ring-indigo-200 transition"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                      <path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-slate-800 font-bold text-sm truncate">{u.university}</h3>
+                    <p className="text-slate-400 text-xs mt-0.5 truncate">
+                      {u.college ? `${u.college} · ` : ''}{u.major} · 강좌 {u.courseCount}건
+                    </p>
+                  </div>
+                  <span className="text-slate-300 text-lg flex-shrink-0">&rsaquo;</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )
+      ) : (
+        /* ── 2단계: 선택된 대학의 커리큘럼 ── */
+        !curriculum || !curriculum.courses || curriculum.courses.length === 0 ? (
+          <>
+            <button onClick={goBackToUniversities} className="flex items-center gap-1 text-slate-500 text-sm mb-3">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+              대학 다시 선택
+            </button>
+            <div className="text-center py-12 text-slate-400 text-sm">등록된 커리큘럼이 없습니다.</div>
+          </>
+        ) : (
+          <>
+            <button onClick={goBackToUniversities} className="flex items-center gap-1 text-slate-500 text-sm mb-3">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+              대학 다시 선택
+            </button>
+            <div className="bg-white rounded-2xl p-4 shadow-sm mb-3">
+              <p className="text-indigo-600 font-bold text-xs">{curriculum.university}</p>
+              <p className="text-slate-800 font-bold text-sm mt-0.5">
+                {curriculum.college ? `${curriculum.college} · ` : ''}{curriculum.matchedMajor || majorName}
+              </p>
+              <p className="text-slate-400 text-xs mt-1">{curriculum.courseCount}과목 (중복·분반 제외) · 과목명을 누르면 강의계획서를 볼 수 있어요.</p>
+            </div>
+
+            {/* 학년별 그룹화된 테이블 */}
+            <div className="space-y-3">
+              {Object.keys(coursesByYear).sort((a, b) => Number(a) - Number(b)).map((y) => (
+                <div key={y} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                  <div className="bg-indigo-50 px-3 py-2">
+                    <span className="text-indigo-700 font-bold text-xs">{y === '0' ? '학년 미상' : `${y}학년`}</span>
+                    <span className="text-indigo-400 text-xs ml-2">{coursesByYear[y].length}과목</span>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 text-xs">
+                        <th className="text-left font-semibold py-2 px-3 w-16">학기</th>
+                        <th className="text-left font-semibold py-2 px-3">과목명</th>
+                        <th className="text-left font-semibold py-2 px-3 w-14">학점</th>
+                        <th className="text-left font-semibold py-2 px-3 w-20">구분</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {coursesByYear[y].map((c) => (
+                        <tr key={c.id} className="border-t border-slate-100">
+                          <td className="py-2 px-3 text-slate-500 text-xs whitespace-nowrap">{c.semester}</td>
+                          <td className="py-2 px-3">
+                            <button
+                              onClick={() => setSelected(c)}
+                              className="text-left text-indigo-700 font-semibold hover:underline"
+                            >
+                              {c.name}
+                            </button>
+                          </td>
+                          <td className="py-2 px-3 text-slate-600">{c.credits}</td>
+                          <td className="py-2 px-3">
+                            <span className={`inline-block text-[0.65rem] font-semibold rounded-full px-2 py-0.5 ${
+                              c.type?.includes('필수') ? 'bg-rose-50 text-rose-600' :
+                              c.type?.includes('기초') ? 'bg-amber-50 text-amber-700' :
+                              c.type?.includes('교양') ? 'bg-slate-100 text-slate-500' :
+                              'bg-indigo-50 text-indigo-700'
+                            }`}>{c.type || '-'}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          </>
+        )
+      )}
+
+      {/* 과목 상세 모달 — 행 데이터를 그대로 사용 (별도 호출 없음) */}
+      {selected && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 z-50 flex items-end sm:items-center justify-center"
+          onClick={closeModal}
+        >
+          <div
+            className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-3 flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-indigo-600 font-bold text-xs">
+                  {selected.year ? `${selected.year}학년 ` : ''}{selected.semester} · {selected.type || '-'} · {selected.credits}학점
+                </p>
+                <p className="text-slate-800 font-bold text-base mt-0.5 truncate">{selected.name}</p>
+                <p className="text-slate-400 text-xs mt-0.5">{selected.university} {selected.college}</p>
+              </div>
+              <button
+                onClick={closeModal}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 flex-shrink-0"
+                aria-label="닫기"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              {/* 시수 */}
+              {(selected.theoryHours > 0 || selected.practiceHours > 0) && (
+                <section>
+                  <h4 className="text-indigo-600 font-bold text-xs mb-2">시수</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-slate-50 rounded-xl px-3 py-2">
+                      <p className="text-slate-500 text-xs">이론</p>
+                      <p className="text-slate-800 font-bold text-sm">{selected.theoryHours}시간</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl px-3 py-2">
+                      <p className="text-slate-500 text-xs">실습</p>
+                      <p className="text-slate-800 font-bold text-sm">{selected.practiceHours}시간</p>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* 학습 목표 */}
+              {selected.description && (
+                <section>
+                  <h4 className="text-indigo-600 font-bold text-xs mb-2">학습 목표</h4>
+                  <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">{selected.description}</p>
+                </section>
+              )}
+
+              {/* 선행학습자료 */}
+              {selected.prerequisites && (
+                <section>
+                  <h4 className="text-indigo-600 font-bold text-xs mb-2">선행학습자료</h4>
+                  <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">{selected.prerequisites}</p>
+                </section>
+              )}
+
+              {/* 교재 */}
+              {(selected.mainTextbook || selected.subTextbook) && (
+                <section>
+                  <h4 className="text-indigo-600 font-bold text-xs mb-2">교재</h4>
+                  {selected.mainTextbook && (
+                    <div className="mb-2">
+                      <p className="text-slate-500 text-xs mb-0.5">주교재</p>
+                      <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">{selected.mainTextbook}</p>
+                    </div>
+                  )}
+                  {selected.subTextbook && (
+                    <div>
+                      <p className="text-slate-500 text-xs mb-0.5">부교재</p>
+                      <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">{selected.subTextbook}</p>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {/* 참고자료 */}
+              {selected.references && (
+                <section>
+                  <h4 className="text-indigo-600 font-bold text-xs mb-2">참고자료</h4>
+                  <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">{selected.references}</p>
+                </section>
+              )}
+
+              {/* 연도 */}
+              {selected.year_data && (
+                <p className="text-slate-300 text-xs text-right">{selected.year_data}년 강의계획서 기준</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -66,3 +66,51 @@ export async function getCareernetRecommendation(major, keyword) {
   if (!res.ok) throw new Error('커리어넷 추천을 받을 수 없습니다.');
   return res.json();
 }
+
+/* ─── 학과 교수님 인터뷰 ───
+ * Netlify Function 프록시 경유 (공공데이터포털 odcloud).
+ * 서버에서 인증키(ODCLOUD_API_KEY) 보관 + 응답 정규화.
+ */
+export async function getProfessorInterview(majorName) {
+  if (!majorName || !majorName.trim()) {
+    throw new Error('학과명을 입력하세요.');
+  }
+  const res = await fetch(`${BASE}/careernet-interview?major=${encodeURIComponent(majorName.trim())}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || `교수 인터뷰를 불러올 수 없습니다. (${res.status})`);
+  }
+  return data; // { major, totalCount, interviews: [{ professor, position, qas: [{question, answer}] }] }
+}
+
+/* ─── 학과 커리큘럼 (강의계획서) ───
+ * Netlify Function 프록시 경유 (공공데이터포털 odcloud).
+ * 2단계 호출 패턴:
+ *   - university 미지정 → 매칭된 대학 목록 반환 (stage: 'universities')
+ *   - university 지정 → 그 대학 커리큘럼 반환 (stage: 'courses')
+ */
+export async function getMajorCurriculum(majorName, universityName) {
+  if (!majorName || !majorName.trim()) {
+    throw new Error('학과명을 입력하세요.');
+  }
+  const params = new URLSearchParams({ major: majorName.trim() });
+  if (universityName && universityName.trim()) {
+    params.set('university', universityName.trim());
+  }
+  const res = await fetch(`${BASE}/careernet-curriculum?${params.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || `학과 커리큘럼을 불러올 수 없습니다. (${res.status})`);
+  }
+  return data;
+}
+
+/* ─── 과목 상세 ───
+ * 원본 데이터셋의 한 행에 학습목표·교재·선행학습자료가 모두 포함되어 있어 별도 API 호출이 불필요.
+ * UI에서 그대로 모달에 표시할 수 있도록 fallback 객체를 그대로 돌려준다.
+ * (시그니처는 유지하여 추후 별도 상세 API가 생기면 이 함수만 fetch로 교체하면 된다.)
+ */
+export async function getCurriculumCourseDetail(courseId, fallback = {}) {
+  if (!courseId) throw new Error('과목 ID가 없습니다.');
+  return { ...fallback };
+}

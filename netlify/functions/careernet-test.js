@@ -6,7 +6,9 @@
  * - POST { action:"report_v2", ...body }    → 검사 결과 제출 (v2)
  */
 
-const CAREERNET_API_KEY = '8281762a78b4d522b5ba01aef1e0761d';
+// API 키는 Netlify 환경변수 CAREERNET_API_KEY 에서 로드.
+// careernet-recommendation.js 와 동일한 변수를 공유.
+const CAREERNET_API_KEY = process.env.CAREERNET_API_KEY || '';
 const V1_BASE = 'https://www.career.go.kr/inspct/openapi/test';
 const V2_BASE = 'https://www.career.go.kr/inspct/openapi/v2';
 const CNET_BASE = 'https://www.career.go.kr/cnet/openapi/getOpenApi';
@@ -22,6 +24,14 @@ exports.handler = async function (event) {
     // CORS preflight
     if (event.httpMethod === 'OPTIONS') {
         return { statusCode: 204, headers: CORS_HEADERS, body: '' };
+    }
+
+    if (!CAREERNET_API_KEY) {
+        return {
+            statusCode: 500,
+            headers: CORS_HEADERS,
+            body: JSON.stringify({ error: 'CAREERNET_API_KEY 환경변수가 설정되지 않았습니다.' }),
+        };
     }
 
     try {

@@ -246,6 +246,19 @@ OpenAI GPT-4o 기반 과목 추천. 학생 모드(평문)와 admin 모드(JSON) 
 
 Career.net 진로 정보 연동. `CAREERNET_API_BASE_URL` + `CAREERNET_API_KEY`가 없으면 Mock(키워드별 샘플 과목) 반환. 마찬가지로 CORS / OPTIONS 지원.
 
+#### `GET /.netlify/functions/careernet-interview?major=...`
+
+공공데이터포털(odcloud) "학과 교수님 인터뷰" 데이터셋 프록시. 인증키는 환경변수 `ODCLOUD_API_KEY`로 보관(브라우저 노출 차단). `cond[인터뷰제목::LIKE]`로 서버 사이드 검색 후, 와이드 컬럼(`질문_1~N` / `답변_1~N`)을 `{ interviews: [{ professor, position, major, qas: [{ question, answer }] }] }` 형태로 정규화하여 반환.
+
+#### `GET /.netlify/functions/careernet-curriculum?major=...&university=...`
+
+공공데이터포털(odcloud) "대학 학과 강의계획서" 데이터셋 프록시. `ODCLOUD_API_KEY` 공유.
+2단계 호출:
+- `?major=...` → `{ stage: 'universities', universities: [{ university, college, major, courseCount }] }` (매칭된 대학 목록)
+- `?major=...&university=...` → `{ stage: 'courses', courses: [{ id, year, semester, name, type, credits, theoryHours, practiceHours, description, mainTextbook, subTextbook, references, prerequisites, year_data }] }` (해당 대학 커리큘럼, 학년→학기→과목명 순 정렬, 분반·연도 dedupe)
+
+학생 UI(`CareerPage`)는 첫 호출로 매칭 대학 칩을 표시하고, 학생이 대학을 선택하면 두 번째 호출로 커리큘럼 테이블을 학년별로 묶어 보여준다. 과목 클릭 시 행 데이터를 그대로 모달에 표시(별도 상세 호출 없음).
+
 ---
 
 ## 5. 프론트엔드 구조
@@ -340,8 +353,9 @@ AdminPage(Google 로그인) ─ router.getMapping(email) ─→ apiUrl 자동 �
 |------|------|------|------|
 | `OPENAI_API_KEY` | Netlify | O | OpenAI API 키 (AI 추천) |
 | `VITE_GAS_ROUTER_URL` | Netlify (빌드 시 주입) | O(멀티테넌트 사용 시) | 라우터 GAS Web App URL |
-| `CAREERNET_API_BASE_URL` | Netlify | X | 미설정 시 Mock |
-| `CAREERNET_API_KEY` | Netlify | X | 〃 |
+| `CAREERNET_API_KEY` | Netlify | O | 커리어넷 OpenAPI 키 (`careernet-test` Function이 심리검사·학과탐색 호출에 사용) |
+| `ODCLOUD_API_KEY` | Netlify | O(교수 인터뷰 사용 시) | 공공데이터포털 인증키 (`careernet-interview` Function이 학과 교수님 인터뷰 호출에 사용) |
+| `CAREERNET_API_BASE_URL` | Netlify | X | (별도) 커리어넷 추천 API URL — 미설정 시 Mock |
 | `CAREERNET_API_PATH` | Netlify | X | 기본값 `/recommend` |
 | `EXPECTED_AUDIENCE` | 라우터 GAS 스크립트 속성 | O | Google OAuth Client ID. 미설정 시 모든 매핑 변경 거부 |
 
