@@ -135,89 +135,93 @@ function getRegisteredCohorts() {
  *   data 가 배열이면 Config 시트 전체 교체
  */
 function saveConfig(data) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return withLock_(function () {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // 코호트별 시트 교체 모드
-  if (data && !Array.isArray(data) && data.cohort) {
-    var sheetName = cohortSheetName_(data.cohort);
-    if (!sheetName) {
-      return createJSONOutput({ status: 'error', message: 'cohort는 1, 2, 3 중 하나여야 합니다.' });
+    // 코호트별 시트 교체 모드
+    if (data && !Array.isArray(data) && data.cohort) {
+      var sheetName = cohortSheetName_(data.cohort);
+      if (!sheetName) {
+        return createJSONOutput({ status: 'error', message: 'cohort는 1, 2, 3 중 하나여야 합니다.' });
+      }
+      var cohortSheet = ss.getSheetByName(sheetName);
+      if (!cohortSheet) cohortSheet = ss.insertSheet(sheetName);
+      cohortSheet.clear();
+      var cohortRows = Array.isArray(data.rows) ? data.rows : [];
+      if (cohortRows.length === 0) return createJSONOutput({ status: 'success', count: 0 });
+      var cohortHeaders = Object.keys(cohortRows[0]);
+      cohortSheet.appendRow(cohortHeaders);
+      var cohortOut = cohortRows.map(function(obj) { return cohortHeaders.map(function(h) { return obj[h]; }); });
+      cohortSheet.getRange(2, 1, cohortOut.length, cohortHeaders.length).setValues(cohortOut);
+      return createJSONOutput({ status: 'success', count: cohortRows.length, sheet: sheetName });
     }
-    var cohortSheet = ss.getSheetByName(sheetName);
-    if (!cohortSheet) cohortSheet = ss.insertSheet(sheetName);
-    cohortSheet.clear();
-    var cohortRows = Array.isArray(data.rows) ? data.rows : [];
-    if (cohortRows.length === 0) return createJSONOutput({ status: 'success', count: 0 });
-    var cohortHeaders = Object.keys(cohortRows[0]);
-    cohortSheet.appendRow(cohortHeaders);
-    var cohortOut = cohortRows.map(function(obj) { return cohortHeaders.map(function(h) { return obj[h]; }); });
-    cohortSheet.getRange(2, 1, cohortOut.length, cohortHeaders.length).setValues(cohortOut);
-    return createJSONOutput({ status: 'success', count: cohortRows.length, sheet: sheetName });
-  }
 
-  // 단일 Config 시트 전체 교체 (구버전 호환)
-  const sheet = ss.getSheetByName('Config');
-  sheet.clear();
+    // 단일 Config 시트 전체 교체 (구버전 호환)
+    const sheet = ss.getSheetByName('Config');
+    sheet.clear();
 
-  if (!data || (Array.isArray(data) && data.length === 0)) return createJSONOutput({ status: 'success' });
+    if (!data || (Array.isArray(data) && data.length === 0)) return createJSONOutput({ status: 'success' });
 
-  const arr = Array.isArray(data) ? data : [];
-  if (arr.length === 0) return createJSONOutput({ status: 'success' });
+    const arr = Array.isArray(data) ? data : [];
+    if (arr.length === 0) return createJSONOutput({ status: 'success' });
 
-  const headers = Object.keys(arr[0]);
-  sheet.appendRow(headers);
+    const headers = Object.keys(arr[0]);
+    sheet.appendRow(headers);
 
-  const rows = arr.map(obj => headers.map(header => obj[header]));
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-  }
+    const rows = arr.map(obj => headers.map(header => obj[header]));
+    if (rows.length > 0) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
 
-  return createJSONOutput({ status: 'success' });
+    return createJSONOutput({ status: 'success' });
+  });
 }
 
 function submitResponse(data) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('Responses');
-  
-  // If sheet is empty, add headers
-  if (sheet.getLastRow() === 0) {
-    const headers = ['Timestamp', 'Grade', 'Class', 'Number', 'Major', 'SelectedCourses', 'JointCourses', 'TotalCredits', 'ValidationResult', 'AiRecommendation'];
-    sheet.appendRow(headers);
-  } else {
-    // Check if new headers exist, if not add them
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const missingHeaders = [];
-    if (!headers.includes('ValidationResult')) missingHeaders.push('ValidationResult');
-    if (!headers.includes('AiRecommendation')) missingHeaders.push('AiRecommendation');
-    
-    if (missingHeaders.length > 0) {
-      // Append missing headers
-      sheet.getRange(1, headers.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+  return withLock_(function () {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Responses');
+
+    // If sheet is empty, add headers
+    if (sheet.getLastRow() === 0) {
+      const headers = ['Timestamp', 'Grade', 'Class', 'Number', 'Major', 'SelectedCourses', 'JointCourses', 'TotalCredits', 'ValidationResult', 'AiRecommendation'];
+      sheet.appendRow(headers);
+    } else {
+      // Check if new headers exist, if not add them
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      const missingHeaders = [];
+      if (!headers.includes('ValidationResult')) missingHeaders.push('ValidationResult');
+      if (!headers.includes('AiRecommendation')) missingHeaders.push('AiRecommendation');
+
+      if (missingHeaders.length > 0) {
+        // Append missing headers
+        sheet.getRange(1, headers.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+      }
     }
-  }
-  
-  // Re-fetch headers to ensure correct mapping
-  const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const row = [];
-  
-  // Construct row based on headers
-  currentHeaders.forEach(header => {
-    if (header === 'Timestamp') row.push(new Date());
-    else if (header === 'Grade') row.push(data.Grade || data.grade);
-    else if (header === 'Class') row.push(data.Class || data.classNum);
-    else if (header === 'Number') row.push(data.Number || data.studentNum);
-    else if (header === 'Major') row.push(data.Major || data.major);
-    else if (header === 'SelectedCourses') row.push(data.SelectedCourses || data.selectedCourses);
-    else if (header === 'JointCourses') row.push(Array.isArray(data.JointCourses || data.jointCourses) ? (data.JointCourses || data.jointCourses).map(c => c.subjectName).join(', ') : (data.JointCourses || data.jointCourses || ''));
-    else if (header === 'TotalCredits') row.push(data.TotalCredits || data.totalCredits);
-    else if (header === 'ValidationResult') row.push(data.ValidationResult || data.validationResult || '');
-    else if (header === 'AiRecommendation') row.push(data.AiRecommendation || data.aiRecommendation || '');
-    else row.push(''); // Unknown header placeholder
+
+    // Re-fetch headers to ensure correct mapping
+    const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const row = [];
+
+    // Construct row based on headers
+    currentHeaders.forEach(header => {
+      if (header === 'Timestamp') row.push(new Date());
+      else if (header === 'Grade') row.push(data.Grade || data.grade);
+      else if (header === 'Class') row.push(data.Class || data.classNum);
+      else if (header === 'Number') row.push(data.Number || data.studentNum);
+      else if (header === 'Major') row.push(data.Major || data.major);
+      else if (header === 'SelectedCourses') row.push(data.SelectedCourses || data.selectedCourses);
+      else if (header === 'JointCourses') row.push(Array.isArray(data.JointCourses || data.jointCourses) ? (data.JointCourses || data.jointCourses).map(c => c.subjectName).join(', ') : (data.JointCourses || data.jointCourses || ''));
+      else if (header === 'TotalCredits') row.push(data.TotalCredits || data.totalCredits);
+      else if (header === 'ValidationResult') row.push(data.ValidationResult || data.validationResult || '');
+      else if (header === 'AiRecommendation') row.push(data.AiRecommendation || data.aiRecommendation || '');
+      else row.push(''); // Unknown header placeholder
+    });
+
+    sheet.appendRow(row);
+
+    return createJSONOutput({ status: 'success' });
   });
-  
-  sheet.appendRow(row);
-  
-  return createJSONOutput({ status: 'success' });
 }
 
 function getResponses() {
@@ -262,14 +266,16 @@ function getSettings() {
 }
 
 function saveSettings(data) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('Settings');
-  sheet.clear();
-  
-  // Save as JSON string in A1
-  sheet.getRange(1, 1).setValue(JSON.stringify(data));
-  
-  return createJSONOutput({ status: 'success' });
+  return withLock_(function () {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Settings');
+    sheet.clear();
+
+    // Save as JSON string in A1
+    sheet.getRange(1, 1).setValue(JSON.stringify(data));
+
+    return createJSONOutput({ status: 'success' });
+  });
 }
 
 function getRegistry() {
@@ -380,6 +386,12 @@ function pickRegistryField_(obj, keys) {
 }
 
 function saveRegistry(data) {
+  return withLock_(function () {
+    return saveRegistryImpl_(data);
+  });
+}
+
+function saveRegistryImpl_(data) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Registry');
 
@@ -424,7 +436,16 @@ function saveRegistry(data) {
     } else if (oldMap[sid]) {
       code = oldMap[sid];
     }
+    // 충돌 시 재생성. 36^10 공간이라 현실적으로 1~2회 안에 통과하지만
+    // 안전상 상한을 두어 잘못된 입력으로 인한 무한 루프를 차단한다.
+    var attempts = 0;
     while (!code || code.length !== 10 || usedInUpload[code]) {
+      if (attempts++ >= 1000) {
+        return createJSONOutput({
+          status: 'error',
+          message: '학생코드 자동 발급 중 충돌이 반복되었습니다. (학번 ' + sid + ') 잠시 후 다시 시도해주세요.'
+        });
+      }
       code = generateStudentCode_();
     }
     usedInUpload[code] = true;
@@ -457,19 +478,41 @@ function getJointCurriculum() {
 }
 
 function saveJointCurriculum(data) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('JointCurriculum');
-  if (!sheet) sheet = ss.insertSheet('JointCurriculum');
-  sheet.clear();
-  if (!data || data.length === 0) return createJSONOutput({ status: 'success' });
-  const headers = Object.keys(data[0]);
-  sheet.appendRow(headers);
-  const rows = data.map(obj => headers.map(h => obj[h]));
-  if (rows.length > 0) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-  return createJSONOutput({ status: 'success' });
+  return withLock_(function () {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName('JointCurriculum');
+    if (!sheet) sheet = ss.insertSheet('JointCurriculum');
+    sheet.clear();
+    if (!data || data.length === 0) return createJSONOutput({ status: 'success' });
+    const headers = Object.keys(data[0]);
+    sheet.appendRow(headers);
+    const rows = data.map(obj => headers.map(h => obj[h]));
+    if (rows.length > 0) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    return createJSONOutput({ status: 'success' });
+  });
 }
 
 function createJSONOutput(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * 시트 쓰기 작업 직렬화용 락 헬퍼.
+ *
+ * Why: sheet.clear() → setValues() 사이 동시 호출 시 데이터 손실 위험.
+ *      append 계열도 헤더 mutation 구간에서는 race condition 가능.
+ * 사용: return withLock_(function () { ... });
+ */
+function withLock_(fn) {
+  var lock = LockService.getDocumentLock();
+  // 최대 20초 대기. 실패하면 명시적 에러 응답.
+  if (!lock.tryLock(20000)) {
+    return createJSONOutput({ status: 'error', message: '다른 저장 작업이 진행 중입니다. 잠시 후 다시 시도해주세요.' });
+  }
+  try {
+    return fn();
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
 }

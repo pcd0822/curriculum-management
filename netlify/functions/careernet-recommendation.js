@@ -4,6 +4,21 @@
  *
  * 공식 API 스펙이 정해지면 아래 fetch 본문·경로·응답 파싱(`subjects` 배열 등)을 그에 맞게 수정하세요.
  */
+const CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+};
+
+function respond(statusCode, body) {
+    return {
+        statusCode,
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+        body: typeof body === 'string' ? body : JSON.stringify(body),
+    };
+}
+
 function mockSubjectsForMajor(major) {
     const m = (major || '').toLowerCase();
     const base = [
@@ -50,18 +65,21 @@ function mockSubjectsForMajor(major) {
 }
 
 exports.handler = async function (event) {
+    if (event.httpMethod === 'OPTIONS') {
+        return { statusCode: 204, headers: CORS_HEADERS, body: '' };
+    }
     if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
+        return respond(405, { error: 'Method Not Allowed' });
     }
 
     let body = {};
     try {
         body = JSON.parse(event.body || '{}');
     } catch (e) {
-        return { statusCode: 400, body: JSON.stringify({ error: { message: 'Invalid JSON' } }) };
+        return respond(400, { error: { message: 'Invalid JSON' } });
     }
 
-    const major = body.major || body.keyword || '';
+    const major = String(body.major || body.keyword || '').slice(0, 200);
     const baseUrl = (process.env.CAREERNET_API_BASE_URL || '').replace(/\/$/, '');
     const apiKey = process.env.CAREERNET_API_KEY || '';
     const pathSuffix = process.env.CAREERNET_API_PATH || '/recommend';
@@ -86,44 +104,28 @@ exports.handler = async function (event) {
             try {
                 data = JSON.parse(text);
             } catch (e) {
-                return {
-                    statusCode: 200,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        source: 'api',
-                        raw: text,
-                        subjects: [],
-                        message: 'API 응답이 JSON이 아닙니다. CAREERNET_API_PATH와 응답 형식을 확인하세요.'
-                    })
-                };
+                return respond(200, {
+                    source: 'api',
+                    raw: text,
+                    subjects: [],
+                    message: 'API 응답이 JSON이 아닙니다. CAREERNET_API_PATH와 응답 형식을 확인하세요.'
+                });
             }
-            return {
-                statusCode: 200,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ source: 'api', ...data })
-            };
+            return respond(200, { source: 'api', ...data });
         } catch (err) {
-            return {
-                statusCode: 200,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    source: 'error',
-                    message: err.message,
-                    subjects: mockSubjectsForMajor(major)
-                })
-            };
+            return respond(200, {
+                source: 'error',
+                message: err.message,
+                subjects: mockSubjectsForMajor(major)
+            });
         }
     }
 
     const subjects = mockSubjectsForMajor(major);
-    return {
-        statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            source: 'mock',
-            subjects,
-            message:
-                '커리어넷 API가 설정되지 않았습니다. Netlify에 CAREERNET_API_BASE_URL, CAREERNET_API_KEY(및 필요 시 CAREERNET_API_PATH)를 설정하면 실제 연동됩니다. 현재는 진로 키워드 기반 샘플 과목입니다.'
-        })
-    };
+    return respond(200, {
+        source: 'mock',
+        subjects,
+        message:
+            '커리어넷 API가 설정되지 않았습니다. Netlify에 CAREERNET_API_BASE_URL, CAREERNET_API_KEY(및 필요 시 CAREERNET_API_PATH)를 설정하면 실제 연동됩니다. 현재는 진로 키워드 기반 샘플 과목입니다.'
+    });
 };

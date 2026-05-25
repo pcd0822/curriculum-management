@@ -60,8 +60,6 @@ npm run build        # → dist/
 npm run preview
 ```
 
-> `dashboard/` 디렉터리는 별도 실험용 Vite 프로젝트(TypeScript)이며 메인 빌드에는 포함되지 않습니다.
-
 ### 3-2. Netlify 배포
 
 `netlify.toml` 설정 그대로 두면 됩니다.
@@ -99,10 +97,14 @@ npm run preview
 1. 새 Google Sheet 생성 (예: "Curriculum Router").
 2. **Extensions → Apps Script** 에서 `google-apps-script-router.gs` 내용을 붙여넣고 저장.
 3. `setupRouter()` 1회 실행 → `Mappings` 시트 생성 확인.
-4. **Deploy → New deployment → Web app**
+4. **스크립트 속성 `EXPECTED_AUDIENCE` 등록 (필수)**
+   - Apps Script 편집기 → **Project Settings → Script properties → Add property**
+   - Key: `EXPECTED_AUDIENCE`, Value: 프론트엔드 Google OAuth Client ID
+   - 미설정 시 모든 `setMapping`/`deleteMapping`이 거부됩니다(다른 앱 토큰 재사용 차단).
+5. **Deploy → New deployment → Web app**
    - Execute as: **Me**
    - Who has access: **Anyone**
-5. 발급된 URL을 Netlify 환경변수 `VITE_GAS_ROUTER_URL`에 등록.
+6. 발급된 URL을 Netlify 환경변수 `VITE_GAS_ROUTER_URL`에 등록.
 
 ### 4-2. 학교 관리자 (학교당 1회)
 
@@ -120,7 +122,7 @@ npm run preview
 ### 4-3. 학생
 
 1. 관리자가 배포한 URL 접속.
-2. 인증 게이트에 **학생코드(10자리) + 학번(5자리) + 이름** 입력.
+2. 인증 게이트에 **학생코드(10자리) + 학번(5자리)** 입력. (이름은 개인정보 보호상 받지 않음)
 3. 희망 진로 입력 → 학기별 과목 선택.
 4. (선택) AI 추천 받기 → 진로 기반 과목 + 학생부 키워드/탐구활동 제안 확인.
 5. (선택) 공동교육과정(거점학교) 과목 추가.
@@ -161,7 +163,7 @@ google-apps-script-router.gs   # 운영자용 라우터 GAS — Mappings 시트
 PROJECT_CONTEXT.md             # DB 스키마·API·검증규칙 등 상세 명세
 ```
 
-레거시 vanilla 버전(`index.html`, `admin.html`, `js/`)은 React 마이그레이션 이전 코드입니다. 현재 Netlify 배포는 `index.react.html`로만 라우팅되며, 레거시 파일은 참고용으로 보존되어 있습니다.
+> 과거 vanilla HTML/JS 버전(`index.html`, `admin.html`, `student.html`, `js/`)은 React 마이그레이션이 완료되어 제거되었습니다. 필요 시 git 히스토리에서 복원할 수 있습니다.
 
 ### 5-2. 데이터 흐름
 
@@ -209,15 +211,15 @@ AdminPage(Google 로그인) ─ router.getMapping(email) ─→ apiUrl 자동 �
 | 선수과목 | 선이수 미충족 시 차단 |
 | 학기별 제한 | Settings의 `selectionRules`에 정의된 (학점, 개수) 조합 |
 
-상세 코드는 `js/validation.js` (레거시 기준) 및 React 측 검증 모듈을 참고하세요.
+상세 코드는 `src/pages/CreditsPage.jsx`의 검증 로직을 참고하세요.
 
 ---
 
 ## 6. 보안 메모
 
 - **GAS는 CORS를 거의 지원하지 않습니다.** 모든 POST는 `Content-Type: text/plain;charset=utf-8` + `redirect: 'follow'` 조합으로만 통과합니다. 헤더를 바꾸면 즉시 깨집니다.
-- **학생 인증은 3-factor(코드+학번+이름)**이며 GAS 서버 측에서 정규화 후 비교합니다. 클라이언트 단독 검증을 신뢰하지 않습니다.
-- **관리자 라우터 매핑**은 클라이언트가 보낸 Google ID 토큰을 `https://oauth2.googleapis.com/tokeninfo`에서 검증한 뒤 그 이메일로만 매핑을 쓸 수 있습니다. 다른 사람 매핑을 임의로 덮어쓸 수 없습니다. 보안 강화를 위해 `EXPECTED_AUDIENCE`(Google OAuth Client ID)를 라우터 GAS의 스크립트 속성에 등록하세요.
+- **학생 인증은 2-factor(학생코드 + 학번)**이며 GAS 서버 측에서 정규화 후 비교합니다. 이름은 개인정보라 수집·검증하지 않습니다. 클라이언트 단독 검증은 신뢰하지 않습니다.
+- **관리자 라우터 매핑**은 클라이언트가 보낸 Google ID 토큰을 `https://oauth2.googleapis.com/tokeninfo`에서 검증한 뒤 그 이메일로만 매핑을 쓸 수 있습니다. 다른 사람 매핑을 임의로 덮어쓸 수 없습니다. `EXPECTED_AUDIENCE`(Google OAuth Client ID)는 라우터 GAS의 스크립트 속성에 **필수로 등록**해야 합니다(미설정 시 모든 매핑 변경이 거부됨).
 - **시트 단위 권한 격리는 각 학교 GAS의 doGet/doPost가 책임집니다.** 라우터 GAS는 URL 매핑만 보관하며, 시트 자체의 데이터 보호는 학교 측 GAS와 시트 권한으로 제어합니다.
 - **저장 정책**: `Responses` 시트만 append, 나머지는 시트 전체 덮어쓰기(`sheet.clear()` → 재작성). 동시 편집 시 마지막 저장이 이깁니다.
 

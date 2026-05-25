@@ -1,20 +1,24 @@
 # PROJECT_CONTEXT — 고교학점제 수강신청 도우미
 
-> 최종 갱신: 2026-04-14
+> 최종 갱신: 2026-05-25
+>
+> 빠른 사용 가이드는 [`README.md`](./README.md), 본 문서는 DB 스키마 · API · 검증 규칙 · 보안 정책 등 상세 명세입니다.
 
 ---
 
 ## 1. 프로젝트 개요
 
-고교학점제(Credit-Based High School System) 도입에 맞춰 학생 수강신청과 교사/관리자 교육과정 관리를 지원하는 웹 애플리케이션.
+고교학점제(Credit-Based High School System) 도입에 맞춰 **학생 수강신청**과 **교사/관리자 교육과정 관리**를 지원하는 웹 애플리케이션. 학교마다 별도 서버를 운영할 필요 없이 학교별 Google Sheets를 DB로 사용.
 
 | 항목 | 내용 |
 |------|------|
-| 프론트엔드 | Vanilla HTML/JS + Tailwind CSS (CDN) |
-| 백엔드 | Google Apps Script (Web App) |
-| DB | Google Sheets (5개 시트) |
-| Serverless | Netlify Functions (AI 추천) |
-| AI | OpenAI GPT-4o, Career.net API (Mock 포함) |
+| 프론트엔드 | React 18 + Vite 6 + Tailwind CSS 4 (SPA, React Router v6) |
+| 빌드 진입점 | `index.react.html` |
+| 백엔드(데이터) | 학교별 Google Apps Script Web App (`google-apps-script.gs`) |
+| 백엔드(라우터) | 운영자용 Google Apps Script Web App (`google-apps-script-router.gs`) |
+| DB | Google Sheets — 학교별 시트 6개(`Config_G1~3`, `Config`, `Registry`, `Responses`, `Settings`, `JointCurriculum`) + 라우터 시트 1개(`Mappings`) |
+| Serverless | Netlify Functions (AI 추천 · Career.net 연동) |
+| AI | OpenAI GPT-4o, Career.net API (Mock 폴백) |
 | 배포 | Netlify (정적 파일 + Functions) |
 
 ---
@@ -23,462 +27,333 @@
 
 ```
 curriculum-management/
-├── index.html                    # 학생용 수강신청 페이지 (1,926줄)
-├── admin.html                    # 관리자 대시보드 (5,889줄)
-├── google-apps-script.gs         # GAS 백엔드 (415줄)
+├── index.react.html              # 빌드 진입점 (React 마운트)
 ├── manifest.json                 # PWA 매니페스트
-├── icon-app.svg                  # 앱 아이콘
-├── js/
-│   ├── db.js                     # GAS API 래퍼 (DB 객체)
-│   ├── validation.js             # 수강 검증 엔진
-│   ├── roadmap.js                # AI 추천 ↔ 개설과목 매칭
-│   ├── excel-handler.js          # SheetJS 래퍼 (엑셀 읽기/쓰기)
-│   ├── theme.js                  # 테마 관리 (4종)
-│   ├── student-code.js           # 학생코드 생성/정규화
-│   └── qrcode-generator.js       # QRCode.js 래퍼
+├── icon-app.svg
+├── package.json / vite.config.js / netlify.toml / tailwind.config.js
+│
+├── src/
+│   ├── main.jsx                  # React 진입점
+│   ├── App.jsx                   # 라우트 정의
+│   ├── index.css                 # Tailwind 진입 CSS
+│   ├── pages/
+│   │   ├── LoginPage.jsx         # 학생 인증 게이트(학번+학생코드)
+│   │   ├── CoursesPage.jsx       # 학기별 과목 선택
+│   │   ├── CreditsPage.jsx       # 학점 현황·검증
+│   │   ├── CareerPage.jsx        # 진로 기반 추천
+│   │   ├── AiRecommendPage.jsx   # AI 과목 추천
+│   │   ├── ProfilePage.jsx       # 학생 정보·제출
+│   │   └── AdminPage.jsx         # 관리자 대시보드 (탭 6종)
+│   ├── components/
+│   │   ├── AdminLogin.jsx        # Google ID 토큰 로그인 + 라우터 매핑
+│   │   ├── Header.jsx / Sidebar.jsx / MobileNav.jsx
+│   │   ├── CourseCard.jsx / GaugeChart.jsx / StatCard.jsx
+│   └── api/
+│       ├── db.js                 # 학교 데이터 GAS 래퍼 (소유자별 URL 격리)
+│       ├── router.js             # 라우터 GAS 호출 (이메일↔apiUrl 매핑)
+│       ├── student.js            # 학생 세션(학번만 보관)
+│       ├── careernet.js          # Career.net Function 래퍼
+│       └── excel.js              # SheetJS 래퍼 (업·다운로드)
+│
 ├── netlify/
 │   └── functions/
-│       ├── ai-recommendation.js        # OpenAI 과목 추천
-│       └── careernet-recommendation.js # Career.net 진로 매칭
-├── temp_ai_logic.js              # (임시) AI 분석 실험 코드
-└── temp_grade_logic.js           # (임시) 학년 로직 실험 코드
+│       ├── ai-recommendation.js          # OpenAI GPT-4o 호출 (학생/admin 두 모드)
+│       └── careernet-recommendation.js   # Career.net 호출 (또는 Mock)
+│
+├── google-apps-script.gs                 # 학교별 데이터 GAS (430+줄)
+├── google-apps-script-router.gs          # 운영자용 라우터 GAS
+│
+├── design-refs/                          # 디자인 시안 PNG
+└── README.md / PROJECT_CONTEXT.md
 ```
 
-### 외부 라이브러리 (CDN)
+### 외부 라이브러리
 
 | 라이브러리 | 용도 |
 |-----------|------|
-| Tailwind CSS | UI 스타일링 |
-| SheetJS (XLSX v0.18.5) | 엑셀 파일 처리 |
-| Chart.js | 통계 차트 |
-| QRCode.js | QR코드 생성 |
-| html2canvas | 스크린샷/PDF 내보내기 |
-| Google Fonts (Noto Sans KR, Outfit) | 폰트 |
+| React 18 / React Router 6 | UI 프레임워크 / SPA 라우팅 |
+| Vite 6 / @vitejs/plugin-react | 번들러 / 개발 서버 |
+| Tailwind CSS 4 / @tailwindcss/vite | 스타일링 |
+| xlsx (SheetJS 0.18.x) | 엑셀 업·다운로드 |
+| jspdf | PDF 내보내기 |
 
 ---
 
 ## 3. DB 스키마 (Google Sheets)
 
-Google Sheets를 DB로 사용하며, 시트 이름이 테이블 역할을 합니다. GAS `setup()` 함수로 초기 생성됩니다.
+시트 이름이 테이블 역할. 학교별 GAS의 `setup()` 함수가 초기 생성.
 
-### 3-1. Config (교육과정 편제표)
+### 3-1. `Config_G1` / `Config_G2` / `Config_G3` (코호트별 편제표)
 
-교과목 마스터 데이터. 학교별 개설 과목 정보.
+해당 학년(코호트) 학생들이 6학기 전체에 걸쳐 이수할 과목 마스터.
 
 | 컬럼 | 타입 | 설명 | 예시 |
 |------|------|------|------|
 | `과목명` | string | 한글 과목명 | `문학` |
-| `영문ID` | string (slug) | 고유 식별자 | `munhag` |
+| `영문ID` | string | 고유 식별자 | `munhag` |
 | `학년` | int | 개설 학년 | `2` |
 | `학기` | int | 개설 학기 | `1` |
 | `학점` | int | 이수 학점 | `4` |
-| `교과군` | string | 대분류 카테고리 | `기초교과`, `탐구교과`, `예술교과`, `교양교과` |
+| `교과군` | string | 대분류 | `기초교과`, `탐구교과`, `예술교과`, `교양교과` |
 | `세부교과` | string | 소분류 | `국어`, `수학`, `영어`, `사회`, `과학` 등 |
-| `필수여부` | boolean(string) | 필수 과목 여부 | `TRUE` / `FALSE` |
-| `개설여부` | boolean(string) | 해당 학기 개설 여부 | `TRUE` / `FALSE` |
-| `선수과목` | string | 선이수 과목 (slug, 콤마 구분) | `korean1, korean2` |
+| `필수여부` | bool(string) | `TRUE`/`FALSE` | |
+| `개설여부` | bool(string) | `TRUE`/`FALSE` | |
+| `선수과목` | string | slug 콤마 구분 | `korean1, korean2` |
 
-### 3-2. Registry (학적부)
+> 단일 `Config` 시트는 구버전 호환용으로 유지(`cohort` 파라미터 미지정 시 사용).
 
-학생 목록 + 인증용 코드. 엑셀 업로드 또는 관리자가 등록.
+### 3-2. `Registry` (학적부)
+
+학생 인증용 최소 정보. **개인정보 보호상 이름은 저장하지 않음.**
 
 | 컬럼 | 타입 | 설명 | 예시 |
 |------|------|------|------|
 | `학번` | string(5자리) | 학년+반+번호 | `20513` |
-| `이름` | string | 학생 이름 | `홍길동` |
-| `학생코드` | string(10자리) | 자동 생성된 인증 코드 (A-Z, 0-9) | `X7KD9M2FP1` |
+| `학생코드` | string(10자리) | 자동 생성 (A-Z, 0-9) | `X7KD9M2FP1` |
 
-> **학생코드 생성 규칙**: 10자리 영문 대문자 + 숫자. `crypto.getRandomValues` 사용. 기존 코드가 있으면 보존, 없으면 자동 생성. 중복 체크 포함.
+**학생코드 발급 규칙**: 10자리 영문 대문자 + 숫자. 기존 코드가 있으면 보존, 없으면 자동 생성. 업로드 단위 충돌 방지 + 최대 1000회 재시도 제한.
 
-### 3-3. Responses (수강신청 결과)
+### 3-3. `Responses` (수강신청 결과)
 
-학생이 제출한 수강신청 데이터.
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| `Timestamp` | Date | 제출 시각 (서버 자동) |
+| `Grade` / `Class` / `Number` | string | 학년 / 반 / 번호 |
+| `Major` | string | 희망 진로 |
+| `SelectedCourses` | string | 콤마 구분 |
+| `JointCourses` | string | 공동교육과정 과목 (콤마 구분) |
+| `TotalCredits` | int | 총 신청 학점 |
+| `ValidationResult` | string | 검증 결과 텍스트 |
+| `AiRecommendation` | string | AI 추천 결과 텍스트 |
 
-| 컬럼 | 타입 | 설명 | 예시 |
-|------|------|------|------|
-| `Timestamp` | Date | 제출 시각 (서버 자동) | `2026-04-14T09:00:00` |
-| `Grade` | string | 학년 | `2` |
-| `Class` | string | 반 | `05` |
-| `Number` | string | 번호 | `13` |
-| `Name` | string | 이름 | `홍길동` |
-| `Major` | string | 희망 진로 | `컴퓨터공학` |
-| `SelectedCourses` | string | 선택 과목 목록 (콤마 구분) | `문학, 미적분, 물리학Ⅰ` |
-| `JointCourses` | string | 공동교육과정 과목 (콤마 구분) | `심화수학, AI기초` |
-| `TotalCredits` | int | 총 신청 학점 | `176` |
-| `ValidationResult` | string | 검증 결과 텍스트 | `모든 검증을 통과하였습니다.` |
-| `AiRecommendation` | string | AI 추천 결과 텍스트 | (AI 응답 전문) |
+> 이름 컬럼은 저장하지 않음(학번으로만 식별).
 
-### 3-4. Settings (설정)
+### 3-4. `Settings`
 
-A1 셀에 JSON 문자열 하나로 저장되는 애플리케이션 전역 설정.
+A1 셀에 단일 JSON 문자열로 저장되는 전역 설정.
 
 ```jsonc
 {
   "schoolName": "OO고등학교",
-  "requireStudentGate": true,          // 학생 인증 게이트 활성화
-  "allowMultiSemesterDuplicate": false, // 동일 과목 다학기 중복 허용
-  "duplicateCourseSlugs": [],           // 중복 허용 과목 슬러그 목록
-  "selectionRules": {                   // 학기별 선택 제한
+  "requireStudentGate": true,
+  "allowMultiSemesterDuplicate": false,
+  "duplicateCourseSlugs": [],
+  "selectionRules": {
     "2-1": [{ "credits": 4, "count": 3 }, { "credits": 2, "count": 1 }],
     "2-2": [{ "credits": 4, "count": 3 }],
     "3-1": [{ "credits": "all", "count": 5 }]
   },
-  "multiSemesterRules": {},             // 다학기 연결 규칙
-  "jointCurriculum": { ... }            // 공동교육과정 관련 설정
+  "multiSemesterRules": {},
+  "jointCurriculum": { ... }
 }
 ```
 
-### 3-5. JointCurriculum (공동교육과정)
+### 3-5. `JointCurriculum` (공동교육과정)
 
-거점학교 간 공유 과목 목록.
+| 컬럼 | 예시 |
+|------|------|
+| `분류` / `거점학교` / `과목명` / `slug` / `세부교과` / `교과편제` / `학년` / `학기` / `학점` / `운영일시` / `선이수과목` | (생략) |
 
-| 컬럼 | 타입 | 설명 | 예시 |
-|------|------|------|------|
-| `분류` | string | 분류 태그 | `이공` |
-| `거점학교` | string | 개설 학교 | `OO고` |
-| `과목명` | string | 과목명 | `심화수학` |
-| `slug` | string | 고유 식별자 | `simhwasuhak` |
-| `세부교과` | string | 교과 분류 | `수학` |
-| `교과편제` | string | 과정 유형 | `진로`, `융합`, `일반` |
-| `학년` | int | 대상 학년 | `2` |
-| `학기` | int | 개설 학기 | `1` |
-| `학점` | int | 이수 학점 | `4` |
-| `운영일시` | string | 수업 시간 | `화요일 7교시` |
-| `선이수과목` | string | 선이수 조건 | `수학I, 수학II` |
+### 3-6. 라우터 GAS의 `Mappings` 시트
+
+| email | apiUrl | schoolName | updatedAt |
+|-------|--------|------------|-----------|
+| `admin@school.kr` (소문자) | 학교 GAS Web App URL | (선택) | 마지막 갱신 시각 |
 
 ---
 
-## 4. API 엔드포인트
+## 4. API
 
-### 4-1. Google Apps Script (백엔드 REST API)
+### 4-1. 학교 데이터 GAS (`google-apps-script.gs`)
 
-GAS Web App URL 하나로 GET/POST를 `action` 파라미터로 라우팅.
+GAS Web App URL 하나에서 GET/POST를 `action` 파라미터로 라우팅. 모든 POST는 CORS 우회를 위해 `Content-Type: text/plain;charset=utf-8` + `redirect: 'follow'`.
 
-#### GET 엔드포인트
+#### GET
 
-| action | 설명 | 응답 |
-|--------|------|------|
-| `getConfig` | 교육과정 편제표 조회 | `Array<Config Row>` |
-| `getRegistry` | 학적부 조회 | `Array<Registry Row>` |
-| `getResponses` | 수강신청 결과 조회 | `Array<Response Row>` |
-| `getSettings` | 설정 JSON 조회 | `Object (Settings)` |
-| `getJointCurriculum` | 공동교육과정 목록 조회 | `Array<JointCurriculum Row>` |
+| action | 응답 |
+|--------|------|
+| `getConfig?cohort=1|2|3` | `Array<Config Row>` (cohort 생략 시 단일 Config 시트) |
+| `getRegistry` | `Array<{ 학번, 학생코드, … }>` |
+| `getResponses` | `Array<Response Row>` |
+| `getSettings` | `Object` (Settings JSON) |
+| `getJointCurriculum` | `Array<JointCurriculum Row>` |
+| `getRegisteredCohorts` | `[{ cohort, count }, ...]` (편제표 등록된 학년 목록) |
 
-**호출 방식**: `GET {GAS_URL}?action={action}`
+#### POST
 
-#### POST 엔드포인트
+| action | body.data | 응답 |
+|--------|-----------|------|
+| `saveConfig` | `{ cohort, rows }` 또는 `Array<Config Row>` (호환) | `{ status, count?, sheet? }` |
+| `saveRegistry` | `Array<{ 학번, 학생코드? }>` (코드 없으면 자동 발급) | `{ status, count }` |
+| `submitResponse` | `Response Row` (append) | `{ status }` |
+| `saveSettings` | `Object` (Settings) | `{ status }` |
+| `saveJointCurriculum` | `Array<JointCurriculum Row>` | `{ status }` |
+| `verifyStudent` | `{ studentCode, studentId }` | `{ status, student? }` |
 
-| action | 설명 | 요청 body.data | 응답 |
-|--------|------|---------------|------|
-| `saveConfig` | 편제표 전체 덮어쓰기 | `Array<Config Row>` | `{ status: 'success' }` |
-| `saveRegistry` | 학적부 저장 (코드 자동생성) | `Array<Registry Row>` | `{ status: 'success' }` |
-| `submitResponse` | 수강신청 1건 추가 (append) | `Response Row` | `{ status: 'success' }` |
-| `saveSettings` | 설정 JSON 덮어쓰기 | `Object (Settings)` | `{ status: 'success' }` |
-| `saveJointCurriculum` | 공동교육과정 덮어쓰기 | `Array<JointCurriculum Row>` | `{ status: 'success' }` |
-| `verifyStudent` | 학생 인증 (3-factor) | `{ studentCode, studentId, name }` | `{ status, student? }` |
+#### 학생 인증(`verifyStudent`)
 
-**호출 방식**: `POST {GAS_URL}` with `Content-Type: text/plain;charset=utf-8`
-```json
-{ "action": "saveConfig", "data": [...] }
-```
+- **2-factor**: 학생코드(10자리 영숫자) + 학번(5자리). 이름은 개인정보라 받지 않음.
+- 정규화: 코드 → 대문자 + 영숫자만, 학번 → 공백 제거.
+- 응답 성공: `{ status: 'success', student: { 학번 } }`.
+- 응답 실패: `{ status: 'error', message: '…' }`.
 
-> **특이사항**: GAS Web App은 CORS 제약으로 `Content-Type: text/plain` 사용. `redirect: 'follow'` 필수.
+#### 동시성 보호
 
-#### 학생 인증 (verifyStudent) 상세
+`saveConfig` / `saveRegistry` / `saveSettings` / `saveJointCurriculum` / `submitResponse`는 모두 `LockService.getDocumentLock()`로 보호되어 동시 호출 시 직렬화됨. 락 획득 실패(20초 초과) 시 `{ status: 'error' }` 명시 응답.
 
-- **입력**: 학생코드(10자리) + 학번(5자리) + 이름
-- **검증**: Registry 시트에서 3개 값 모두 일치하는 행 탐색
-- **정규화**: 코드→대문자+영숫자만, 학번→공백제거, 이름→trim+중복공백 정리
-- **응답 성공**: `{ status: 'success', student: { 학번, 이름 } }`
-- **응답 실패**: `{ status: 'error', message: '...' }`
+### 4-2. 라우터 GAS (`google-apps-script-router.gs`)
 
-### 4-2. Netlify Functions (서버리스)
+운영자가 1회 셋업. 학교 관리자 이메일 → 학교 GAS URL을 매핑하여 멀티 테넌트 지원.
+
+| action | method | body | 설명 |
+|--------|--------|------|------|
+| `getMapping?email=…` | GET | — | 이메일로 매핑 조회 |
+| `setMapping` | POST | `{ idToken, apiUrl, schoolName? }` | Google ID 토큰 검증 후 자기 이메일에만 매핑 작성/갱신 |
+| `deleteMapping` | POST | `{ idToken }` | 자기 이메일 매핑 삭제 |
+
+**토큰 검증 규칙**:
+- `https://oauth2.googleapis.com/tokeninfo`로 검증.
+- `email_verified`, `aud`(=`EXPECTED_AUDIENCE` 스크립트 속성), `exp`(만료) 모두 체크.
+- `EXPECTED_AUDIENCE` 미설정 시 모든 매핑 변경 요청 거부 (다른 앱 토큰 재사용 차단).
+
+### 4-3. Netlify Functions
 
 #### `POST /.netlify/functions/ai-recommendation`
 
-OpenAI GPT-4o 기반 과목 추천.
+OpenAI GPT-4o 기반 과목 추천. 학생 모드(평문)와 admin 모드(JSON) 두 가지.
 
-**요청 body**:
+- **입력 검증/캡**: `major` 200자, `availableCourses` 10,000자, `jointCurriculum` 200항목 · 각 필드 200자. 제어문자 제거.
+- **CORS**: `Access-Control-Allow-Origin: *` + `OPTIONS` preflight 204 응답.
+
+요청 body:
 ```json
 {
   "major": "컴퓨터공학",
   "availableCourses": "문학, 미적분, 물리학Ⅰ, ...",
-  "mode": "admin",                    // 'admin' | undefined(학생)
-  "jointCurriculum": [...]            // admin 모드 전용
+  "mode": "admin",
+  "jointCurriculum": [...]
 }
 ```
 
-**모드별 응답**:
+응답:
 
-| 모드 | 응답 형식 |
-|------|----------|
-| 학생 (기본) | 평문 텍스트 — 7개 추천 과목 + 사유 |
-| admin | JSON `{ balancedRecommendations[], advancedRecommendations[], subjects[], keywords[], activities[] }` |
-
-- `balancedRecommendations`: 균형 추천 3개 `{ subject, reason }`
-- `advancedRecommendations`: 심화(공동교육과정) 추천 3개 `{ subject, reason }`
-- `subjects`: 정규 교육과정 추천 5-7개 `"과목명: 사유"`
-- `keywords`: 학생부 기재용 키워드 5개
-- `activities`: 탐구 활동 3개
-
-**환경변수**: `OPENAI_API_KEY`
+| 모드 | 형식 |
+|------|------|
+| 학생(기본) | 평문 텍스트 — 7개 추천 과목 + 사유 |
+| `admin` | `{ balancedRecommendations[], advancedRecommendations[], subjects[], keywords[], activities[] }` |
 
 #### `POST /.netlify/functions/careernet-recommendation`
 
-Career.net 진로 정보 연동 (API 미설정 시 Mock 응답).
-
-**요청 body**:
-```json
-{
-  "major": "간호사",
-  "keyword": "간호",
-  "schoolCourses": [...]
-}
-```
-
-**응답**:
-```json
-{
-  "source": "mock" | "api" | "error",
-  "subjects": [{ "name": "생명과학Ⅰ", "reason": "의·약·생명 계열 기초" }],
-  "message": "..."
-}
-```
-
-**Mock 카테고리**: 간호/의료, 법/행정/인문, 예술/디자인/음악/미술, 이공 계열(기본)
-
-**환경변수**: `CAREERNET_API_BASE_URL`, `CAREERNET_API_KEY`, `CAREERNET_API_PATH`
+Career.net 진로 정보 연동. `CAREERNET_API_BASE_URL` + `CAREERNET_API_KEY`가 없으면 Mock(키워드별 샘플 과목) 반환. 마찬가지로 CORS / OPTIONS 지원.
 
 ---
 
 ## 5. 프론트엔드 구조
 
-### 5-1. 학생 페이지 (`index.html`)
+### 5-1. 라우팅 (`src/App.jsx`)
 
-단일 HTML 파일, SPA 패턴. 전역 상태를 스크립트 변수로 관리.
+| 경로 | 컴포넌트 | 설명 |
+|------|---------|------|
+| `/` | `LoginPage` | 학생 인증 게이트 |
+| `/courses` | `CoursesPage` | 학기별 과목 선택 |
+| `/credits` | `CreditsPage` | 학점 현황·검증 |
+| `/career` | `CareerPage` | 진로 기반 추천 |
+| `/ai` | `AiRecommendPage` | AI 추천 |
+| `/profile` | `ProfilePage` | 학생 정보·제출 |
+| `/admin` | `AdminPage` | 관리자 대시보드 (탭 6종) |
 
-#### 화면 흐름
+### 5-2. 학생 세션 (`src/api/student.js`)
 
-```
-[학생 인증 게이트] → [메인 화면]
-      │                    ├── 학생 정보 입력 (학번, 이름, 희망 진로)
-      │                    ├── 학기별 과목 선택 (체크박스)
-      │                    ├── 공동교육과정 수기 추가
-      │                    ├── AI 추천 + Career.net 연동
-      │                    ├── 실시간 검증 결과
-      │                    ├── 선택 과목 목록 + 학점 합계
-      │                    └── [제출 모달] → 최종 확인 → 제출
-```
+- `localStorage` 키 `verifiedStudent` 에 `{ 학번 }` 만 저장.
+- `sessionStorage`와 미러링하여 기존 코드 호환 유지.
 
-#### 전역 상태
+### 5-3. API 래퍼 / 멀티 테넌트 격리 (`src/api/db.js`)
 
-| 변수 | 타입 | 설명 |
-|------|------|------|
-| `PROCESSED_COURSES` | `Array<Object>` | 가공된 개설 과목 목록 (Config → 프론트 정규화) |
-| `jointCourses` | `Array<Object>` | 학생이 추가한 공동교육과정 과목 |
-| `selectionRules` | `Object` | 학기별 선택 제한 규칙 (`Settings`에서 로드) |
-| `studentSessionVerified` | `boolean` | 학생 인증 완료 여부 |
-| `requiresStudentGate` | `boolean` | 인증 게이트 활성화 여부 (`Settings`에서 로드) |
+- 학생용 키: `gas_api_url`
+- 관리자용 키: `gas_api_url:{email}` (같은 컴퓨터에서 여러 관리자가 로그인해도 시트가 섞이지 않음)
+- 관리자가 Google 로그인하면 `router.js` 가 라우터 GAS에서 매핑을 조회해 `gas_api_url:{email}` 을 자동 복원.
 
-#### 주요 함수
+### 5-4. 관리자 페이지 탭
 
-| 함수 | 역할 |
-|------|------|
-| `init()` | API URL 로드 → 설정/편제표/학적 로드 → 렌더링 |
-| `loadData()` | Config + Settings + Registry 를 GAS에서 fetch |
-| `renderCourses()` | 학기별 과목 목록 렌더링 (체크박스 + 학점 표시) |
-| `getSelected()` | 체크된 과목 ID → 과목 객체 배열 반환 |
-| `validateSelections()` | `Validation.validate()` 호출 → 결과 UI 반영 |
-| `validateSelectionRules(selected)` | 학기별 개수/학점 제한 추가 검증 |
-| `applyLimits()` | 학기별 선택 수 초과 시 체크박스 비활성화 |
-| `renderSelectedCourses()` | 선택된 과목 목록 UI 업데이트 |
-| `openSubmitModal()` | 제출 전 최종 확인 모달 |
-| `runCombinedRecommendation()` | AI + Career.net 추천 동시 실행 → 로드맵 표시 |
-| `bindLoginGateHandlers()` | 학생 인증 게이트 이벤트 바인딩 |
-
-#### 핵심 DOM 요소
-
-| ID | 역할 |
-|----|------|
-| `student-login-gate` | 인증 모달 오버레이 |
-| `course-list-container` | 학기별 과목 체크박스 영역 |
-| `selected-courses-list` | 선택된 과목 목록 |
-| `total-credits` | 총 학점 표시 |
-| `validation-messages` | 검증 결과 메시지 |
-| `ai-helper-content` | AI 추천 결과 영역 |
-| `joint-course-list` | 공동교육과정 목록 |
-| `submit-modal` | 제출 확인 모달 |
-
-### 5-2. 관리자 페이지 (`admin.html`)
-
-탭 기반 SPA. `switchTab(tabName)` 함수로 탭 전환.
-
-#### 탭 구성
-
-| 탭 ID | 이름 | 설명 |
-|-------|------|------|
+| 탭 ID | 이름 | 주요 기능 |
+|-------|------|----------|
 | `tab-system` | 시스템 설정 | API URL, 학교명, 인증 게이트 on/off |
-| `tab-courses` | 교육과정 관리 | 엑셀 업로드/다운로드, 편제표 미리보기 |
-| `tab-rules` | 선택 규칙 | 학기별 과목 수/학점 제한, 다학기 연결 규칙 |
-| `tab-share` | 배포 및 공유 | 학생 페이지 URL, QR코드 생성, 학적 관리 |
-| `tab-bulk` | 일괄 등록 | 수강신청 일괄 업로드 (엑셀) |
-| `tab-dashboard` | 대시보드 | 제출 현황, 학생별 리포트, 반 통계, AI 분석 |
-
-#### 대시보드 주요 기능
-
-| 기능 | 함수 | 설명 |
-|------|------|------|
-| 제출 현황 | `loadStudentData()` | Responses 시트 조회 → 테이블 렌더링 |
-| 학생 리포트 | `renderDetailedStudentReport(s)` | 개별 학생 상세: 학점 분포 차트, 과목 목록, 검증 결과, AI 추천 |
-| 반 통계 | `renderClassStatsDashboard()` | 반별 과목 선택 통계, 진로 적합도 차트 |
-| 과목별 통계 | `renderClassSubjectStats()` | 과목별 선택 인원 수, 학년별 분포 |
-| 진로 적합도 | `analyzeClassCareerSuitability()` | 학생별 선택 과목 vs AI 추천 과목 매칭 점수 |
-| 검증 통계 | `renderValidationStats()` | 학급 내 검증 통과/미통과 비율 |
-| 인쇄 | `html2canvas` | 리포트카드 이미지/PDF 내보내기 |
-
-#### 주요 전역 함수 (admin)
-
-| 함수 | 역할 |
-|------|------|
-| `switchTab(tabName)` | 탭 전환 (6개 탭) |
-| `loadConfig()` | 편제표 로드 + 미리보기 테이블 렌더 |
-| `loadCourseCount()` | 개설 과목 수 카운트 표시 |
-| `loadRulesAndClassification()` | 학기별 선택 규칙 UI 렌더 |
-| `saveMultiRules()` | 다학기 규칙 저장 |
-| `updateShareLink()` | 학생 페이지 URL 생성 |
-| `renderRegistryCodesPanel()` | 학생 코드 목록 + 복사/CSV 내보내기 |
-| `runBulkEnrollmentUpload()` | 엑셀 일괄 등록 → Responses에 append |
-| `updateDashboardCounts()` | 대시보드 요약 숫자 갱신 |
-| `getAiRecommendations(major)` | admin 모드 AI 추천 호출 |
-| `fetchAiCareerAnalysis(major, ...)` | 진로 분석 AI 호출 |
+| `tab-courses` | 교육과정 관리 | 코호트별 편제표 엑셀 업·다운로드 / 미리보기 |
+| `tab-rules` | 선택 규칙 | 학기별 과목 수·학점 제한, 다학기 연결 규칙 |
+| `tab-share` | 배포 및 공유 | 학생 페이지 URL, QR, 학적 관리(코드 자동 발급) |
+| `tab-bulk` | 일괄 등록 | 수강신청 엑셀 일괄 업로드 |
+| `tab-dashboard` | 대시보드 | 제출 현황, 학생 리포트, 반 통계, AI 진로 적합도 분석 |
 
 ---
 
-## 6. JS 모듈 상세
+## 6. 데이터 흐름
 
-### 6-1. `db.js` — DB 객체
+### 학생 수강신청
+```
+LoginPage    ── verifyStudent(코드+학번) ─→ GAS(Registry) ─→ { status, student }
+CoursesPage  ─ fetchConfig(cohort) ─→ GAS(Config_GN)
+             ─ fetchSettings() ─→ GAS(Settings.A1 JSON)
+             ─ 체크박스 변경 시 클라이언트 Validation 실행
+ProfilePage  ─ submitResponse(payload) ─→ GAS(Responses append)
+```
 
-GAS API와 통신하는 싱글턴 래퍼. `window.DB`로 전역 노출.
+### 관리자 운영
+```
+AdminPage(Google 로그인) ─ router.getMapping(email) ─→ apiUrl 자동 복원
+                         ─ router.setMapping(idToken, apiUrl) ─→ 첫 등록
+편제표 업로드 ─ excel.read() → saveConfig({ cohort, rows })
+학적 업로드 ─→ saveRegistry(rows)  # GAS에서 학생코드 자동 발급
+규칙 저장 ─→ saveSettings(json)
+대시보드 ─→ fetchResponses() → 차트/리포트 렌더링
+```
 
-| 메서드 | HTTP | action | 설명 |
-|--------|------|--------|------|
-| `init(url)` | - | - | API URL 설정 |
-| `isConfigured()` | - | - | URL 설정 여부 |
-| `fetchConfig()` | GET | `getConfig` | 편제표 조회 |
-| `saveConfig(courses)` | POST | `saveConfig` | 편제표 저장 |
-| `fetchSettings()` | GET | `getSettings` | 설정 조회 |
-| `saveSettings(settings)` | POST | `saveSettings` | 설정 저장 |
-| `fetchResponses()` | GET | `getResponses` | 수강신청 결과 조회 |
-| `submitResponse(data)` | POST | `submitResponse` | 수강신청 제출 |
-| `deleteResponse(ids)` | POST | `deleteResponse` | 응답 삭제 |
-| `fetchRegistry()` | GET | `getRegistry` | 학적부 조회 |
-| `saveRegistry(registry)` | POST | `saveRegistry` | 학적부 저장 |
-| `fetchJointCurriculum()` | GET | `getJointCurriculum` | 공동교육과정 조회 |
-| `saveJointCurriculum(data)` | POST | `saveJointCurriculum` | 공동교육과정 저장 |
-| `verifyStudent({ studentCode, studentId, name })` | POST | `verifyStudent` | 학생 인증 |
-
-### 6-2. `validation.js` — 검증 엔진
-
-`window.Validation.validate(selectedCourses, jointCourses, limits)` → `{ valid, messages[], type }`
-
-| 검증 항목 | 기준 | 에러 메시지 |
-|-----------|------|------------|
-| 총 학점 | ≥ 174 | `총 이수 학점(174)이 부족합니다.` |
-| 기초교과 비율 | ≤ 50% | `기초교과 이수 단위가 50% 초과` |
-| 예술교과 | ≥ 10학점 | `예술교과 이수 학점(10) 부족` |
-| 교양교과 | ≥ 16학점 | `생활·교양 교과군 필수 이수 학점(16) 부족` |
-| 선수과목 | 선이수 과목 포함 여부 | `'X' 수강을 위해 선이수 과목(Y) 필요` |
-
-### 6-3. `roadmap.js` — AI 매칭
-
-| 함수 | 설명 |
-|------|------|
-| `normalizeSubjectToken(s)` | 괄호/공백/특수문자 제거 + 소문자 정규화 |
-| `matchRecommendedToCourses(hints, courses)` | AI 추천 과목명 → 개설 과목 매칭 (100/80/50점 스코어링) |
-| `parseAiSubjectLines(aiText)` | AI 텍스트 응답에서 과목명 추출 (콜론 앞 텍스트) |
-| `groupCoursesBySemester(courses)` | 학년-학기별 그룹핑 |
-| `summarizeSelectionRules(rules)` | 학기별 선택 규칙 텍스트 요약 |
-
-### 6-4. `excel-handler.js` — 엑셀 처리
-
-| 함수 | 설명 |
-|------|------|
-| `readExcel(file)` | 엑셀 → JSON 배열 |
-| `readExcelRaw(file)` | 엑셀 → 2차원 배열 (헤더 포함) |
-| `downloadExcel(data, fileName, sheetName)` | JSON → 엑셀 다운로드 |
-| `downloadTemplate()` | 교육과정 편제표 양식 다운로드 |
-| `downloadRegistryTemplate()` | 학적부 양식 다운로드 |
-| `downloadJointCurriculumTemplate()` | 공동교육과정 양식 다운로드 |
-| `downloadBulkEnrollmentTemplate(courses)` | 수강신청 일괄등록 양식 다운로드 |
-
-### 6-5. `theme.js` — 테마 관리
-
-4종 테마, CSS 커스텀 프로퍼티로 전환. `localStorage`에 저장.
-
-| 테마 | 키 |
-|------|-----|
-| 라이트 | `light` |
-| 다크 네온 | `dark-neon` |
-| 도쿄 나이트 | `tokyo-night` |
-| 솔라라이즈드 라이트 | `solarized-light` |
-
-CSS 변수: `--bg-color`, `--text-color`, `--text-muted`, `--card-bg`, `--border-color`, `--primary-color`, `--secondary-color`, `--input-bg`, `--hover-bg`
-
-### 6-6. `student-code.js` — 학생코드
-
-| 함수 | 설명 |
-|------|------|
-| `normalizeStudentCodeInput(str)` | 입력 정규화 (대문자 + 영숫자만) |
-| `generateStudentCode()` | 10자리 랜덤 코드 생성 (`crypto.getRandomValues`) |
-| `generateUniqueStudentCode(usedSet)` | 중복 방지 코드 생성 (최대 5000회 재시도) |
+### AI 추천 (브라우저는 API 키를 보지 못함)
+```
+브라우저 ─ POST /.netlify/functions/ai-recommendation ─→ Netlify Function
+                                                       │ OPENAI_API_KEY 사용
+                                                       ↓
+                                                    OpenAI GPT-4o
+                                                       ↓
+                       학생 모드: 평문 추천 / admin 모드: JSON
+```
 
 ---
 
-## 7. 데이터 흐름
+## 7. 검증 규칙 (요약)
 
-### 학생 수강신청 흐름
+| 항목 | 기준 |
+|------|------|
+| 총 이수 학점 | ≥ 174 |
+| 기초교과 비율 | ≤ 50% |
+| 예술교과 | ≥ 10학점 |
+| 생활·교양 교과군 | ≥ 16학점 |
+| 선수과목 | 선이수 미충족 시 차단 |
+| 학기별 제한 | `Settings.selectionRules`의 (학점, 개수) 조합 |
 
-```
-1. 학생 → index.html 접속
-2. [인증 게이트] studentCode(10자리) + 학번(5자리) + 이름
-   → DB.verifyStudent() → GAS verifyStudent() → Registry 시트 대조
-3. 인증 성공 → 학번/이름 잠금, 희망 진로만 입력
-4. Config 로드 → 학기별 과목 체크박스 렌더
-5. 과목 선택 → 실시간 학점 계산 + 검증 (Validation.validate)
-6. (선택) AI 추천 → Netlify Function → OpenAI GPT-4o
-7. (선택) 공동교육과정 수기 추가
-8. 제출 → DB.submitResponse() → GAS → Responses 시트에 append
-```
-
-### 관리자 운영 흐름
-
-```
-1. admin.html → 시스템 설정 탭: GAS URL 입력
-2. 교육과정 관리: 엑셀 업로드 → DB.saveConfig()
-3. 학적 관리: 엑셀 업로드 → DB.saveRegistry() (코드 자동 생성)
-4. 선택 규칙 설정 → DB.saveSettings()
-5. 배포: 학생 페이지 URL + QR코드 생성/배포
-6. 대시보드: DB.fetchResponses() → 테이블/차트/리포트
-7. AI 분석: 학생별 진로 적합도 분석
-```
+상세 코드는 `src/pages/CreditsPage.jsx` 및 `src/pages/CoursesPage.jsx`의 검증 로직 참고.
 
 ---
 
 ## 8. 환경변수
 
-| 변수 | 위치 | 설명 |
-|------|------|------|
-| `OPENAI_API_KEY` | Netlify | OpenAI API 키 (필수: AI 추천) |
-| `CAREERNET_API_BASE_URL` | Netlify | Career.net API URL (선택) |
-| `CAREERNET_API_KEY` | Netlify | Career.net API 키 (선택) |
-| `CAREERNET_API_PATH` | Netlify | Career.net 경로 (기본: `/recommend`) |
+| 변수 | 위치 | 필수 | 설명 |
+|------|------|------|------|
+| `OPENAI_API_KEY` | Netlify | O | OpenAI API 키 (AI 추천) |
+| `VITE_GAS_ROUTER_URL` | Netlify (빌드 시 주입) | O(멀티테넌트 사용 시) | 라우터 GAS Web App URL |
+| `CAREERNET_API_BASE_URL` | Netlify | X | 미설정 시 Mock |
+| `CAREERNET_API_KEY` | Netlify | X | 〃 |
+| `CAREERNET_API_PATH` | Netlify | X | 기본값 `/recommend` |
+| `EXPECTED_AUDIENCE` | 라우터 GAS 스크립트 속성 | O | Google OAuth Client ID. 미설정 시 모든 매핑 변경 거부 |
 
 ---
 
 ## 9. 보안 & 제약사항
 
-- 학생 인증: 3-factor (코드 + 학번 + 이름), 서버 사이드 검증
-- GAS는 CORS 제한 → `Content-Type: text/plain` + `redirect: follow`
-- 모든 저장 작업은 시트 전체 덮어쓰기 (`sheet.clear()` → 재작성), Responses만 append 방식
-- 클라이언트 + 서버 양쪽에서 입력 정규화 (공백, 대소문자, 특수문자)
-- AI 호출은 `temperature: 0.3`으로 일관성 유지
+- **학생 인증은 2-factor**: 학생코드 + 학번. GAS 서버에서 정규화 후 비교. 이름은 개인정보라 수집·저장·검증 모두 안 함.
+- **CORS**: GAS Web App은 CORS 제약상 `text/plain` + `redirect: follow` 조합으로만 통과. Netlify Functions는 `Access-Control-Allow-*` 헤더 + `OPTIONS` preflight 처리.
+- **시트 쓰기 직렬화**: 모든 save 액션과 submitResponse가 `LockService.getDocumentLock()`로 보호되어 동시 호출 시 race condition·데이터 손실을 차단.
+- **저장 정책**: `Responses` 시트만 append, 나머지는 락 보호 하에 시트 전체 덮어쓰기(`sheet.clear()` → 재작성).
+- **관리자 라우터 보안**: Google ID 토큰을 tokeninfo로 검증 + `email_verified` + `aud`(=`EXPECTED_AUDIENCE`) + `exp` 모두 확인. `EXPECTED_AUDIENCE` 미설정 시 매핑 변경 자체가 거부됨.
+- **AI 입력 보호**: `ai-recommendation` Function이 입력 길이·제어문자를 정리하여 prompt injection 표면과 비용 폭증을 동시에 완화.
+- **AI 호출 일관성**: `temperature: 0.3`.
+- **학생코드 발급**: 충돌 시 재시도하되 1000회 상한 — 학번당 무한 루프 방지.

@@ -7,10 +7,14 @@
  * 1. 새 Google Sheet 생성 (예: "Curriculum Router")
  * 2. Extensions > Apps Script > 이 코드 붙여넣기
  * 3. setupRouter() 함수 1회 실행 → Mappings 시트 생성됨
- * 4. Deploy > New deployment > Web app
+ * 4. **스크립트 속성 EXPECTED_AUDIENCE 등록 (필수)**
+ *    - Apps Script 편집기 → Project Settings → Script properties → Add property
+ *    - Key: EXPECTED_AUDIENCE, Value: 프론트엔드가 사용하는 Google OAuth Client ID
+ *    - 이 값이 없으면 setMapping/deleteMapping 모두 실패합니다.
+ * 5. Deploy > New deployment > Web app
  *    - Execute as: Me
  *    - Who has access: Anyone
- * 5. 발급된 URL을 Netlify 환경변수 VITE_GAS_ROUTER_URL에 등록
+ * 6. 발급된 URL을 Netlify 환경변수 VITE_GAS_ROUTER_URL에 등록
  *
  * 매핑 구조:
  *   email      — Google 로그인한 관리자 이메일 (소문자 정규화)
@@ -23,7 +27,8 @@
  *     각 학교 GAS의 doGet/doPost에서 별도로 해야 함)
  *   - setMapping은 클라이언트가 보낸 Google ID 토큰을 https://oauth2.googleapis.com/tokeninfo
  *     로 검증하여 토큰의 email로만 매핑을 작성/갱신함 → 다른 사람의 매핑을 임의로 덮어쓸 수 없음
- *   - audience(aud)도 검증해야 안전 (스크립트 속성 EXPECTED_AUDIENCE 에 Client ID 등록 권장)
+ *   - EXPECTED_AUDIENCE(=Client ID) 검증을 필수로 강제 → 다른 앱의 토큰 재사용 차단
+ *   - exp(만료시각) 추가 검증 → 시계 어긋남에도 만료된 토큰 거부
  */
 
 function setupRouter() {
@@ -137,6 +142,12 @@ function deleteMapping(req) {
 /* ─── ID 토큰 검증 ─── */
 function verifyIdToken_(idToken) {
   try {
+    // audience(=Google OAuth Client ID) 사전 등록 필수.
+    // Why: 미설정 시 audience 체크를 건너뛰면 다른 앱의 ID 토큰으로도 임의 이메일 매핑이 가능해진다.
+    var expectedAud = PropertiesService.getScriptProperties().getProperty('EXPECTED_AUDIENCE');
+    if (!expectedAud) {
+      return { ok: false, message: '라우터 GAS의 스크립트 속성 EXPECTED_AUDIENCE(Google OAuth Client ID)가 설정되지 않았습니다.' };
+    }
     var resp = UrlFetchApp.fetch(
       'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken),
       { muteHttpExceptions: true }
@@ -149,9 +160,13 @@ function verifyIdToken_(idToken) {
     if (!info.email_verified || info.email_verified === 'false') {
       return { ok: false, message: 'email not verified' };
     }
-    var expectedAud = PropertiesService.getScriptProperties().getProperty('EXPECTED_AUDIENCE');
-    if (expectedAud && info.aud !== expectedAud) {
+    if (info.aud !== expectedAud) {
       return { ok: false, message: 'audience mismatch' };
+    }
+    // exp는 tokeninfo가 검증해 200을 돌려주지만, 시계 어긋남을 대비해 한 번 더 확인.
+    var nowSec = Math.floor(Date.now() / 1000);
+    if (info.exp && Number(info.exp) < nowSec) {
+      return { ok: false, message: 'token expired' };
     }
     return { ok: true, email: info.email };
   } catch (e) {
