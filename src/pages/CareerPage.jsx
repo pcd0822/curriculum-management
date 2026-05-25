@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Header from '../components/Header';
 import MobileNav from '../components/MobileNav';
 import {
@@ -9,6 +9,9 @@ import {
   getProfessorInterview,
   getMajorCurriculum,
   getCurriculumCourseDetail,
+  suggestInfoMajors,
+  suggestInterviewMajors,
+  suggestCurriculumMajors,
 } from '../api/careernet';
 import { getStudentAvatarLabel } from '../api/student';
 
@@ -78,6 +81,138 @@ function Spinner() {
   return (
     <div className="flex justify-center py-12">
       <div className="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+    </div>
+  );
+}
+
+/**
+ * 검색·조회 중 큰 도넛 모양 로더.
+ * 학과탐색 하위 3개 뷰(학과정보·교수 인터뷰·커리큘럼)의 메인 로딩 표시용.
+ */
+/**
+ * 학과명 자동완성 입력. 입력 변화에 디바운스를 걸어 fetchSuggestions를 호출하고
+ * 매칭되는 학과명을 드롭다운으로 표시. 항목 클릭 시 onSubmit으로 즉시 검색 실행.
+ */
+function MajorAutocomplete({ value, onChange, onSubmit, fetchSuggestions, placeholder, disabled }) {
+  const [open, setOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const containerRef = useRef(null);
+  // fetchSuggestions가 매 렌더마다 새 함수일 수 있으므로 ref로 보관해 useEffect 의존성에서 제외.
+  const fetchRef = useRef(fetchSuggestions);
+  useEffect(() => { fetchRef.current = fetchSuggestions; }, [fetchSuggestions]);
+
+  // 250ms 디바운스 후 suggestions fetch
+  useEffect(() => {
+    const q = (value || '').trim();
+    if (!q) { setSuggestions([]); setLoading(false); return; }
+    setLoading(true);
+    const handle = setTimeout(async () => {
+      try {
+        const list = await fetchRef.current(q);
+        setSuggestions(Array.isArray(list) ? list : []);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [value]);
+
+  // 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const handleSelect = (name) => {
+    onChange(name);
+    setOpen(false);
+    if (onSubmit) onSubmit(name);
+  };
+
+  const renderHighlight = (text) => {
+    const q = (value || '').trim();
+    if (!q) return text;
+    const idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) return text;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <span className="text-indigo-700 font-bold">{text.slice(idx, idx + q.length)}</span>
+        {text.slice(idx + q.length)}
+      </>
+    );
+  };
+
+  const trimmed = (value || '').trim();
+  return (
+    <div ref={containerRef} className="flex-1 relative">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { setOpen(false); if (onSubmit) onSubmit(value); }
+          else if (e.key === 'Escape') { setOpen(false); }
+        }}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="w-full bg-white rounded-xl px-4 py-2.5 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-slate-100"
+      />
+      {open && trimmed && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-lg border border-slate-100 z-30 max-h-72 overflow-y-auto">
+          {loading ? (
+            <div className="px-4 py-3 text-slate-400 text-xs text-center">불러오는 중...</div>
+          ) : suggestions.length === 0 ? (
+            <div className="px-4 py-3 text-slate-400 text-xs text-center">일치하는 학과가 없습니다.</div>
+          ) : (
+            <ul>
+              {suggestions.map((s, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault() /* blur로 닫히기 전 클릭 처리 */}
+                    onClick={() => handleSelect(s)}
+                    className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 transition"
+                  >
+                    {renderHighlight(s)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SearchingLoader({ message = '검색 중...' }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16">
+      <div className="relative w-20 h-20">
+        {/* 도넛 베이스 ring (연한 색) */}
+        <div className="absolute inset-0 rounded-full border-[8px] border-indigo-100" />
+        {/* 회전하는 강조 호 */}
+        <div className="absolute inset-0 rounded-full border-[8px] border-transparent border-t-indigo-600 border-r-indigo-500 animate-spin" />
+        {/* 중앙 점 (도넛 가운데 강조) */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+        </div>
+      </div>
+      <p className="text-slate-600 text-sm mt-5 font-semibold" style={{ fontFamily: "'Manrope', sans-serif" }}>
+        {message}
+      </p>
+      <p className="text-slate-400 text-xs mt-1">잠시만 기다려주세요</p>
     </div>
   );
 }
@@ -489,10 +624,15 @@ function MajorInfoView() {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
 
-  const handleSearch = () => {
-    setSearchQuery(searchInput);
+  const handleSearch = (val) => {
+    const next = typeof val === 'string' ? val : searchInput;
+    setSearchInput(next);
+    setSearchQuery(next);
     setCurrentPage(1);
   };
+
+  // 자동완성용 — activeSubject가 바뀔 때만 새 함수 생성
+  const fetchInfoSuggestions = useCallback((q) => suggestInfoMajors(activeSubject, q), [activeSubject]);
 
   const openDetail = async (majorSeq) => {
     setDetailLoading(true);
@@ -674,16 +814,15 @@ function MajorInfoView() {
 
       {/* Search */}
       <div className="flex gap-2 mb-4">
-        <input
-          type="text"
+        <MajorAutocomplete
           value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="학과명 검색"
-          className="flex-1 bg-white rounded-xl px-4 py-2.5 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          onChange={setSearchInput}
+          onSubmit={handleSearch}
+          fetchSuggestions={fetchInfoSuggestions}
+          placeholder="학과명 검색 (예: 생명공학)"
         />
         <button
-          onClick={handleSearch}
+          onClick={() => handleSearch()}
           className="bg-indigo-600 text-white px-4 rounded-xl text-sm font-semibold shadow-sm hover:bg-indigo-700 transition"
         >
           검색
@@ -691,7 +830,7 @@ function MajorInfoView() {
       </div>
 
       {loading ? (
-        <Spinner />
+        <SearchingLoader message="학과를 검색하고 있어요" />
       ) : majorList.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-slate-400 text-sm">검색 결과가 없습니다.</p>
@@ -832,13 +971,12 @@ function ProfessorInterviewView() {
       <p className="text-slate-500 text-sm mb-4">학과를 입력하면 교수님과의 Q&A 카드를 한 장씩 넘겨볼 수 있어요.</p>
 
       <div className="flex gap-2 mb-4">
-        <input
-          type="text"
+        <MajorAutocomplete
           value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && loadInterview(searchInput)}
+          onChange={setSearchInput}
+          onSubmit={(val) => loadInterview(val)}
+          fetchSuggestions={suggestInterviewMajors}
           placeholder="예) 컴퓨터공학과"
-          className="flex-1 bg-white rounded-xl px-4 py-2.5 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
         />
         <button
           onClick={() => loadInterview(searchInput)}
@@ -852,7 +990,7 @@ function ProfessorInterviewView() {
         <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3 mb-4">{error}</div>
       )}
 
-      {loading ? <Spinner /> : !data ? (
+      {loading ? <SearchingLoader message="교수님 인터뷰를 찾고 있어요" /> : !data ? (
         <div className="text-center py-12 text-slate-400 text-sm">
           관심 학과를 입력해 교수님 인터뷰를 찾아보세요.
         </div>
@@ -1040,13 +1178,12 @@ function CurriculumView() {
       <p className="text-slate-500 text-sm mb-4">학과를 입력해 매칭된 대학을 선택하면 4년 강의계획서를 확인할 수 있어요.</p>
 
       <div className="flex gap-2 mb-4">
-        <input
-          type="text"
+        <MajorAutocomplete
           value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && loadUniversities(searchInput)}
+          onChange={setSearchInput}
+          onSubmit={(val) => loadUniversities(val)}
+          fetchSuggestions={suggestCurriculumMajors}
           placeholder="예) 컴퓨터공학과"
-          className="flex-1 bg-white rounded-xl px-4 py-2.5 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
         />
         <button
           onClick={() => loadUniversities(searchInput)}
@@ -1063,7 +1200,15 @@ function CurriculumView() {
         <div className="bg-amber-50 text-amber-700 text-xs rounded-xl px-4 py-2.5 mb-4">{info}</div>
       )}
 
-      {loading ? <Spinner /> : stage === 'idle' ? (
+      {loading ? (
+        <SearchingLoader
+          message={
+            stage === 'courses' || pickedUniversity
+              ? `${pickedUniversity} 커리큘럼을 불러오고 있어요`
+              : '매칭된 대학을 찾고 있어요'
+          }
+        />
+      ) : stage === 'idle' ? (
         <div className="text-center py-12 text-slate-400 text-sm">
           관심 학과를 입력해 커리큘럼을 확인해보세요.
         </div>

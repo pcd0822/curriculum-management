@@ -75,6 +75,32 @@ exports.handler = async function (event) {
     }
 
     const params = event.queryStringParameters || {};
+
+    // ─── suggest 모드: 학과명 자동완성용 distinct 목록 ───
+    if (params.suggest != null) {
+        const q = String(params.suggest).trim().slice(0, 50);
+        if (!q) return respond(200, { suggestions: [] });
+        const url = new URL(ENDPOINT);
+        url.searchParams.set('page', '1');
+        url.searchParams.set('perPage', '100');
+        url.searchParams.set('returnType', 'json');
+        url.searchParams.set('serviceKey', apiKey);
+        url.searchParams.set('cond[인터뷰제목::LIKE]', q);
+        try {
+            const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+            const raw = await res.json();
+            const rows = Array.isArray(raw.data) ? raw.data : [];
+            const set = new Set();
+            for (const r of rows) {
+                const t = String(r['인터뷰제목'] || '').trim();
+                if (t) set.add(t);
+            }
+            return respond(200, { suggestions: Array.from(set).sort() });
+        } catch (err) {
+            return respond(200, { suggestions: [] });
+        }
+    }
+
     const rawMajor = String(params.major || '').trim();
     if (!rawMajor) {
         return respond(400, { error: 'major 파라미터가 필요합니다.' });

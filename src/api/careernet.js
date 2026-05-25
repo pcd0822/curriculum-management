@@ -67,6 +67,52 @@ export async function getCareernetRecommendation(major, keyword) {
   return res.json();
 }
 
+/* ─── 학과명 자동완성 (학과 정보 탐색용 — 커리어넷) ───
+ * subject(계열 코드) 안에서 q로 학과명 부분일치 검색 → distinct 학과명 배열.
+ */
+export async function suggestInfoMajors(subject, q) {
+  if (!q || !q.trim()) return [];
+  try {
+    const data = await getMajorList(subject || '', 1, 20, q.trim());
+    const raw = data?.dataSearch?.content;
+    const items = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+    const names = new Set();
+    items.forEach((m) => {
+      const n = String(m.mClass || m.major || '').trim();
+      if (n) names.add(n);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'ko'));
+  } catch {
+    return [];
+  }
+}
+
+/* ─── 학과명 자동완성 (교수님 인터뷰용 — odcloud) ─── */
+export async function suggestInterviewMajors(q) {
+  if (!q || !q.trim()) return [];
+  try {
+    const res = await fetch(`${BASE}/careernet-interview?suggest=${encodeURIComponent(q.trim())}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.suggestions) ? data.suggestions : [];
+  } catch {
+    return [];
+  }
+}
+
+/* ─── 학과명 자동완성 (커리큘럼용 — odcloud) ─── */
+export async function suggestCurriculumMajors(q) {
+  if (!q || !q.trim()) return [];
+  try {
+    const res = await fetch(`${BASE}/careernet-curriculum?suggest=${encodeURIComponent(q.trim())}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.suggestions) ? data.suggestions : [];
+  } catch {
+    return [];
+  }
+}
+
 /* ─── 학과 교수님 인터뷰 ───
  * Netlify Function 프록시 경유 (공공데이터포털 odcloud).
  * 서버에서 인증키(ODCLOUD_API_KEY) 보관 + 응답 정규화.

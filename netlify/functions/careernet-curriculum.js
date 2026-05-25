@@ -138,6 +138,32 @@ exports.handler = async function (event) {
     }
 
     const params = event.queryStringParameters || {};
+
+    // ─── suggest 모드: 학과명 자동완성용 distinct 목록 ───
+    if (params.suggest != null) {
+        const q = str(params.suggest).slice(0, 50);
+        if (!q) return respond(200, { suggestions: [] });
+        const url = new URL(ENDPOINT);
+        url.searchParams.set('page', '1');
+        url.searchParams.set('perPage', String(MAX_PER_PAGE));
+        url.searchParams.set('returnType', 'json');
+        url.searchParams.set('serviceKey', apiKey);
+        url.searchParams.set('cond[학부 과명::LIKE]', q);
+        try {
+            const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+            const raw = await res.json();
+            const rows = Array.isArray(raw.data) ? raw.data : [];
+            const set = new Set();
+            for (const r of rows) {
+                const t = str(r['학부 과명']);
+                if (t) set.add(t);
+            }
+            return respond(200, { suggestions: Array.from(set).sort((a, b) => a.localeCompare(b, 'ko')) });
+        } catch (err) {
+            return respond(200, { suggestions: [] });
+        }
+    }
+
     const major = str(params.major).slice(0, 50);
     const university = str(params.university).slice(0, 50);
     if (!major) {
