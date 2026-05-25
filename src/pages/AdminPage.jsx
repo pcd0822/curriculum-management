@@ -522,6 +522,8 @@ export default function AdminPage() {
         try {
           await registerMyMapping({ idToken, apiUrl: url, schoolName: (schoolName || '').trim() });
           setConnStatus('✅ 저장 완료. 다른 기기에서도 동일 계정으로 로그인하면 자동 로드됩니다.');
+          // 동기화 상태도 즉시 갱신 — 그렇지 않으면 첫 진입 시 캐시된 "매핑 없음" 메시지가 남는다.
+          setRouterStatus('✅ 매핑 동기화됨');
         } catch (e) {
           setConnStatus('⚠️ 로컬 저장됨, 라우터 등록 실패: ' + e.message);
         }

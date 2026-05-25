@@ -102,6 +102,9 @@ function setMapping(req) {
   if (!email) return jsonOut({ status: 'error', message: '토큰에서 이메일을 찾을 수 없음' });
 
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Mappings');
+  if (!sh) {
+    return jsonOut({ status: 'error', message: '라우터 초기화 미완료: 라우터 GAS 편집기에서 setupRouter() 함수를 1회 실행하여 Mappings 시트를 생성하세요.' });
+  }
   var rows = sh.getDataRange().getValues();
   var now = new Date();
   var foundRow = -1;
@@ -129,6 +132,9 @@ function deleteMapping(req) {
   if (!email) return jsonOut({ status: 'error', message: '토큰에서 이메일을 찾을 수 없음' });
 
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Mappings');
+  if (!sh) {
+    return jsonOut({ status: 'error', message: '라우터 초기화 미완료: 라우터 GAS 편집기에서 setupRouter() 함수를 1회 실행하여 Mappings 시트를 생성하세요.' });
+  }
   var rows = sh.getDataRange().getValues();
   for (var r = rows.length - 1; r >= 1; r--) {
     if (normEmail_(rows[r][0]) === email) {
