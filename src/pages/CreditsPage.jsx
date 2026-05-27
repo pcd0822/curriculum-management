@@ -146,7 +146,7 @@ export default function CreditsPage() {
   const optionalCredits = selectedCourses.filter((c) => !c.required && !c.joint).reduce((s, c) => s + c.credits, 0);
   const jointCredits = selectedCourses.filter((c) => c.joint).reduce((s, c) => s + c.credits, 0);
   const foundationCredits = selectedCourses.filter(isFoundationCourse).reduce((s, c) => s + c.credits, 0);
-  const requiredTotalCredits = Number(settings?.requiredTotalCredits) || 180;
+  const requiredTotalCredits = Number(settings?.requiredTotalCredits) || 174;
   const totalProgress = Math.min(Math.round((totalCredits / requiredTotalCredits) * 100), 100);
 
   /* 교과군별 학점 분포 */

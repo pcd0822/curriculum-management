@@ -632,7 +632,7 @@ export default function AdminPage() {
      모든 규칙은 학년별로 분리되어 있다. 활성 학년(activeCohort) 값에 따라 표시·편집 대상이 바뀐다. */
   const [ruleInputsByCohort, setRuleInputsByCohort] = useState({ 1: {}, 2: {}, 3: {} });
   const [minCreditRulesByCohort, setMinCreditRulesByCohort] = useState({ 1: [], 2: [], 3: [] });
-  const [requiredTotalByCohort, setRequiredTotalByCohort] = useState({ 1: 180, 2: 180, 3: 180 });
+  const [requiredTotalByCohort, setRequiredTotalByCohort] = useState({ 1: 174, 2: 174, 3: 174 });
   const [prereqMapByCohort, setPrereqMapByCohort] = useState({ 1: {}, 2: {}, 3: {} }); // { 1: {'수학II': ['수학I']}, ... }
   const [prereqInputTarget, setPrereqInputTarget] = useState('');
   const [prereqInputPrereq, setPrereqInputPrereq] = useState('');
@@ -665,12 +665,12 @@ export default function AdminPage() {
     const rtbc = settings.requiredTotalCreditsByCohort;
     if (rtbc && typeof rtbc === 'object') {
       setRequiredTotalByCohort({
-        1: Number(rtbc[1] || rtbc['1']) || 180,
-        2: Number(rtbc[2] || rtbc['2']) || 180,
-        3: Number(rtbc[3] || rtbc['3']) || 180,
+        1: Number(rtbc[1] || rtbc['1']) || 174,
+        2: Number(rtbc[2] || rtbc['2']) || 174,
+        3: Number(rtbc[3] || rtbc['3']) || 174,
       });
     } else if (settings.requiredTotalCredits) {
-      const n = Number(settings.requiredTotalCredits) || 180;
+      const n = Number(settings.requiredTotalCredits) || 174;
       setRequiredTotalByCohort({ 1: n, 2: n, 3: n });
     }
 
@@ -691,7 +691,7 @@ export default function AdminPage() {
   const ruleInputs = ruleInputsByCohort[activeCohort] || {};
   const minCreditRules = minCreditRulesByCohort[activeCohort] || [];
   const prereqMap = prereqMapByCohort[activeCohort] || {};
-  const requiredTotalInput = requiredTotalByCohort[activeCohort] || 180;
+  const requiredTotalInput = requiredTotalByCohort[activeCohort] || 174;
   function setRequiredTotalInput(v) {
     setRequiredTotalByCohort(prev => ({ ...prev, [activeCohort]: v }));
   }
@@ -827,9 +827,9 @@ export default function AdminPage() {
           .map(r => ({ type: r.type, name: String(r.name).trim(), min: Number(r.min) || 0 }));
       });
       const totalByCohort = {
-        1: Number(requiredTotalByCohort[1]) || 180,
-        2: Number(requiredTotalByCohort[2]) || 180,
-        3: Number(requiredTotalByCohort[3]) || 180,
+        1: Number(requiredTotalByCohort[1]) || 174,
+        2: Number(requiredTotalByCohort[2]) || 174,
+        3: Number(requiredTotalByCohort[3]) || 174,
       };
       const rulesByCohort = {
         1: ruleInputsByCohort[1] || {},
