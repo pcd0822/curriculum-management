@@ -81,6 +81,12 @@ async function downloadPDF(canvas, filename) {
   pdf.save(filename);
 }
 
+/* 순위 인덱스별로 막대 색을 회전(보라→청록)시켜 막대마다 다른 그라데이션을 부여 */
+function barGradient(idx, total) {
+  const hue = 245 - (idx / Math.max(total - 1, 1)) * 160;
+  return `linear-gradient(90deg, hsl(${hue} 75% 62%), hsl(${hue} 80% 48%))`;
+}
+
 const TABS = [
   { key: 'dashboard', label: '대시보드', icon: '📊' },
   { key: 'system', label: '시스템 설정', icon: '⚙️' },
@@ -1044,6 +1050,26 @@ export default function AdminPage() {
     3: (coursesByCohort[3] || []).length,
   }), [coursesByCohort]);
 
+  /* 코호트별 학기 개설 과목수 요약 — 대시보드 '학년별 카드'용
+     각 코호트 편제표를 과목 자체의 학년-학기로 그룹핑 */
+  const cohortSemesterSummary = useMemo(() => {
+    return [1, 2, 3].map((cohort) => {
+      const list = coursesByCohort[cohort] || [];
+      const byKey = {};
+      list.forEach((c) => {
+        const g = c.학년 || c.grade;
+        const s = c.학기 || c.semester;
+        if (!g || !s) return;
+        const key = `${g}-${s}`;
+        byKey[key] = (byKey[key] || 0) + 1;
+      });
+      const rows = Object.entries(byKey)
+        .map(([semKey, count]) => ({ semKey, count }))
+        .sort((a, b) => a.semKey.localeCompare(b.semKey));
+      return { cohort, total: list.length, rows };
+    }).filter((c) => c.total > 0);
+  }, [coursesByCohort]);
+
   const statusMsg = (key) => uploadMsg[key] ? <p className="mt-3 text-sm">{uploadMsg[key]}</p> : null;
 
   /* ── 관리자 보안 설정 ──
@@ -1170,24 +1196,39 @@ export default function AdminPage() {
                 <StatCard icon="📊" label="평균 이수 학점" value={avgCredits} unit="학점" color="#4f46e5" />
                 <StatCard icon="✅" label="검증 통과율" value={passRate} unit="%" color="#059669" />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <Card><SectionTitle>교과군별 학점분포</SectionTitle>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <Card className="lg:col-span-1"><SectionTitle>검증 통과율</SectionTitle>
                   <div className="flex justify-center"><GaugeChart value={Number(passRate)} size={180} color="#4f46e5" label="통과율" /></div>
                 </Card>
-                <Card><SectionTitle>학년·학기별 개설과목 수</SectionTitle>
-                  <div className="flex items-end gap-4 h-48">
-                    {semesterKeys.map(k => {
-                      const count = coursesBySemester[k].length;
-                      return (
-                        <div key={k} className="flex-1 flex flex-col items-center gap-1">
-                          <span className="text-xs font-semibold text-slate-600">{count}</span>
-                          <div className="w-full rounded-t-lg" style={{ height: `${Math.min(count * 8, 160)}px`, background: 'linear-gradient(180deg, #6366f1, #4f46e5)' }} />
-                          <span className="text-[0.65rem] text-slate-500 mt-1">{k}</span>
-                        </div>
-                      );
-                    })}
-                    {semesterKeys.length === 0 && <p className="text-sm text-slate-400 m-auto">과목 데이터 없음</p>}
-                  </div>
+                <Card className="lg:col-span-2"><SectionTitle>학년별 개설 과목수</SectionTitle>
+                  {cohortSemesterSummary.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-12">등록된 편제표가 없습니다. 과목 데이터를 먼저 업로드하세요.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {cohortSemesterSummary.map(({ cohort, total, rows }) => {
+                        const maxCount = Math.max(...rows.map(r => r.count), 1);
+                        return (
+                          <div key={cohort} className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+                            <div className="flex items-baseline justify-between mb-2.5">
+                              <span className="text-sm font-bold text-slate-800">{cohort}학년 편제표</span>
+                              <span className="text-xs text-slate-500">총 <span className="font-bold text-indigo-600">{total}</span>과목</span>
+                            </div>
+                            <div className="space-y-1.5">
+                              {rows.map(({ semKey, count }) => (
+                                <div key={semKey} className="flex items-center gap-2">
+                                  <span className="text-[0.7rem] text-slate-500 w-12 flex-shrink-0">{semKey}학기</span>
+                                  <div className="flex-1 h-3 rounded-full bg-slate-200/70 overflow-hidden">
+                                    <div className="h-full rounded-full" style={{ width: `${(count / maxCount) * 100}%`, background: 'linear-gradient(90deg, #6366f1, #4f46e5)' }} />
+                                  </div>
+                                  <span className="text-[0.7rem] font-mono font-semibold text-slate-600 w-6 text-right">{count}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </Card>
               </div>
 
@@ -1210,13 +1251,13 @@ export default function AdminPage() {
                   const max = ranked[0][1];
                   return (
                     <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-2">
-                      {ranked.map(([name, count]) => (
+                      {ranked.map(([name, count], idx) => (
                         <div key={name} className="flex items-center gap-3">
                           <span className="text-sm text-slate-700 w-44 truncate flex-shrink-0" title={name}>{name}</span>
                           <div className="flex-1 h-5 rounded-full bg-slate-100 overflow-hidden relative">
                             <div
                               className="h-full rounded-full transition-all"
-                              style={{ width: `${(count / max) * 100}%`, background: 'linear-gradient(90deg, #6366f1, #4f46e5)' }}
+                              style={{ width: `${(count / max) * 100}%`, background: barGradient(idx, ranked.length) }}
                             />
                           </div>
                           <span className="text-xs font-mono font-semibold text-slate-700 w-12 text-right">{count}명</span>

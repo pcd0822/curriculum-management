@@ -184,7 +184,7 @@ function submitResponse(data) {
 
     // If sheet is empty, add headers
     if (sheet.getLastRow() === 0) {
-      const headers = ['Timestamp', 'Grade', 'Class', 'Number', 'Major', 'SelectedCourses', 'JointCourses', 'TotalCredits', 'ValidationResult', 'AiRecommendation'];
+      const headers = ['Timestamp', 'Grade', 'Class', 'Number', 'Major', 'SelectedCourses', 'JointCourses', 'TotalCredits', 'ValidationResult', 'AiRecommendation', 'CoursesDetail'];
       sheet.appendRow(headers);
     } else {
       // Check if new headers exist, if not add them
@@ -192,6 +192,7 @@ function submitResponse(data) {
       const missingHeaders = [];
       if (!headers.includes('ValidationResult')) missingHeaders.push('ValidationResult');
       if (!headers.includes('AiRecommendation')) missingHeaders.push('AiRecommendation');
+      if (!headers.includes('CoursesDetail')) missingHeaders.push('CoursesDetail');
 
       if (missingHeaders.length > 0) {
         // Append missing headers
@@ -215,6 +216,7 @@ function submitResponse(data) {
       else if (header === 'TotalCredits') row.push(data.TotalCredits || data.totalCredits);
       else if (header === 'ValidationResult') row.push(data.ValidationResult || data.validationResult || '');
       else if (header === 'AiRecommendation') row.push(data.AiRecommendation || data.aiRecommendation || '');
+      else if (header === 'CoursesDetail') row.push(data.CoursesDetail || data.coursesDetail || '');
       else row.push(''); // Unknown header placeholder
     });
 
