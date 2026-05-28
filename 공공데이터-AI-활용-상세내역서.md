@@ -7,7 +7,7 @@
 | 서비스명 | 고교학점제 진로학업설계 도우미 (curriculum-management) |
 | 서비스 형태 | 반응형 웹 애플리케이션 (PC/모바일) |
 | 배포 환경 | Netlify (정적 호스팅 + 서버리스 Functions) |
-| 배포 URL | _※ 제출 시 기입_ |
+| 배포 URL | https://curriculum-management.netlify.app/admin |
 | 핵심 사용자 | 고교학점제 도입 학교의 **학생 / 교사 / 관리자** |
 | 활용 공공데이터 | 공공데이터포털 odcloud(대학 강의계획서·학과 교수 인터뷰), 커리어넷(진로심리검사·학과정보) OpenAPI |
 | AI 활용 | OpenAI GPT-4o 기반 진로 맞춤 과목 추천 및 학생부 설계 보조 |
