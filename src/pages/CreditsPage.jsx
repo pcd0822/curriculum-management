@@ -159,6 +159,21 @@ function regId(r) {
   return String(r.학번 || r.studentId || r.StudentId || r.id || '').trim();
 }
 
+/* ─── 특정 학번의 서버 제출들 → 제출 목록(최신 먼저) ─── */
+function buildSubmissions(sid, cohortCourses, jointCourses, responses) {
+  const mine = responses.filter((r) => idFromResponse(r) === sid);
+  return mine.map((r, i) => {
+    const ts = r.Timestamp ? new Date(r.Timestamp) : null;
+    const dateLabel = ts && !isNaN(ts.getTime()) ? ts.toLocaleString('ko-KR') : `제출 ${i + 1}`;
+    return {
+      id: `sub-${i}`,
+      label: `${dateLabel}${r.Major ? ` · ${r.Major}` : ''}`,
+      courses: buildCoursesFromResponse(r, cohortCourses, jointCourses),
+      totalStored: r.TotalCredits,
+    };
+  }).reverse();
+}
+
 /* ─── 대시보드 지표 계산 (순수 함수) ─── */
 function computeDashboard(selectedCourses, { requiredTotalCredits, minCreditRules }) {
   const totalCredits = selectedCourses.reduce((s, c) => s + (Number(c.credits) || 0), 0);
@@ -233,12 +248,14 @@ export default function CreditsPage() {
 
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [courses, setCourses] = useState([]); // 학생 모드: 편제표(코호트)+공동교육
+
+  /* 서버 데이터 (학생/관리자 공통) */
+  const [jointAll, setJointAll] = useState([]);
+  const [responsesAll, setResponsesAll] = useState([]);
+  const [studentCohortCourses, setStudentCohortCourses] = useState([]); // 학생 모드: 본인 코호트 편제표
 
   /* 관리자 모드 상태 */
-  const [jointAll, setJointAll] = useState([]);
   const [registry, setRegistry] = useState([]);
-  const [responsesAll, setResponsesAll] = useState([]);
   const [selGrade, setSelGrade] = useState('');
   const [selClass, setSelClass] = useState('');
   const [selectedSid, setSelectedSid] = useState('');
@@ -247,32 +264,11 @@ export default function CreditsPage() {
   const [adminError, setAdminError] = useState('');
   const cohortConfigCache = useRef({});
 
-  const [activeSubId, setActiveSubId] = useState('current');
+  const [activeSubId, setActiveSubId] = useState('');
 
   const student = useMemo(() => getVerifiedStudent(), []);
   const studentId = student.studentId || student.학번 || '';
   const schoolName = settings?.schoolName || localStorage.getItem('school_name') || '이수현황';
-
-  /* 학생이 현재 선택한 과목 ID 목록 (sessionStorage) */
-  const selectedIdSet = useMemo(() => {
-    try {
-      const cur = JSON.parse(sessionStorage.getItem('currentSelection') || '[]');
-      if (Array.isArray(cur) && cur.length > 0) return new Set(cur);
-    } catch {}
-    try {
-      const pending = JSON.parse(sessionStorage.getItem('pendingSelectedCourses') || '[]');
-      if (Array.isArray(pending)) return new Set(pending.map((p) => p.id));
-    } catch {}
-    return new Set();
-  }, []);
-
-  /* 신청 이력 (localStorage) — 최신 먼저 */
-  const submissionHistory = useMemo(() => {
-    try {
-      const arr = JSON.parse(localStorage.getItem('submissionHistory') || '[]');
-      return Array.isArray(arr) ? arr.slice().reverse() : [];
-    } catch { return []; }
-  }, []);
 
   /* ── 초기 로드 ── */
   useEffect(() => {
@@ -293,16 +289,18 @@ export default function CreditsPage() {
           setResponsesAll(Array.isArray(resp) ? resp : resp?.data || []);
           setJointAll(normalizeJoint(jc));
         } else {
-          const stg = await fetchSettings().catch(() => null);
-          if (cancelled) return;
-          setSettings(stg);
           const cohort = cohortFromId(studentId) || 1;
-          const [cfg, jc] = await Promise.all([
+          const [stg, cfg, jc, resp] = await Promise.all([
+            fetchSettings().catch(() => null),
             fetchConfig(cohort).catch(() => []),
             fetchJointCurriculum().catch(() => []),
+            fetchResponses().catch(() => []),
           ]);
           if (cancelled) return;
-          setCourses([...normalizeConfig(cfg), ...normalizeJoint(jc)]);
+          setSettings(stg);
+          setStudentCohortCourses(normalizeConfig(cfg));
+          setJointAll(normalizeJoint(jc));
+          setResponsesAll(Array.isArray(resp) ? resp : resp?.data || []);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -352,24 +350,14 @@ export default function CreditsPage() {
         cohortCourses = normalizeConfig(cfg);
         cohortConfigCache.current[cohort] = cohortCourses;
       }
-      const mine = responsesAll.filter((r) => idFromResponse(r) === sid);
-      if (mine.length === 0) {
-        setAdminSubmissions([]); setSelectedSid(sid);
+      const subs = buildSubmissions(sid, cohortCourses, jointAll, responsesAll);
+      setSelectedSid(sid);
+      if (subs.length === 0) {
+        setAdminSubmissions([]);
         setAdminError(`학번 ${sid}의 제출 내역이 없습니다.`);
         return;
       }
-      const subs = mine.map((r, i) => {
-        const ts = r.Timestamp ? new Date(r.Timestamp) : null;
-        const dateLabel = ts && !isNaN(ts.getTime()) ? ts.toLocaleString('ko-KR') : `제출 ${i + 1}`;
-        return {
-          id: `sub-${i}`,
-          label: `${dateLabel}${r.Major ? ` · ${r.Major}` : ''}`,
-          courses: buildCoursesFromResponse(r, cohortCourses, jointAll),
-          totalStored: r.TotalCredits,
-        };
-      }).reverse(); // 최신 먼저
       setAdminSubmissions(subs);
-      setSelectedSid(sid);
       setActiveSubId(subs[0].id);
     } catch (e) {
       setAdminError('불러오기 실패: ' + (e?.message || e));
@@ -378,30 +366,18 @@ export default function CreditsPage() {
     }
   }
 
-  /* ── 학생 모드: 제출 목록 ── */
-  const liveSelectedCourses = useMemo(() => {
-    if (courses.length === 0) return [];
-    return courses.filter((c) => c.required || selectedIdSet.has(c.id));
-  }, [courses, selectedIdSet]);
-
+  /* ── 학생 모드: 본인 학번의 서버 제출 목록 ── */
   const studentSubmissions = useMemo(() => {
-    const list = [{ id: 'current', label: '현재 선택 (미제출)', courses: liveSelectedCourses, totalStored: null }];
-    submissionHistory.forEach((h, i) => {
-      const snap = Array.isArray(h.courses) ? h.courses.map((c, j) => ({
-        joint: !!c.joint,
-        required: !!c.required,
-        subjectName: c.subjectName,
-        credits: Number(c.credits) || 0,
-        grade: Number(c.grade) || 0,
-        semester: Number(c.semester) || 0,
-        category: c.category || '',
-        subCategory: c.subCategory || '',
-        id: c.id || `snap-${i}-${j}`,
-      })) : [];
-      list.push({ id: `h-${h.timestamp || i}`, label: h.dateLabel || `제출 ${i + 1}`, courses: snap, totalStored: h.totalCredits });
-    });
-    return list;
-  }, [liveSelectedCourses, submissionHistory]);
+    if (isAdminPreview || !studentId) return [];
+    return buildSubmissions(studentId, studentCohortCourses, jointAll, responsesAll);
+  }, [isAdminPreview, studentId, studentCohortCourses, jointAll, responsesAll]);
+
+  /* 학생 모드: 제출 목록 로드되면 최신 제출 자동 선택 */
+  useEffect(() => {
+    if (!isAdminPreview && studentSubmissions.length > 0 && !studentSubmissions.some((s) => s.id === activeSubId)) {
+      setActiveSubId(studentSubmissions[0].id);
+    }
+  }, [isAdminPreview, studentSubmissions, activeSubId]);
 
   /* ── 활성 제출 + 대시보드 ── */
   const submissions = isAdminPreview ? adminSubmissions : studentSubmissions;
@@ -493,7 +469,7 @@ export default function CreditsPage() {
               {dash.allOk
                 ? '모든 학점 이수 규칙을 충족했습니다'
                 : activeCourses.length === 0
-                  ? (isAdminPreview ? '선택 과목 데이터가 없습니다' : '아직 과목을 선택하지 않았습니다')
+                  ? (isAdminPreview ? '선택 과목 데이터가 없습니다' : '아직 제출한 수강신청이 없습니다')
                   : `검증 실패 ${dash.issues.length}건`}
             </span>
           </div>
@@ -668,18 +644,20 @@ export default function CreditsPage() {
             </select>
           </div>
         )}
-        <div className="flex justify-end mb-3 no-print">
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-semibold"
-            style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
-            </svg>
-            PDF로 저장
-          </button>
-        </div>
+        {activeCourses.length > 0 && (
+          <div className="flex justify-end mb-3 no-print">
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-semibold"
+              style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
+              </svg>
+              PDF로 저장
+            </button>
+          </div>
+        )}
       </>
     );
   }
@@ -798,40 +776,22 @@ export default function CreditsPage() {
       <Header title={schoolName} avatarLabel={avatarLabel} />
 
       <div className="flex-1 overflow-y-auto px-5 pt-4 pb-24 max-w-2xl mx-auto w-full">
-        {renderControls()}
-        {renderReport()}
-
-        {/* 신청 이력 (학생 본인 화면만) */}
-        {submissionHistory.length > 0 && (
-          <div className="bg-white rounded-2xl p-4 mb-3 shadow-sm no-print">
-            <div className="text-sm font-bold text-slate-800 mb-2.5" style={{ fontFamily: "'Manrope', sans-serif" }}>
-              최근 신청 이력
-            </div>
-            <div className="space-y-2">
-              {submissionHistory.slice(0, 5).map((h, i) => (
-                <div key={i} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs text-slate-700 font-medium truncate">{h.dateLabel}</div>
-                    <div className="text-[0.65rem] text-slate-400">
-                      {h.totalCredits}학점 · {(h.courses || []).length}과목
-                      {(h.jointCredits ?? 0) > 0 && <span className="text-violet-600"> · 공동 {h.jointCredits}</span>}
-                    </div>
-                  </div>
-                  <span className="text-[0.65rem] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex-shrink-0">
-                    저장됨
-                  </span>
-                </div>
-              ))}
-            </div>
-            {submissionHistory.length > 5 && (
-              <button
-                onClick={() => navigate('/profile')}
-                className="mt-2 text-xs text-indigo-600 hover:underline"
-              >
-                전체 이력 보기 →
-              </button>
-            )}
+        {!isConfigured() ? (
+          <div className="bg-white rounded-2xl p-8 text-center shadow-sm mt-4">
+            <p className="text-sm text-slate-400 mb-3">학생 인증이 필요합니다.</p>
+            <button
+              onClick={() => navigate('/login')}
+              className="px-5 py-2.5 rounded-xl text-white text-sm font-bold"
+              style={{ background: 'linear-gradient(135deg, #3525cd, #4f46e5)' }}
+            >
+              로그인 하러 가기 →
+            </button>
           </div>
+        ) : (
+          <>
+            {renderControls()}
+            {renderReport()}
+          </>
         )}
       </div>
 

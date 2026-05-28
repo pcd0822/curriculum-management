@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { init, verifyStudent } from '../api/db.js';
-import { setVerifiedStudent } from '../api/student.js';
+import { setVerifiedStudent, getVerifiedStudent } from '../api/student.js';
 import MobileNav from '../components/MobileNav';
 
 export default function LoginPage() {
@@ -43,6 +43,21 @@ export default function LoginPage() {
         studentCode: studentCode.trim(),
         studentId: studentId.trim(),
       });
+
+      /* 다른 학번으로 로그인하면 이전 학생의 기기 로컬 데이터를 정리한다.
+         (이수현황·이력은 서버에서 본인 학번으로 불러오므로 잔존 로컬이 남의 데이터로 보이면 안 됨) */
+      const prev = getVerifiedStudent();
+      const prevId = String(prev?.studentId || prev?.학번 || '').trim();
+      const newId = studentId.trim();
+      if (prevId && prevId !== newId) {
+        try {
+          localStorage.removeItem('submissionHistory');
+          sessionStorage.removeItem('currentSelection');
+          sessionStorage.removeItem('pendingSelectedCourses');
+          sessionStorage.removeItem('previewSelection');
+          sessionStorage.removeItem('applyAiRecommendations');
+        } catch { /* ignore */ }
+      }
 
       /* Store verified student info for downstream pages */
       setVerifiedStudent({
