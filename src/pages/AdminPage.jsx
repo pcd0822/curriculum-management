@@ -1000,20 +1000,40 @@ export default function AdminPage() {
   /* ── Share tab ── */
   const shareUrl = apiUrl ? `${window.location.origin}/login?key=${btoa(apiUrl)}` : '';
 
+  /* ── 동일 학번 중복 제출 → 최신 제출 1건만 유지 ──
+     (전체 이력은 학생 개인 이수현황의 '수강신청 데이터 선택'에서 확인 가능) */
+  const dedupedResponses = useMemo(() => {
+    const idOf = (r) => (r.Grade ? `${r.Grade}${String(r.Class).padStart(2, '0')}${String(r.Number).padStart(2, '0')}` : '');
+    const tsOf = (r) => { const t = r?.Timestamp ? new Date(r.Timestamp).getTime() : NaN; return Number.isNaN(t) ? null : t; };
+    const best = new Map(); // 학번 → { r, idx, ts }
+    const noId = [];
+    responses.forEach((r, idx) => {
+      const id = idOf(r);
+      if (!id) { noId.push({ r, idx }); return; }
+      const prev = best.get(id);
+      const cur = { r, idx, ts: tsOf(r) };
+      if (!prev) { best.set(id, cur); return; }
+      /* 최신 판별: Timestamp 둘 다 있으면 비교, 아니면 시트 행 순서(나중 행=최신) */
+      const newer = (cur.ts != null && prev.ts != null) ? cur.ts >= prev.ts : cur.idx >= prev.idx;
+      if (newer) best.set(id, cur);
+    });
+    return [...best.values(), ...noId].sort((a, b) => a.idx - b.idx).map((e) => e.r);
+  }, [responses]);
+
   /* ── Stats (Dashboard) ── */
-  const totalStudents = responses.length || 0;
-  const passCount = responses.filter(r => {
+  const totalStudents = dedupedResponses.length || 0;
+  const passCount = dedupedResponses.filter(r => {
     const v = (r.ValidationResult || r.validationResult || '');
     return v.includes('통과') || v.includes('충족');
   }).length;
   const failCount = totalStudents - passCount;
   const avgCredits = totalStudents > 0
-    ? (responses.reduce((s, r) => s + (Number(r.TotalCredits || r.totalCredits) || 0), 0) / totalStudents).toFixed(1)
+    ? (dedupedResponses.reduce((s, r) => s + (Number(r.TotalCredits || r.totalCredits) || 0), 0) / totalStudents).toFixed(1)
     : '0';
   const passRate = totalStudents > 0 ? ((passCount / totalStudents) * 100).toFixed(0) : '0';
 
   /* ── Table data ── */
-  const tableRows = responses.map(r => ({
+  const tableRows = dedupedResponses.map(r => ({
     id: r.Grade ? `${r.Grade}${String(r.Class).padStart(2,'0')}${String(r.Number).padStart(2,'0')}` : '-',
     courses: r.SelectedCourses || r.selectedCourses || '-',
     credits: r.TotalCredits || r.totalCredits || '-',
@@ -1238,7 +1258,7 @@ export default function AdminPage() {
                 <p className="text-xs text-slate-500 mb-4">학생들이 제출한 신청서에서 과목명별로 집계한 인원수입니다.</p>
                 {(() => {
                   const counter = {};
-                  responses.forEach(r => {
+                  dedupedResponses.forEach(r => {
                     const raw = r.SelectedCourses || r.selectedCourses || '';
                     String(raw).split(',').map(s => s.trim()).filter(Boolean).forEach(name => {
                       counter[name] = (counter[name] || 0) + 1;
@@ -1273,7 +1293,7 @@ export default function AdminPage() {
                 <SectionTitle>공동교육과정 누적 신청자 수</SectionTitle>
                 {(() => {
                   const counter = {};
-                  responses.forEach(r => {
+                  dedupedResponses.forEach(r => {
                     const raw = r.JointCourses || r.jointCourses || '';
                     if (Array.isArray(raw)) {
                       raw.forEach(j => {
@@ -2020,7 +2040,7 @@ export default function AdminPage() {
             <div className="space-y-6">
               <Card>
                 <SectionTitle>수강신청 현황</SectionTitle>
-                {responses.length === 0 ? (
+                {dedupedResponses.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-8">아직 수강신청 데이터가 없습니다.</p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -2032,7 +2052,7 @@ export default function AdminPage() {
                         <th className="text-center py-2 px-2 text-slate-500 text-xs">학점</th>
                         <th className="text-center py-2 px-2 text-slate-500 text-xs">검증</th>
                       </tr></thead>
-                      <tbody>{responses.map((r, i) => {
+                      <tbody>{dedupedResponses.map((r, i) => {
                         const sid = r.Grade ? `${r.Grade}${String(r.Class).padStart(2,'0')}${String(r.Number).padStart(2,'0')}` : '-';
                         const vr = (r.ValidationResult || r.validationResult || '');
                         const pass = vr.includes('통과') || vr.includes('충족');
