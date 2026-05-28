@@ -100,3 +100,22 @@ button, input, select, textarea {
 .text-title { font-family: var(--font-sans); font-size: 1.125rem; font-weight: 600; }
 .text-body { font-family: var(--font-sans); font-size: 0.875rem; }
 .text-label { font-family: var(--font-label); font-size: 0.75rem; font-weight: 500; }
+
+/* ── 인쇄(PDF 저장) ── 화면에서는 print-only 숨김, 인쇄 시 리포트 영역만 노출 ── */
+@media screen {
+  .print-only { display: none; }
+}
+@media print {
+  body * { visibility: hidden; }
+  #credit-print-area, #credit-print-area * { visibility: visible; }
+  #credit-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 8mm;
+  }
+  .no-print { display: none !important; }
+  .break-avoid { break-inside: avoid; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
